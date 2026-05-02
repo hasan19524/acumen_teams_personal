@@ -1,36 +1,188 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Acumen Teams
 
-## Getting Started
+Acumen Teams is a modern team collaboration and productivity platform built for organizations to manage communication, tasks, and workflows efficiently — similar to Slack + Teams, but tailored for internal business operations.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🧠 Vision
+
+To build a unified workspace where teams can:
+
+* Communicate seamlessly 💬
+* Manage tasks efficiently 📋
+* Track attendance & performance 📊
+* Collaborate in real-time 🚀
+
+---
+
+## ✨ Features
+
+### 🔐 Authentication System
+
+* Secure login & signup
+* Token-based authentication (JWT)
+* Role-based access (Admin / Team Member)
+
+### 🏠 Dashboard
+
+* Centralized workspace
+* Quick navigation to all modules
+
+### 💬 Team Chat
+
+* Real-time communication
+* Channel-based discussions
+
+### 📢 Announcements
+
+* Broadcast important updates
+* Admin-controlled notifications
+
+### 📅 Attendance Tracking
+
+* Check-in / Check-out system
+* Daily activity monitoring
+
+### 📋 Task Management
+
+* Assign tasks to team members
+* Track progress and status
+
+### ⚙️ Settings
+
+* User profile management
+* App configurations
+
+---
+
+## 🏗️ Tech Stack
+
+### Frontend
+
+* Next.js
+* React
+* Tailwind CSS
+
+### Backend
+
+* Django / Django REST Framework
+
+### Other Tools
+
+* Git & GitHub
+* REST APIs
+* JWT Authentication
+
+---
+
+## 📁 Project Structure
+
+```
+acumen-teams/
+│
+├── app/                # Next.js frontend
+├── acumen_backend/     # Django backend
+├── components/         # Reusable UI components
+├── public/             # Static assets
+├── lib/                # Utilities & helpers
+└── README.md
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ⚙️ Setup Instructions
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1️⃣ Clone the Repository
 
-## Learn More
+```bash
+git clone https://github.com/acumentravels-web/Acumen-Teams.git
+cd Acumen-Teams
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2️⃣ Frontend Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Frontend runs on:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+http://localhost:3000
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+### 3️⃣ Backend Setup
+
+```bash
+cd acumen_backend
+pip install -r requirements.txt
+python manage.py runserver
+```
+
+Backend runs on:
+
+```
+http://127.0.0.1:8000
+```
+
+---
+
+## 🔗 API Integration
+
+Frontend communicates with backend via REST APIs:
+
+Example:
+
+```js
+fetch("http://127.0.0.1:8000/api/accounts/login/", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    login: email,
+    password: password
+  })
+})
+```
+
+---
+
+## 🚀 Future Roadmap
+
+* 🔄 Real-time chat using WebSockets
+* 📁 File sharing system
+* 🔔 Notifications system
+* 📊 Advanced analytics dashboard
+* 🤖 AI-powered productivity assistant
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repo
+2. Create a new branch
+3. Make your changes
+4. Submit a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+## 👨‍💻 Author
+
+**Areesh Jabbar**
+Building Acumen — a next-gen tech ecosystem 🚀
+
+---
