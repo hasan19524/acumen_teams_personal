@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/ui/Navbar";
 
 export default function FeaturesPage() {
@@ -43,27 +44,13 @@ export default function FeaturesPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;700&display=swap');
 
-          .sora {
-            font-family: 'Sora', sans-serif;
-          }
+          .sora { font-family: 'Sora', sans-serif; }
 
-          .card {
-            transition: .25s ease;
-          }
+          .card { transition: .25s ease; }
+          .card:hover { transform: translateY(-6px); box-shadow: 0 30px 60px rgba(0,0,0,.08); }
 
-          .card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 30px 60px rgba(0,0,0,.08);
-          }
-
-          .btn-main {
-            transition: .25s ease;
-          }
-
-          .btn-main:hover {
-            transform: translateY(-2px);
-            background:#1d4ed8 !important;
-          }
+          .btn-main { transition: .25s ease; }
+          .btn-main:hover { transform: translateY(-2px); background:#1d4ed8 !important; }
         `}</style>
 
         {/* HERO */}
@@ -75,13 +62,7 @@ export default function FeaturesPage() {
             textAlign: "center",
           }}
         >
-          <p
-            style={{
-              color: "#2563eb",
-              fontWeight: 700,
-              letterSpacing: 1,
-            }}
-          >
+          <p style={{ color: "#2563eb", fontWeight: 700, letterSpacing: 1 }}>
             FEATURES
           </p>
 
@@ -109,8 +90,8 @@ export default function FeaturesPage() {
               lineHeight: 1.7,
             }}
           >
-            Chat, tasks, attendance, analytics and management tools —
-            built for modern businesses that want speed and structure.
+            Chat, tasks, attendance, analytics and management tools — built for
+            modern businesses that want speed and structure.
           </p>
 
           <div
@@ -122,32 +103,37 @@ export default function FeaturesPage() {
               flexWrap: "wrap",
             }}
           >
-            <button
+            <Link
+              href="/signup"
               className="btn-main"
               style={{
                 background: "#2563eb",
                 color: "#fff",
-                border: "none",
+                textDecoration: "none",
                 padding: "16px 34px",
                 borderRadius: 999,
                 fontWeight: 700,
-                cursor: "pointer",
+                display: "inline-block",
               }}
             >
               Start Free Trial
-            </button>
+            </Link>
 
-            <button
+            <Link
+              href="/support"
               style={{
                 background: "#fff",
+                color: "#0b1228",
+                textDecoration: "none",
                 border: "1px solid rgba(0,0,0,.08)",
                 padding: "16px 34px",
                 borderRadius: 999,
-                cursor: "pointer",
+                fontWeight: 700,
+                display: "inline-block",
               }}
             >
               Book Demo
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -177,23 +163,11 @@ export default function FeaturesPage() {
                   border: "1px solid rgba(0,0,0,.06)",
                 }}
               >
-                <h3
-                  className="sora"
-                  style={{
-                    fontSize: 26,
-                    marginBottom: 14,
-                  }}
-                >
+                <h3 className="sora" style={{ fontSize: 26, marginBottom: 14 }}>
                   {item.title}
                 </h3>
 
-                <p
-                  style={{
-                    color: "#64748b",
-                    lineHeight: 1.7,
-                    fontSize: 16,
-                  }}
-                >
+                <p style={{ color: "#64748b", lineHeight: 1.7, fontSize: 16 }}>
                   {item.desc}
                 </p>
               </div>
@@ -209,19 +183,8 @@ export default function FeaturesPage() {
             padding: "100px 28px",
           }}
         >
-          <div
-            style={{
-              maxWidth: 1300,
-              margin: "0 auto",
-            }}
-          >
-            <h2
-              className="sora"
-              style={{
-                fontSize: 54,
-                textAlign: "center",
-              }}
-            >
+          <div style={{ maxWidth: 1300, margin: "0 auto" }}>
+            <h2 className="sora" style={{ fontSize: 54, textAlign: "center" }}>
               Why Acumen Teams?
             </h2>
 
@@ -261,19 +224,9 @@ export default function FeaturesPage() {
 
         {/* DASHBOARD SHOWCASE */}
         <section
-          style={{
-            maxWidth: 1300,
-            margin: "0 auto",
-            padding: "100px 28px",
-          }}
+          style={{ maxWidth: 1300, margin: "0 auto", padding: "100px 28px" }}
         >
-          <h2
-            className="sora"
-            style={{
-              fontSize: 56,
-              textAlign: "center",
-            }}
-          >
+          <h2 className="sora" style={{ fontSize: 56, textAlign: "center" }}>
             Powerful Insights
           </h2>
 
@@ -313,17 +266,8 @@ export default function FeaturesPage() {
                   borderRadius: 22,
                 }}
               >
-                <p style={{ color: "rgba(255,255,255,.55)" }}>
-                  {card.title}
-                </p>
-
-                <h3
-                  className="sora"
-                  style={{
-                    fontSize: 44,
-                    marginTop: 10,
-                  }}
-                >
+                <p style={{ color: "rgba(255,255,255,.55)" }}>{card.title}</p>
+                <h3 className="sora" style={{ fontSize: 44, marginTop: 10 }}>
                   {card.value}
                 </h3>
               </div>
@@ -340,12 +284,7 @@ export default function FeaturesPage() {
             textAlign: "center",
           }}
         >
-          <h2
-            className="sora"
-            style={{
-              fontSize: 56,
-            }}
-          >
+          <h2 className="sora" style={{ fontSize: 56 }}>
             Ready to Empower Your Team?
           </h2>
 
@@ -359,21 +298,22 @@ export default function FeaturesPage() {
             Start using Acumen Teams today and simplify business management.
           </p>
 
-          <button
+          <Link
+            href="/signup"
             className="btn-main"
             style={{
+              display: "inline-block",
               marginTop: 34,
               background: "#2563eb",
               color: "#fff",
-              border: "none",
+              textDecoration: "none",
               padding: "18px 42px",
               borderRadius: 999,
               fontWeight: 700,
-              cursor: "pointer",
             }}
           >
             Start Free Trial
-          </button>
+          </Link>
         </section>
       </main>
     </>

@@ -1,168 +1,53 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
-  Home,
-  Clock3,
-  ClipboardList,
-  MessageSquare,
-  Users,
-  Settings,
-  LogOut,
   Search,
   UserPlus,
   Shield,
   Download,
   MoreHorizontal,
-  ChevronDown,
 } from "lucide-react";
+import DashboardSidebar from "@/components/DashboardSidebar";
 
 export default function TeamPage() {
   const [search, setSearch] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
 
-  const users = [
-    {
-      name: "Areesh Jabbar",
-      email: "areesh@acumen.com",
-      role: "Super Admin",
-      dept: "Management",
-      status: "Active",
-      lastSeen: "Now",
-    },
-    {
-      name: "Amaan Khan",
-      email: "amaan@acumen.com",
-      role: "Manager",
-      dept: "Sales",
-      status: "Active",
-      lastSeen: "2 min ago",
-    },
-    {
-      name: "Sarah Ali",
-      email: "sarah@acumen.com",
-      role: "HR",
-      dept: "Human Resources",
-      status: "Pending",
-      lastSeen: "-",
-    },
-    {
-      name: "Rohan Patel",
-      email: "rohan@acumen.com",
-      role: "Employee",
-      dept: "Development",
-      status: "Suspended",
-      lastSeen: "1 day ago",
-    },
-  ];
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    fetch("http://127.0.0.1:8000/api/workspaces/members/", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(d => Array.isArray(d) ? setUsers(d) : setUsers([])).catch(() => {});
+  }, []);
 
   const filtered = users.filter(
     (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
+      (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.username || "").toLowerCase().includes(search.toLowerCase()),
   );
 
   const badge = (status: string) => {
-    if (status === "Active")
-      return { bg: "#16a34a", text: "#fff" };
-    if (status === "Pending")
-      return { bg: "#f59e0b", text: "#fff" };
+    if (status === "Active") return { bg: "#16a34a", text: "#fff" };
+    if (status === "Pending") return { bg: "#f59e0b", text: "#fff" };
     return { bg: "#ef4444", text: "#fff" };
-  };
-
-  const sideLink = (
-    href: string,
-    icon: any,
-    active = false
-  ) => {
-    const Icon = icon;
-    return (
-      <Link
-        href={href}
-        style={{
-          width: 46,
-          height: 46,
-          borderRadius: 14,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: active
-            ? "linear-gradient(135deg,#3b82f6,#4f46e5)"
-            : "rgba(255,255,255,.04)",
-          color: "#fff",
-          textDecoration: "none",
-          marginBottom: 14,
-          transition: ".2s",
-        }}
-      >
-        <Icon size={20} />
-      </Link>
-    );
   };
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg,#020617 0%, #020b22 100%)",
+        background: "linear-gradient(180deg,#020617 0%, #020b22 100%)",
         color: "#fff",
         display: "flex",
         fontFamily: "Inter, sans-serif",
       }}
     >
-      {/* Sidebar */}
-      <aside
-        style={{
-          width: 78,
-          borderRight: "1px solid rgba(255,255,255,.05)",
-          padding: "18px 14px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-        }}
-      >
-        <div
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 14,
-            background:
-              "linear-gradient(135deg,#3b82f6,#4f46e5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 800,
-            fontSize: 20,
-            marginBottom: 24,
-          }}
-        >
-          AT
-        </div>
+      {/* SHARED SIDEBAR */}
+      <DashboardSidebar />
 
-        {sideLink("/dashboard", Home)}
-        {sideLink("/dashboard/attendance", Clock3)}
-        {sideLink("/dashboard/tasks", ClipboardList)}
-        {sideLink("/dashboard/chat", MessageSquare)}
-        {sideLink("/dashboard/team", Users, true)}
-        {sideLink("/dashboard/settings", Settings)}
-
-        <div style={{ marginTop: "auto" }}>
-          {sideLink("/login", LogOut)}
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main
-        style={{
-          flex: 1,
-          padding: "26px",
-        }}
-      >
-        {/* Header */}
+      {/* Main — unchanged */}
+      <main style={{ flex: 1, padding: "26px" }}>
         <div
           style={{
             display: "flex",
@@ -183,7 +68,6 @@ export default function TeamPage() {
             >
               Workspace Admin Console
             </h1>
-
             <p
               style={{
                 marginTop: 8,
@@ -195,13 +79,7 @@ export default function TeamPage() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 14,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             {[
               { icon: Shield, text: "Permissions" },
               { icon: Download, text: "Export" },
@@ -224,20 +102,17 @@ export default function TeamPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <Icon size={17} />
-                  {btn.text}
+                  <Icon size={17} /> {btn.text}
                 </button>
               );
             })}
-
             <button
               style={{
                 height: 46,
                 padding: "0 20px",
                 borderRadius: 14,
                 border: "none",
-                background:
-                  "linear-gradient(135deg,#3b82f6,#4f46e5)",
+                background: "linear-gradient(135deg,#3b82f6,#4f46e5)",
                 color: "#fff",
                 display: "flex",
                 alignItems: "center",
@@ -246,13 +121,11 @@ export default function TeamPage() {
                 cursor: "pointer",
               }}
             >
-              <UserPlus size={18} />
-              Invite User
+              <UserPlus size={18} /> Invite User
             </button>
           </div>
         </div>
 
-        {/* Search */}
         <div
           style={{
             marginTop: 28,
@@ -266,13 +139,10 @@ export default function TeamPage() {
           }}
         >
           <Search size={18} color="rgba(255,255,255,.6)" />
-
           <input
             placeholder="Search users..."
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
+            onChange={(e) => setSearch(e.target.value)}
             style={{
               flex: 1,
               background: "transparent",
@@ -284,7 +154,6 @@ export default function TeamPage() {
           />
         </div>
 
-        {/* Table */}
         <div
           style={{
             marginTop: 24,
@@ -294,18 +163,15 @@ export default function TeamPage() {
             background: "rgba(255,255,255,.02)",
           }}
         >
-          {/* Header */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns:
-                "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
+              gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
               padding: "18px 22px",
               color: "rgba(255,255,255,.55)",
               fontWeight: 700,
               fontSize: 14,
-              borderBottom:
-                "1px solid rgba(255,255,255,.05)",
+              borderBottom: "1px solid rgba(255,255,255,.05)",
             }}
           >
             <div>User</div>
@@ -318,15 +184,13 @@ export default function TeamPage() {
           </div>
 
           {filtered.map((u, i) => {
-            const b = badge(u.status);
-
+            const b = badge("Active");
             return (
               <div
                 key={i}
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
+                  gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
                   padding: "18px 22px",
                   alignItems: "center",
                   borderBottom:
@@ -335,28 +199,15 @@ export default function TeamPage() {
                       : "none",
                 }}
               >
-                <div style={{ fontWeight: 700 }}>
-                  {u.name}
-                </div>
-
-                <div
-                  style={{
-                    color: "rgba(255,255,255,.75)",
-                  }}
-                >
-                  {u.email}
-                </div>
-
-                {/* Role Dropdown */}
+                <div style={{ fontWeight: 700 }}>{u.full_name || u.username}</div>
+                <div style={{ color: "rgba(255,255,255,.75)" }}>{u.username}</div>
                 <select
                   defaultValue={u.role}
                   style={{
                     height: 42,
-                    background:
-                      "rgba(255,255,255,.03)",
+                    background: "rgba(255,255,255,.03)",
                     color: "#fff",
-                    border:
-                      "1px solid rgba(255,255,255,.06)",
+                    border: "1px solid rgba(255,255,255,.06)",
                     borderRadius: 12,
                     padding: "0 12px",
                     outline: "none",
@@ -368,17 +219,13 @@ export default function TeamPage() {
                   <option>HR</option>
                   <option>Employee</option>
                 </select>
-
-                {/* Dept Dropdown */}
                 <select
-                  defaultValue={u.dept}
+                  defaultValue={u.team || "No Team"}
                   style={{
                     height: 42,
-                    background:
-                      "rgba(255,255,255,.03)",
+                    background: "rgba(255,255,255,.03)",
                     color: "#fff",
-                    border:
-                      "1px solid rgba(255,255,255,.06)",
+                    border: "1px solid rgba(255,255,255,.06)",
                     borderRadius: 12,
                     padding: "0 12px",
                     outline: "none",
@@ -390,7 +237,6 @@ export default function TeamPage() {
                   <option>Development</option>
                   <option>Support</option>
                 </select>
-
                 <div>
                   <span
                     style={{
@@ -402,26 +248,19 @@ export default function TeamPage() {
                       fontSize: 13,
                     }}
                   >
-                    {u.status}
+                    {"Active"}
                   </span>
                 </div>
-
-                <div
-                  style={{
-                    color: "rgba(255,255,255,.72)",
-                  }}
-                >
-                  {u.lastSeen}
+                <div style={{ color: "rgba(255,255,255,.72)" }}>
+                  {"-"}
                 </div>
-
                 <button
                   style={{
                     width: 40,
                     height: 40,
                     borderRadius: 12,
                     border: "none",
-                    background:
-                      "rgba(255,255,255,.04)",
+                    background: "rgba(255,255,255,.04)",
                     color: "#fff",
                     cursor: "pointer",
                   }}

@@ -1,4 +1,5 @@
-import { Button } from "@/components/ui/button";
+"use client";
+
 import Link from "next/link";
 import Navbar from "@/components/ui/Navbar";
 
@@ -10,7 +11,9 @@ export default function LandingPage() {
       sub: "Forever free",
       desc: "Perfect for solo founders",
       cta1: "Get Started",
+      cta1Href: "/signup",
       cta2: "Login",
+      cta2Href: "/login",
       features: [
         "1 User",
         "Team Chat",
@@ -27,7 +30,9 @@ export default function LandingPage() {
       sub: "per user / month",
       desc: "For growing small teams",
       cta1: "Buy Now",
+      cta1Href: "/signup",
       cta2: "Try Free",
+      cta2Href: "/signup",
       features: [
         "Everything in Free",
         "5 Users",
@@ -44,7 +49,9 @@ export default function LandingPage() {
       sub: "per user / month",
       desc: "Most Popular",
       cta1: "Buy Now",
+      cta1Href: "/signup",
       cta2: "Try Free",
+      cta2Href: "/signup",
       features: [
         "Everything in Starter",
         "20 Users",
@@ -61,7 +68,9 @@ export default function LandingPage() {
       sub: "per user / month",
       desc: "For advanced companies",
       cta1: "Contact Sales",
+      cta1Href: "/support",
       cta2: "Book Demo",
+      cta2Href: "/support",
       features: [
         "Unlimited Users",
         "Custom Branding",
@@ -88,9 +97,7 @@ export default function LandingPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;700&display=swap');
 
-          .sora {
-            font-family: 'Sora', sans-serif;
-          }
+          .sora { font-family: 'Sora', sans-serif; }
 
           .hero-title {
             font-family: 'Sora', sans-serif;
@@ -107,36 +114,16 @@ export default function LandingPage() {
             -webkit-text-fill-color: transparent;
           }
 
-          .card-hover {
-            transition: all .25s ease;
-          }
+          .card-hover { transition: all .25s ease; }
+          .card-hover:hover { transform: translateY(-8px); box-shadow: 0 30px 70px rgba(0,0,0,.08); }
 
-          .card-hover:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 30px 70px rgba(0,0,0,.08);
-          }
+          .btn-main { transition: .25s ease; }
+          .btn-main:hover { transform: translateY(-2px); background:#1d4ed8 !important; }
 
-          .btn-main {
-            transition: .25s ease;
-          }
+          .btn-outline { transition: .25s ease; }
+          .btn-outline:hover { background: rgba(0,0,0,.03) !important; }
 
-          .btn-main:hover {
-            transform: translateY(-2px);
-            background:#1d4ed8 !important;
-          }
-
-          .btn-outline {
-            transition: .25s ease;
-          }
-
-          .btn-outline:hover {
-            background: rgba(0,0,0,.03) !important;
-          }
-
-          .featured {
-            box-shadow: 0 25px 80px rgba(37,99,235,.18);
-            border: 2px solid #2563eb !important;
-          }
+          .featured { box-shadow: 0 25px 80px rgba(37,99,235,.18); border: 2px solid #2563eb !important; }
         `}</style>
 
         {/* HERO */}
@@ -196,37 +183,42 @@ export default function LandingPage() {
                 flexWrap: "wrap",
               }}
             >
-              <button
+              <Link
+                href="/signup"
                 className="btn-main"
                 style={{
                   background: "#2563eb",
                   color: "#fff",
-                  border: "none",
+                  textDecoration: "none",
                   padding: "16px 32px",
                   borderRadius: 999,
                   fontWeight: 700,
-                  cursor: "pointer",
+                  display: "inline-block",
                 }}
               >
                 Start Free Trial
-              </button>
+              </Link>
 
-              <button
+              <Link
+                href="/features"
                 className="btn-outline"
                 style={{
                   background: "#fff",
+                  color: "#0b1228",
+                  textDecoration: "none",
                   border: "1px solid rgba(0,0,0,.08)",
                   padding: "16px 32px",
                   borderRadius: 999,
-                  cursor: "pointer",
+                  fontWeight: 700,
+                  display: "inline-block",
                 }}
               >
                 Watch Demo
-              </button>
+              </Link>
             </div>
           </div>
 
-          {/* RIGHT DASHBOARD */}
+          {/* RIGHT DASHBOARD PREVIEW */}
           <div
             style={{
               background: "#081028",
@@ -236,13 +228,7 @@ export default function LandingPage() {
               boxShadow: "0 35px 90px rgba(0,0,0,.16)",
             }}
           >
-            <h3
-              className="sora"
-              style={{
-                fontSize: 28,
-                marginBottom: 22,
-              }}
-            >
+            <h3 className="sora" style={{ fontSize: 28, marginBottom: 22 }}>
               Team Overview
             </h3>
 
@@ -265,16 +251,8 @@ export default function LandingPage() {
                     padding: 22,
                   }}
                 >
-                  <p style={{ color: "rgba(255,255,255,.45)" }}>
-                    {item.label}
-                  </p>
-                  <h4
-                    className="sora"
-                    style={{
-                      fontSize: 42,
-                      marginTop: 10,
-                    }}
-                  >
+                  <p style={{ color: "rgba(255,255,255,.45)" }}>{item.label}</p>
+                  <h4 className="sora" style={{ fontSize: 42, marginTop: 10 }}>
                     {item.value}
                   </h4>
                 </div>
@@ -352,8 +330,7 @@ export default function LandingPage() {
                     <div
                       style={{
                         display: "inline-block",
-                        background:
-                          "linear-gradient(135deg,#2563eb,#6366f1)",
+                        background: "linear-gradient(135deg,#2563eb,#6366f1)",
                         color: "#fff",
                         padding: "6px 14px",
                         borderRadius: 999,
@@ -369,7 +346,6 @@ export default function LandingPage() {
                   <h3 className="sora" style={{ fontSize: 28 }}>
                     {plan.name}
                   </h3>
-
                   <div
                     className="sora"
                     style={{
@@ -381,9 +357,7 @@ export default function LandingPage() {
                   >
                     {plan.price}
                   </div>
-
                   <p style={{ color: "#64748b", marginTop: 6 }}>{plan.sub}</p>
-
                   <p style={{ color: "#64748b", marginTop: 2 }}>{plan.desc}</p>
 
                   <div
@@ -394,35 +368,40 @@ export default function LandingPage() {
                       marginTop: 26,
                     }}
                   >
-                    <button
+                    <Link
+                      href={plan.cta1Href}
                       className="btn-main"
                       style={{
-                        width: "100%",
+                        display: "block",
+                        textAlign: "center",
                         background: "#2563eb",
                         color: "#fff",
-                        border: "none",
+                        textDecoration: "none",
                         padding: 14,
                         borderRadius: 999,
                         fontWeight: 700,
-                        cursor: "pointer",
                       }}
                     >
                       {plan.cta1}
-                    </button>
+                    </Link>
 
-                    <button
+                    <Link
+                      href={plan.cta2Href}
                       className="btn-outline"
                       style={{
-                        width: "100%",
+                        display: "block",
+                        textAlign: "center",
                         background: "#fff",
+                        color: "#0b1228",
+                        textDecoration: "none",
                         border: "1px solid rgba(0,0,0,.08)",
                         padding: 14,
                         borderRadius: 999,
-                        cursor: "pointer",
+                        fontWeight: 700,
                       }}
                     >
                       {plan.cta2}
-                    </button>
+                    </Link>
                   </div>
 
                   <hr
@@ -434,11 +413,7 @@ export default function LandingPage() {
                   />
 
                   <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      marginBottom: 14,
-                    }}
+                    style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}
                   >
                     PLAN HIGHLIGHTS
                   </p>
@@ -454,13 +429,7 @@ export default function LandingPage() {
                     }}
                   >
                     {plan.features.map((f) => (
-                      <li
-                        key={f}
-                        style={{
-                          color: "#475569",
-                          fontSize: 14,
-                        }}
-                      >
+                      <li key={f} style={{ color: "#475569", fontSize: 14 }}>
                         ✓ {f}
                       </li>
                     ))}
@@ -493,25 +462,50 @@ export default function LandingPage() {
               fontSize: 18,
             }}
           >
-            Join Acumen Teams and manage your company in one modern
-            workspace.
+            Join Acumen Teams and manage your company in one modern workspace.
           </p>
 
-          <button
-            className="btn-main"
+          <div
             style={{
+              display: "flex",
+              gap: 14,
+              justifyContent: "center",
               marginTop: 36,
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              padding: "18px 42px",
-              borderRadius: 999,
-              fontWeight: 700,
-              cursor: "pointer",
+              flexWrap: "wrap",
             }}
           >
-            Start Free Trial
-          </button>
+            <Link
+              href="/signup"
+              className="btn-main"
+              style={{
+                background: "#2563eb",
+                color: "#fff",
+                textDecoration: "none",
+                padding: "18px 42px",
+                borderRadius: 999,
+                fontWeight: 700,
+                display: "inline-block",
+              }}
+            >
+              Start Free Trial
+            </Link>
+
+            <Link
+              href="/login"
+              style={{
+                background: "rgba(255,255,255,.08)",
+                color: "#fff",
+                textDecoration: "none",
+                padding: "18px 42px",
+                borderRadius: 999,
+                fontWeight: 700,
+                border: "1px solid rgba(255,255,255,.15)",
+                display: "inline-block",
+              }}
+            >
+              Login
+            </Link>
+          </div>
         </section>
       </main>
     </>

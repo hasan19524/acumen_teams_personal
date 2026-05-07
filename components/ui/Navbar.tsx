@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,7 +7,6 @@ import { useEffect, useState } from "react";
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -16,25 +14,31 @@ export default function Navbar() {
     setIsLoggedIn(!!token);
   }, [pathname]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refresh");
-    setIsLoggedIn(false);
-    router.push("/login");
-  };
+  // Redirect logged-in users away from all public pages to dashboard
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (
+      token &&
+      !pathname.startsWith("/dashboard") &&
+      pathname !== "/login" &&
+      pathname !== "/signup"
+    ) {
+      router.replace("/dashboard");
+    }
+  }, [pathname, router]);
 
-  const navLink = (href: string) => ({
-    color: pathname === href ? "#ffffff" : "rgba(255,255,255,.65)",
-    textDecoration: "none",
-    fontSize: 14,
-    fontWeight: pathname === href ? 700 : 500,
-    cursor: "pointer",
-  });
+  // Hide on dashboard (has its own sidebar with logout)
+  if (pathname.startsWith("/dashboard")) return null;
 
-  /* Hide public navbar after login pages like dashboard */
-  if (isLoggedIn && pathname.startsWith("/dashboard")) {
-    return null;
-  }
+  // Hide on login and signup
+  if (pathname === "/login" || pathname === "/signup") return null;
+
+  const navLinks = [
+    ["Home", "/"],
+    ["Features", "/features"],
+    ["Pricing", "/pricing"],
+    ["Support", "/support"],
+  ];
 
   return (
     <header
@@ -63,143 +67,111 @@ export default function Navbar() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 14,
+            gap: 12,
             textDecoration: "none",
           }}
         >
-          <Image
-            src="/Group 3.png"
-            alt="Acumen Teams"
-            width={42}
-            height={42}
-          />
-
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              background: "linear-gradient(135deg,#3b82f6,#4f46e5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              color: "#fff",
+              fontSize: 16,
+            }}
+          >
+            AT
+          </div>
           <div>
-            <h2 style={{ color: "#fff", margin: 0, fontSize: 17 }}>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>
               Acumen Teams
-            </h2>
-
-            <p
-              style={{
-                color: "rgba(255,255,255,.45)",
-                margin: 0,
-                fontSize: 11,
-              }}
-            >
+            </div>
+            <div style={{ color: "rgba(255,255,255,.45)", fontSize: 11 }}>
               Productivity Platform
-            </p>
+            </div>
           </div>
         </Link>
 
         {/* Nav Links */}
-        <nav
-          style={{
-            display: "flex",
-            gap: 34,
-            alignItems: "center",
-          }}
-        >
-          <Link href="/" style={navLink("/")}>
-            Home
-          </Link>
-
-          <Link href="/features" style={navLink("/features")}>
-            Features
-          </Link>
-
-          <Link href="/pricing" style={navLink("/pricing")}>
-            Pricing
-          </Link>
-
-          <Link href="/support" style={navLink("/support")}>
-            Support
-          </Link>
+        <nav style={{ display: "flex", gap: 34, alignItems: "center" }}>
+          {navLinks.map(([label, href]) => (
+            <Link
+              key={label}
+              href={href}
+              style={{
+                color: pathname === href ? "#ffffff" : "rgba(255,255,255,.65)",
+                textDecoration: "none",
+                fontSize: 14,
+                fontWeight: pathname === href ? 700 : 500,
+              }}
+            >
+              {label}
+            </Link>
+          ))}
         </nav>
 
-        {/* Right Buttons */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-          }}
-        >
-          {!isLoggedIn ? (
-            <>
-              <Link
-                href="/login"
-                style={{
-                  color: "#fff",
-                  textDecoration: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  height: 42,
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0 8px",
-                }}
-              >
-                Login
-              </Link>
-
-              <Link
-                href="/download"
-                style={{
-                  background: "rgba(255,255,255,.08)",
-                  color: "#fff",
-                  textDecoration: "none",
-                  height: 42,
-                  padding: "0 20px",
-                  borderRadius: 999,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "1px solid rgba(255,255,255,.08)",
-                }}
-              >
-                Download
-              </Link>
-
-              <Link
-                href="/signup"
-                style={{
-                  background: "#2563eb",
-                  color: "#fff",
-                  textDecoration: "none",
-                  height: 42,
-                  padding: "0 22px",
-                  borderRadius: 999,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                Start Free
-              </Link>
-            </>
-          ) : (
-            <button
-              onClick={handleLogout}
+        {/* Right Buttons — only shown when NOT logged in */}
+        {!isLoggedIn && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <Link
+              href="/login"
               style={{
-                background: "#ef4444",
                 color: "#fff",
-                border: "none",
+                textDecoration: "none",
+                fontSize: 14,
+                fontWeight: 600,
+                height: 42,
+                display: "flex",
+                alignItems: "center",
+                padding: "0 8px",
+              }}
+            >
+              Login
+            </Link>
+
+            <Link
+              href="/download"
+              style={{
+                background: "rgba(255,255,255,.08)",
+                color: "#fff",
+                textDecoration: "none",
+                height: 42,
+                padding: "0 20px",
+                borderRadius: 999,
+                fontWeight: 700,
+                fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                border: "1px solid rgba(255,255,255,.08)",
+              }}
+            >
+              Download
+            </Link>
+
+            <Link
+              href="/signup"
+              style={{
+                background: "#2563eb",
+                color: "#fff",
+                textDecoration: "none",
                 height: 42,
                 padding: "0 22px",
                 borderRadius: 999,
                 fontWeight: 700,
                 fontSize: 14,
-                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              Logout
-            </button>
-          )}
-        </div>
+              Start Free
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   );

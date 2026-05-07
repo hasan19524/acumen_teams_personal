@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Navbar from "@/components/ui/Navbar";
 
 export default function PricingPage() {
@@ -8,6 +9,7 @@ export default function PricingPage() {
       sub: "Forever free",
       desc: "Perfect for solo founders",
       cta: "Get Started",
+      href: "/signup",
       featured: false,
       features: [
         "1 User",
@@ -23,6 +25,7 @@ export default function PricingPage() {
       sub: "per user / month",
       desc: "For growing small teams",
       cta: "Start Trial",
+      href: "/signup",
       featured: false,
       features: [
         "5 Users",
@@ -38,6 +41,7 @@ export default function PricingPage() {
       sub: "per user / month",
       desc: "Most Popular",
       cta: "Buy Now",
+      href: "/signup",
       featured: true,
       features: [
         "20 Users",
@@ -53,6 +57,7 @@ export default function PricingPage() {
       sub: "per user / month",
       desc: "For advanced companies",
       cta: "Contact Sales",
+      href: "/support",
       featured: false,
       features: [
         "Unlimited Users",
@@ -79,32 +84,15 @@ export default function PricingPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;700&display=swap');
 
-          .sora {
-            font-family: 'Sora', sans-serif;
-          }
+          .sora { font-family: 'Sora', sans-serif; }
 
-          .card {
-            transition: .25s ease;
-          }
+          .card { transition: .25s ease; }
+          .card:hover { transform: translateY(-8px); box-shadow: 0 30px 70px rgba(0,0,0,.08); }
 
-          .card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 30px 70px rgba(0,0,0,.08);
-          }
+          .featured { border: 2px solid #2563eb !important; box-shadow: 0 25px 80px rgba(37,99,235,.18); }
 
-          .featured {
-            border: 2px solid #2563eb !important;
-            box-shadow: 0 25px 80px rgba(37,99,235,.18);
-          }
-
-          .btn-main {
-            transition: .25s ease;
-          }
-
-          .btn-main:hover {
-            transform: translateY(-2px);
-            background:#1d4ed8 !important;
-          }
+          .btn-main { transition: .25s ease; }
+          .btn-main:hover { transform: translateY(-2px); background:#1d4ed8 !important; }
         `}</style>
 
         {/* HERO */}
@@ -116,13 +104,7 @@ export default function PricingPage() {
             textAlign: "center",
           }}
         >
-          <p
-            style={{
-              color: "#2563eb",
-              fontWeight: 700,
-              letterSpacing: 1,
-            }}
-          >
+          <p style={{ color: "#2563eb", fontWeight: 700, letterSpacing: 1 }}>
             PRICING
           </p>
 
@@ -150,18 +132,14 @@ export default function PricingPage() {
               lineHeight: 1.7,
             }}
           >
-            Choose a plan built for startups, SMEs and growing companies.
-            Scale when you need it.
+            Choose a plan built for startups, SMEs and growing companies. Scale
+            when you need it.
           </p>
         </section>
 
         {/* PRICING CARDS */}
         <section
-          style={{
-            maxWidth: 1300,
-            margin: "0 auto",
-            padding: "0 28px 100px",
-          }}
+          style={{ maxWidth: 1300, margin: "0 auto", padding: "0 28px 100px" }}
         >
           <div
             style={{
@@ -185,8 +163,7 @@ export default function PricingPage() {
                   <div
                     style={{
                       display: "inline-block",
-                      background:
-                        "linear-gradient(135deg,#2563eb,#6366f1)",
+                      background: "linear-gradient(135deg,#2563eb,#6366f1)",
                       color: "#fff",
                       padding: "6px 14px",
                       borderRadius: 999,
@@ -199,12 +176,7 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                <h3
-                  className="sora"
-                  style={{
-                    fontSize: 30,
-                  }}
-                >
+                <h3 className="sora" style={{ fontSize: 30 }}>
                   {plan.name}
                 </h3>
 
@@ -220,40 +192,28 @@ export default function PricingPage() {
                   {plan.price}
                 </div>
 
-                <p
-                  style={{
-                    color: "#64748b",
-                    marginTop: 8,
-                  }}
-                >
-                  {plan.sub}
-                </p>
+                <p style={{ color: "#64748b", marginTop: 8 }}>{plan.sub}</p>
+                <p style={{ color: "#64748b", marginTop: 4 }}>{plan.desc}</p>
 
-                <p
-                  style={{
-                    color: "#64748b",
-                    marginTop: 4,
-                  }}
-                >
-                  {plan.desc}
-                </p>
-
-                <button
+                <Link
+                  href={plan.href}
                   className="btn-main"
                   style={{
+                    display: "block",
+                    textAlign: "center",
                     width: "100%",
                     marginTop: 28,
                     background: "#2563eb",
                     color: "#fff",
-                    border: "none",
+                    textDecoration: "none",
                     padding: "14px",
                     borderRadius: 999,
                     fontWeight: 700,
-                    cursor: "pointer",
+                    boxSizing: "border-box",
                   }}
                 >
                   {plan.cta}
-                </button>
+                </Link>
 
                 <hr
                   style={{
@@ -276,10 +236,7 @@ export default function PricingPage() {
                   {plan.features.map((feature) => (
                     <li
                       key={feature}
-                      style={{
-                        color: "#475569",
-                        fontSize: 15,
-                      }}
+                      style={{ color: "#475569", fontSize: 15 }}
                     >
                       ✓ {feature}
                     </li>
@@ -299,18 +256,9 @@ export default function PricingPage() {
           }}
         >
           <div
-            style={{
-              maxWidth: 1300,
-              margin: "0 auto",
-              textAlign: "center",
-            }}
+            style={{ maxWidth: 1300, margin: "0 auto", textAlign: "center" }}
           >
-            <h2
-              className="sora"
-              style={{
-                fontSize: 56,
-              }}
-            >
+            <h2 className="sora" style={{ fontSize: 56 }}>
               Why Teams Choose Us
             </h2>
 
@@ -355,40 +303,30 @@ export default function PricingPage() {
             background: "#f4f7ff",
           }}
         >
-          <h2
-            className="sora"
-            style={{
-              fontSize: 56,
-            }}
-          >
+          <h2 className="sora" style={{ fontSize: 56 }}>
             Start Free Today
           </h2>
 
-          <p
-            style={{
-              marginTop: 18,
-              color: "#64748b",
-              fontSize: 18,
-            }}
-          >
+          <p style={{ marginTop: 18, color: "#64748b", fontSize: 18 }}>
             Upgrade anytime as your company grows.
           </p>
 
-          <button
+          <Link
+            href="/signup"
             className="btn-main"
             style={{
+              display: "inline-block",
               marginTop: 34,
               background: "#2563eb",
               color: "#fff",
-              border: "none",
+              textDecoration: "none",
               padding: "18px 42px",
               borderRadius: 999,
               fontWeight: 700,
-              cursor: "pointer",
             }}
           >
             Start Free Trial
-          </button>
+          </Link>
         </section>
       </main>
     </>

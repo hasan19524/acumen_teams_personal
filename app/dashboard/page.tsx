@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api";
 import {
-  LayoutDashboard,
-  MessageSquare,
   CheckSquare,
   Calendar,
   Megaphone,
@@ -28,29 +28,30 @@ import {
   Award,
 } from "lucide-react";
 
+import DashboardSidebar from "@/components/DashboardSidebar";
+
 export default function DashboardPage() {
   const router = useRouter();
+  const { authChecked } = useAuth();
+  const [stats, setStats] = useState({
+    total_members: 0,
+    total_teams: 0,
+    role: "employee",
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.push("/login");
-    }
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refresh");
-    router.push("/login");
-  };
-
+    if (!authChecked) return;
+    apiFetch("/api/workspaces/stats/")
+      .then((r) => r.json())
+      .then((d) => { if (d) setStats(d); })
+      .catch(() => {});
+  }, [authChecked]);
+  if (!authChecked) return null;
   return (
     <main
       style={{
         minHeight: "100vh",
-        display: "grid",
-        gridTemplateColumns: "280px 1fr",
+        display: "flex",
         background: "#0a0b14",
         fontFamily: "'DM Sans', sans-serif",
         position: "relative",
@@ -97,46 +98,6 @@ export default function DashboardPage() {
           z-index: 0;
           animation: float 20s ease-in-out infinite 5s;
         }
-
-        .menu-item {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          position: relative;
-          overflow: hidden;
-        }
-
-        .menu-item::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
-          transition: left 0.5s;
-        }
-
-        .menu-item:hover::before {
-          left: 100%;
-        }
-
-        .menu-item:hover {
-          background: rgba(255,255,255,.08) !important;
-          transform: translateX(6px);
-          box-shadow: 0 4px 16px rgba(0,0,0,.2);
-        }
-
-        .menu-item.active {
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
-        }
-
-        .menu-item svg {
-          transition: transform 0.3s ease;
-        }
-
-        .menu-item:hover svg {
-          transform: scale(1.1);
-        }
-
         .card-hover {
           transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
@@ -385,126 +346,7 @@ export default function DashboardPage() {
       <div className="bg-orb-1" />
       <div className="bg-orb-2" />
 
-      {/* SIDEBAR */}
-      <aside
-        style={{
-          background: "#12141f",
-          borderRight: "1px solid rgba(255,255,255,.06)",
-          padding: "32px 18px",
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-          zIndex: 10,
-          backdropFilter: "blur(20px)",
-        }}
-      >
-        <div
-          style={{
-            padding: "0 10px 32px",
-            borderBottom: "1px solid rgba(255,255,255,.08)",
-          }}
-        >
-          <h2
-            className="syne logo-gradient shimmer"
-            style={{
-              margin: 0,
-              fontSize: 26,
-              letterSpacing: "-0.5px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <Sparkles size={24} style={{ color: "#818cf8" }} />
-            Acumen Teams
-          </h2>
-
-          <p
-            style={{
-              marginTop: 6,
-              color: "rgba(255,255,255,.4)",
-              fontSize: 11,
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "1.5px",
-            }}
-          >
-            Business Workspace
-          </p>
-        </div>
-
-        <div
-          style={{
-            marginTop: 28,
-            display: "grid",
-            gap: 6,
-          }}
-        >
-          {[
-            { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-            { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
-            { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
-            { name: "Attendance", href: "/dashboard/attendance", icon: Calendar },
-            { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
-            { name: "Team", href: "/dashboard/team", icon: Users },
-            { name: "Settings", href: "/dashboard/settings", icon: Settings },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`menu-item ${item.href === "/dashboard" ? "active" : ""}`}
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: 12,
-                  cursor: "pointer",
-                  color: item.href === "/dashboard" ? "#fff" : "rgba(255,255,255,.65)",
-                  textDecoration: "none",
-                  fontWeight: item.href === "/dashboard" ? 600 : 500,
-                  fontSize: 15,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  background:
-                    item.href === "/dashboard"
-                      ? "linear-gradient(135deg,#6366f1,#818cf8)"
-                      : "transparent",
-                }}
-              >
-                <Icon size={20} />
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
-
-        <div style={{ marginTop: "auto", paddingTop: 20 }}>
-          <button
-            onClick={handleLogout}
-            className="logout-btn"
-            style={{
-              width: "100%",
-              border: "none",
-              cursor: "pointer",
-              background: "#ef4444",
-              color: "#fff",
-              padding: "14px",
-              borderRadius: 12,
-              fontWeight: 600,
-              fontSize: 15,
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-            }}
-          >
-            <LogOut size={18} />
-            Logout
-          </button>
-        </div>
-      </aside>
+      <DashboardSidebar />
 
       {/* CONTENT AREA */}
       <section
@@ -648,10 +490,36 @@ export default function DashboardPage() {
             }}
           >
             {[
-              { value: "15", label: "Team Members", color: "#6366f1", icon: Users, change: "+2" },
-              { value: "8", label: "Pending Tasks", color: "#8b5cf6", icon: CheckSquare, change: "-3" },
-              { value: "92%", label: "Attendance", color: "#10b981", icon: TrendingUp, change: "+5%" },
-              { value: "4", label: "Announcements", color: "#f59e0b", icon: Megaphone, change: "+1" },
+              {
+                value: String(stats.total_members),
+                label: "Team Members",
+                color: "#6366f1",
+                icon: Users,
+                change: "",
+              },
+              {
+                value: String(stats.total_teams || 0),
+                label: "Teams",
+                color: "#8b5cf6",
+                icon: CheckSquare,
+                change: "",
+              },
+              {
+                value:
+                  (stats.role || "employee").charAt(0).toUpperCase() +
+                  (stats.role || "employee").slice(1),
+                label: "Your Role",
+                color: "#10b981",
+                icon: TrendingUp,
+                change: "",
+              },
+              {
+                value: "✓",
+                label: "System Live",
+                color: "#10b981",
+                icon: Megaphone,
+                change: "",
+              },
             ].map((item, index) => {
               const Icon = item.icon;
               return (
@@ -686,24 +554,21 @@ export default function DashboardPage() {
                         justifyContent: "center",
                       }}
                     >
-                      <Icon size={24} style={{ color: item.color }} className="stat-icon" />
+                      <Icon
+                        size={24}
+                        style={{ color: item.color }}
+                        className="stat-icon"
+                      />
                     </div>
                     <div
                       style={{
-                        padding: "4px 10px",
-                        borderRadius: 8,
-                        background: item.change.includes("+") ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                        color: item.change.includes("+") ? "#10b981" : "#ef4444",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#10b981",
+                        boxShadow: "0 0 8px #10b981",
                       }}
-                    >
-                      <ArrowUpRight size={14} style={{ transform: item.change.includes("-") ? "rotate(90deg)" : "" }} />
-                      {item.change}
-                    </div>
+                    />
                   </div>
 
                   <h2
@@ -754,9 +619,24 @@ export default function DashboardPage() {
                 backdropFilter: "blur(20px)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
                 <Zap size={20} style={{ color: "#f59e0b" }} />
-                <h3 className="syne" style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 700 }}>
+                <h3
+                  className="syne"
+                  style={{
+                    margin: 0,
+                    color: "#fff",
+                    fontSize: 18,
+                    fontWeight: 700,
+                  }}
+                >
                   Quick Actions
                 </h3>
               </div>
@@ -794,7 +674,13 @@ export default function DashboardPage() {
                       >
                         <Icon size={16} style={{ color: action.color }} />
                       </div>
-                      <span style={{ color: "rgba(255,255,255,.75)", fontSize: 14, fontWeight: 500 }}>
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,.75)",
+                          fontSize: 14,
+                          fontWeight: 500,
+                        }}
+                      >
                         {action.label}
                       </span>
                     </div>
@@ -814,13 +700,34 @@ export default function DashboardPage() {
                 backdropFilter: "blur(20px)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
                 <Users size={20} style={{ color: "#6366f1" }} />
-                <h3 className="syne" style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 700 }}>
+                <h3
+                  className="syne"
+                  style={{
+                    margin: 0,
+                    color: "#fff",
+                    fontSize: 18,
+                    fontWeight: 700,
+                  }}
+                >
                   Team Online
                 </h3>
               </div>
-              <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
@@ -862,10 +769,24 @@ export default function DashboardPage() {
                   +10
                 </div>
               </div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.5)", fontWeight: 500 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "rgba(255,255,255,.5)",
+                  fontWeight: 500,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
                   <span>Active Now</span>
-                  <span style={{ color: "#10b981", fontWeight: 700 }}>12/15</span>
+                  <span style={{ color: "#10b981", fontWeight: 700 }}>
+                    12/15
+                  </span>
                 </div>
                 <div className="progress-bar">
                   <div className="progress-fill" style={{ width: "80%" }} />
@@ -896,17 +817,60 @@ export default function DashboardPage() {
                   filter: "blur(40px)",
                 }}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, position: "relative", zIndex: 2 }}>
-                <DollarSign size={20} style={{ color: "rgba(255,255,255,.9)" }} />
-                <h3 className="syne" style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 16,
+                  position: "relative",
+                  zIndex: 2,
+                }}
+              >
+                <DollarSign
+                  size={20}
+                  style={{ color: "rgba(255,255,255,.9)" }}
+                />
+                <h3
+                  className="syne"
+                  style={{
+                    margin: 0,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    letterSpacing: "1px",
+                    textTransform: "uppercase",
+                  }}
+                >
                   Revenue
                 </h3>
               </div>
-              <h2 className="syne" style={{ margin: 0, color: "#fff", fontSize: 36, fontWeight: 800, letterSpacing: "-1px", position: "relative", zIndex: 2 }}>
+              <h2
+                className="syne"
+                style={{
+                  margin: 0,
+                  color: "#fff",
+                  fontSize: 36,
+                  fontWeight: 800,
+                  letterSpacing: "-1px",
+                  position: "relative",
+                  zIndex: 2,
+                }}
+              >
                 $128.4K
               </h2>
-              <p style={{ marginTop: 8, color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 500, position: "relative", zIndex: 2 }}>
-                <span style={{ color: "#fff", fontWeight: 700 }}>↑ 23.5%</span> from last month
+              <p
+                style={{
+                  marginTop: 8,
+                  color: "rgba(255,255,255,.8)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  position: "relative",
+                  zIndex: 2,
+                }}
+              >
+                <span style={{ color: "#fff", fontWeight: 700 }}>↑ 23.5%</span>{" "}
+                from last month
               </p>
             </div>
           </div>
@@ -970,11 +934,31 @@ export default function DashboardPage() {
                 }}
               >
                 {[
-                  { text: "John marked attendance at 9:02 AM", time: "2m ago", icon: Calendar },
-                  { text: "New task assigned to Sales Team", time: "15m ago", icon: CheckSquare },
-                  { text: "Meeting announced for 5 PM", time: "1h ago", icon: Megaphone },
-                  { text: "Invoice report uploaded", time: "2h ago", icon: TrendingUp },
-                  { text: "Team member Sarah joined", time: "3h ago", icon: Users },
+                  {
+                    text: "John marked attendance at 9:02 AM",
+                    time: "2m ago",
+                    icon: Calendar,
+                  },
+                  {
+                    text: "New task assigned to Sales Team",
+                    time: "15m ago",
+                    icon: CheckSquare,
+                  },
+                  {
+                    text: "Meeting announced for 5 PM",
+                    time: "1h ago",
+                    icon: Megaphone,
+                  },
+                  {
+                    text: "Invoice report uploaded",
+                    time: "2h ago",
+                    icon: TrendingUp,
+                  },
+                  {
+                    text: "Team member Sarah joined",
+                    time: "3h ago",
+                    icon: Users,
+                  },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -992,8 +976,21 @@ export default function DashboardPage() {
                         gap: 12,
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-                        <Icon size={16} style={{ color: "rgba(255,255,255,.4)", flexShrink: 0 }} />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          flex: 1,
+                        }}
+                      >
+                        <Icon
+                          size={16}
+                          style={{
+                            color: "rgba(255,255,255,.4)",
+                            flexShrink: 0,
+                          }}
+                        />
                         <span
                           style={{
                             color: "rgba(255,255,255,.75)",
@@ -1004,8 +1001,17 @@ export default function DashboardPage() {
                           {item.text}
                         </span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Clock size={12} style={{ color: "rgba(255,255,255,.3)" }} />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <Clock
+                          size={12}
+                          style={{ color: "rgba(255,255,255,.3)" }}
+                        />
                         <span
                           style={{
                             color: "rgba(255,255,255,.4)",
@@ -1044,7 +1050,10 @@ export default function DashboardPage() {
                     marginBottom: 8,
                   }}
                 >
-                  <TrendingUp size={16} style={{ color: "rgba(255,255,255,.9)" }} />
+                  <TrendingUp
+                    size={16}
+                    style={{ color: "rgba(255,255,255,.9)" }}
+                  />
                   <p
                     style={{
                       margin: 0,
@@ -1087,7 +1096,8 @@ export default function DashboardPage() {
                     zIndex: 2,
                   }}
                 >
-                  Your team is performing strongly this week. Keep momentum high.
+                  Your team is performing strongly this week. Keep momentum
+                  high.
                 </p>
 
                 <div
@@ -1115,31 +1125,82 @@ export default function DashboardPage() {
                   backdropFilter: "blur(20px)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
                   <Target size={20} style={{ color: "#f59e0b" }} />
-                  <h3 className="syne" style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 700 }}>
+                  <h3
+                    className="syne"
+                    style={{
+                      margin: 0,
+                      color: "#fff",
+                      fontSize: 18,
+                      fontWeight: 700,
+                    }}
+                  >
                     Monthly Goals
                   </h3>
                 </div>
                 <div style={{ display: "grid", gap: 12 }}>
                   {[
-                    { label: "Tasks Completed", value: 78, max: 100, color: "#6366f1" },
-                    { label: "Team Meetings", value: 12, max: 15, color: "#10b981" },
-                    { label: "Client Calls", value: 24, max: 30, color: "#f59e0b" },
+                    {
+                      label: "Tasks Completed",
+                      value: 78,
+                      max: 100,
+                      color: "#6366f1",
+                    },
+                    {
+                      label: "Team Meetings",
+                      value: 12,
+                      max: 15,
+                      color: "#10b981",
+                    },
+                    {
+                      label: "Client Calls",
+                      value: 24,
+                      max: 30,
+                      color: "#f59e0b",
+                    },
                   ].map((goal) => (
                     <div key={goal.label}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                        <span style={{ fontSize: 13, color: "rgba(255,255,255,.7)", fontWeight: 500 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: "rgba(255,255,255,.7)",
+                            fontWeight: 500,
+                          }}
+                        >
                           {goal.label}
                         </span>
-                        <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: "#fff",
+                            fontWeight: 700,
+                          }}
+                        >
                           {goal.value}/{goal.max}
                         </span>
                       </div>
                       <div className="progress-bar">
                         <div
                           className="progress-fill"
-                          style={{ width: `${(goal.value / goal.max) * 100}%`, background: goal.color }}
+                          style={{
+                            width: `${(goal.value / goal.max) * 100}%`,
+                            background: goal.color,
+                          }}
                         />
                       </div>
                     </div>
