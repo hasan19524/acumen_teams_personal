@@ -1,6 +1,14 @@
 from django.contrib import admin
-from .models import Workspace, Team, UserProfile
+from .models import (
+    Workspace,
+    Team,
+    WorkspaceMembership,
+    WorkspaceInvite,
+    TeamMembership,
+)
 
 admin.site.register(Workspace)
 admin.site.register(Team)
-admin.site.register(UserProfile)
+admin.site.register(WorkspaceMembership)
+admin.site.register(WorkspaceInvite)
+admin.site.register(TeamMembership)

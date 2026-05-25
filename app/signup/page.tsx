@@ -44,6 +44,7 @@ export default function SignupPage() {
         localStorage.setItem("token", data.access);
         localStorage.setItem("refresh", data.refresh);
         localStorage.setItem("username", data.username);
+        if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
         router.push("/dashboard");
       } else {
         setError(data.error || "Signup failed. Please try again.");

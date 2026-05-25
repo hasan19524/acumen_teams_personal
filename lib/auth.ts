@@ -7,5 +7,6 @@ export function logout(): void {
   localStorage.removeItem("token");
   localStorage.removeItem("refresh");
   localStorage.removeItem("username");
+  localStorage.removeItem("user_id");
   window.location.href = "/";
 }

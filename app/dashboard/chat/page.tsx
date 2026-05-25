@@ -1,5 +1,7 @@
 "use client";
 
+import { useWebSocket } from "@/features/chat/hooks/useWebSocket";
+import { ConnectionStatus } from "@/features/chat/components/ConnectionStatus";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -14,8 +16,7 @@ import {
   Send,
 } from "lucide-react";
 import DashboardSidebar from "@/components/DashboardSidebar";
-
-const API_URL = "http://127.0.0.1:8000";
+import { ChevronDown } from "lucide-react";
 
 type ChatUser = {
   id: number;
@@ -30,13 +31,28 @@ type ChatUser = {
 type MessageType = {
   id?: number;
   sender: string;
+  sender_id?: number;
   text: string;
   time: string;
+};
+
+type PaginationState = {
+  nextOffset: number;
+  hasOlder: boolean;
 };
 
 export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- NEW: Refs for synchronization & stability (Fixes 2, 4, 5, 8) ---
+  const selectedChatRef = useRef<ChatUser | null>(null);
+  const isAtBottomRef = useRef(true);
+  const isLoadingOlderRef = useRef(false); // Issue 4: Sync concurrency lock
+  const initialLoadDoneRef = useRef<Set<number>>(new Set()); // Issue 2: Track initial loads
+  const prevScrollHeightRef = useRef(0); // Issue 8: Scroll restoration
+
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
@@ -44,67 +60,127 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<ChatUser[]>([]);
   const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<Record<number, MessageType[]>>({});
+  const [pagination, setPagination] = useState<Record<number, PaginationState>>(
+    {},
+  );
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
   const [showNewChannel, setShowNewChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
 
+  const MAX_MESSAGES = 200; // Issue 6: Memory cap per channel
+
   const { authChecked } = useAuth();
+
+  const myUserId =
+    typeof window !== "undefined"
+      ? parseInt(localStorage.getItem("user_id") || "0")
+      : 0;
+
+  // Keep selectedChat ref in sync to avoid stale closures (Fix 5)
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
+  useEffect(() => {
+    isAtBottomRef.current = isAtBottom;
+  }, [isAtBottom]);
 
   useEffect(() => {
     if (!authChecked) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
     loadChannels();
   }, [authChecked]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, selectedChat]);
+  const {
+    state: wsState,
+    send: wsSend,
+    isReady,
+  } = useWebSocket({
+    channelId: selectedChat?.channel_id ?? null,
+    onMessage: (data) => {
+      // Issue 5: Use ref to avoid stale closure channel mismatch
+      const currentChat = selectedChatRef.current;
+      if (!currentChat) return;
+
+      if (data.type === "message") {
+        // Use channel_id from WS payload (requires consumer fix), fallback to currentChat
+        const targetChannelId = data.channel_id || currentChat.channel_id;
+
+        const newMsg = {
+          id: data.id,
+          sender: data.sender,
+          sender_id: data.sender_id,
+          text: data.content,
+          time: new Date(data.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+
+        setMessages((prev) => {
+          const existing = prev[targetChannelId] || [];
+
+          // Issue 1: Deduplicate WS insertions
+          if (newMsg.id && existing.some((m) => m.id === newMsg.id)) {
+            return prev;
+          }
+
+          const updated = [...existing, newMsg];
+
+          // Issue 6: Cap memory growth
+          const trimmed =
+            updated.length > MAX_MESSAGES
+              ? updated.slice(updated.length - MAX_MESSAGES)
+              : updated;
+
+          return { ...prev, [targetChannelId]: trimmed };
+        });
+
+        // Auto-scroll only if user is at bottom
+        if (
+          isAtBottomRef.current &&
+          targetChannelId === currentChat.channel_id
+        ) {
+          setTimeout(
+            () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+            50,
+          );
+        }
+      } else if (data.type === "typing") {
+        console.debug("Typing:", data.username);
+      } else if (data.type === "presence") {
+        console.debug("Presence:", data.username, data.status);
+      }
+    },
+    onError: (error) => console.error("WebSocket error:", error),
+  });
 
   useEffect(() => {
     if (!selectedChat) return;
-
-    // Load history from REST API first
+    // Reset state for new channel
+    initialLoadDoneRef.current.delete(selectedChat.channel_id);
+    setMessages((prev) => ({ ...prev, [selectedChat.channel_id]: [] }));
+    setPagination((prev) => ({
+      ...prev,
+      [selectedChat.channel_id]: { nextOffset: 0, hasOlder: false },
+    }));
+    isLoadingOlderRef.current = false;
+    setIsLoadingOlder(false);
     loadMessages(selectedChat.channel_id);
+  }, [selectedChat?.channel_id]);
 
-    // Close previous WebSocket if switching channels
-    if (wsRef.current) {
-      wsRef.current.close();
+  // Issue 8: Scroll restoration after prepending older messages
+  useEffect(() => {
+    if (isLoadingOlder && messagesContainerRef.current) {
+      const newScrollHeight = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        newScrollHeight - prevScrollHeightRef.current;
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
     }
-
-    // Open new WebSocket for this channel
-    const ws = new WebSocket(
-      `ws://127.0.0.1:8000/ws/chat/${selectedChat.channel_id}/`,
-    );
-
-    ws.onopen = () => {
-      console.log("WebSocket connected to channel", selectedChat.channel_id);
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      const newMsg = {
-        sender: data.sender,
-        text: data.content,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-      setMessages((prev) => ({
-        ...prev,
-        [selectedChat.channel_id]: [
-          ...(prev[selectedChat.channel_id] || []),
-          newMsg,
-        ],
-      }));
-    };
-
-    ws.onerror = (err) => console.error("WebSocket error:", err);
-
-    wsRef.current = ws;
-
-    return () => {
-      ws.close();
-    };
-  }, [selectedChat]);
+  }, [messages, isLoadingOlder]);
 
   const randomColor = () => {
     const colors = [
@@ -165,40 +241,174 @@ export default function ChatPage() {
 
   const loadMessages = async (channelId: number) => {
     try {
-      const res = await apiFetch(`/api/chat/messages/${channelId}/`);
+      const limit = 30;
+      // 1. Get total count
+      const countRes = await apiFetch(
+        `/api/chat/messages/${channelId}/?limit=1&offset=0`,
+      );
+      const countData = await countRes.json();
+      const total = countData.total || 0;
+
+      // 2. Calculate offset for LATEST messages (Ascending order)
+      const initialOffset = Math.max(0, total - limit);
+
+      const res = await apiFetch(
+        `/api/chat/messages/${channelId}/?limit=${limit}&offset=${initialOffset}`,
+      );
       const data = await res.json();
-      const rawMessages = Array.isArray(data)
-        ? data
-        : Array.isArray(data.results)
-          ? data.results
-          : [];
+      const rawMessages = Array.isArray(data.results) ? data.results : [];
+
       const parsed = rawMessages.map((msg: any) => ({
         id: msg.id,
         sender: msg.sender?.username || "User",
+        sender_id: msg.sender?.id,
         text: msg.content,
         time: new Date(msg.created_at).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }),
       }));
+
       setMessages((prev) => ({ ...prev, [channelId]: parsed }));
-    } catch {
+
+      // 3. Set pagination state
+      setPagination((prev) => ({
+        ...prev,
+        [channelId]: {
+          nextOffset: Math.max(0, initialOffset - limit), // Issue 3: Clamp offset
+          hasOlder: initialOffset > 0,
+        },
+      }));
+
+      // Issue 2: Auto-scroll ONLY on initial load
+      if (!initialLoadDoneRef.current.has(channelId)) {
+        setTimeout(() => {
+          bottomRef.current?.scrollIntoView({ behavior: "auto" });
+          setIsAtBottom(true);
+          initialLoadDoneRef.current.add(channelId);
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Failed to load messages:", error);
       setMessages((prev) => ({ ...prev, [channelId]: [] }));
     }
   };
 
+  const loadOlderMessages = async () => {
+    if (!selectedChat) return;
+
+    // Issue 4: Synchronous concurrency lock
+    if (isLoadingOlderRef.current) return;
+
+    const pag = pagination[selectedChat.channel_id];
+    if (!pag || !pag.hasOlder) return;
+
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+
+    const limit = 30;
+    const offset = pag.nextOffset;
+
+    // Save scroll height before state update (Fix 8)
+    if (messagesContainerRef.current) {
+      prevScrollHeightRef.current = messagesContainerRef.current.scrollHeight;
+    }
+
+    try {
+      const res = await apiFetch(
+        `/api/chat/messages/${selectedChat.channel_id}/?limit=${limit}&offset=${offset}`,
+      );
+      const data = await res.json();
+      const rawMessages = Array.isArray(data.results) ? data.results : [];
+
+      if (rawMessages.length === 0) {
+        setPagination((prev) => ({
+          ...prev,
+          [selectedChat.channel_id]: {
+            ...prev[selectedChat.channel_id],
+            hasOlder: false,
+          },
+        }));
+        isLoadingOlderRef.current = false;
+        setIsLoadingOlder(false);
+        return;
+      }
+
+      const parsed = rawMessages.map((msg: any) => ({
+        id: msg.id,
+        sender: msg.sender?.username || "User",
+        sender_id: msg.sender?.id,
+        text: msg.content,
+        time: new Date(msg.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      }));
+
+      setMessages((prev) => {
+        const existing: MessageType[] = prev[selectedChat.channel_id] || [];
+
+        // Explicitly type 'm' as MessageType
+        const existingIds = new Set(existing.map((m: MessageType) => m.id));
+
+        // Explicitly type 'm' as MessageType
+        const newMsgs = parsed.filter(
+          (m: MessageType) => !m.id || !existingIds.has(m.id),
+        );
+
+        const updated = [...newMsgs, ...existing];
+        const trimmed =
+          updated.length > MAX_MESSAGES
+            ? updated.slice(0, MAX_MESSAGES)
+            : updated;
+        return { ...prev, [selectedChat.channel_id]: trimmed };
+      });
+
+      // Update pagination pointer
+      setPagination((prev) => ({
+        ...prev,
+        [selectedChat.channel_id]: {
+          nextOffset: Math.max(0, offset - limit), // Issue 3: Clamp offset
+          hasOlder: offset > 0,
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to load older messages:", error);
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!selectedChat) return;
+    const container = e.currentTarget;
+
+    const isBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      100;
+    setIsAtBottom(isBottom);
+
+    if (container.scrollTop < 100) {
+      loadOlderMessages();
+    }
+  };
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setIsAtBottom(true);
+  };
+
   const handleSend = () => {
     if (!selectedChat || !messageInput.trim()) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!isReady()) {
+      console.warn("WebSocket not ready");
+      return;
+    }
 
-    const username = localStorage.getItem("username") || "User";
-
-    wsRef.current.send(
-      JSON.stringify({
-        content: messageInput,
-        sender: username,
-      }),
-    );
+    wsSend({
+      type: "message",
+      content: messageInput,
+    });
 
     setMessageInput("");
   };
@@ -335,6 +545,9 @@ export default function ChatPage() {
           flexDirection: "column",
           flex: 1,
           background: "#0b0c14",
+          height: "100vh",
+          maxHeight: "100vh",
+          overflow: "hidden",
         }}
       >
         {/* HEADER */}
@@ -352,12 +565,12 @@ export default function ChatPage() {
             <div style={{ fontWeight: 700 }}>
               {selectedChat?.name || "Select Chat"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6 }}>Active now</div>
+            <ConnectionStatus state={wsState} />
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             {[Phone, Video, MoreVertical].map((Icon, i) => (
               <div
-                key={i}
+                key={`header-icon-${i}`}
                 style={{
                   width: 38,
                   height: 38,
@@ -378,80 +591,140 @@ export default function ChatPage() {
         <div
           style={{
             flex: 1,
-            overflowY: "auto",
-            padding: 24,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          {(selectedChat &&
-            messages[selectedChat.channel_id]?.map((msg, i) => {
-              const mine = msg.sender === localStorage.getItem("username");
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: mine ? "flex-end" : "flex-start",
-                    alignItems: "flex-end",
-                    gap: 8,
-                  }}
-                >
-                  {!mine && (
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "#fff",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {msg.sender.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div style={{ maxWidth: "65%" }}>
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            style={{
+              width: "100%",
+              height: "100%",
+              overflowY: "auto",
+              overflowX: "hidden",
+              overflowAnchor: 'auto',
+              padding: 24,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            {/* Load Older Indicator */}
+            {selectedChat && pagination[selectedChat.channel_id]?.hasOlder && (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 10,
+                  opacity: 0.6,
+                  fontSize: 14,
+                }}
+              >
+                {isLoadingOlder
+                  ? "Loading older messages..."
+                  : "Scroll up to load more"}
+              </div>
+            )}
+
+            {selectedChat && messages[selectedChat.channel_id]?.length > 0 ? (
+              messages[selectedChat.channel_id].map((msg) => {
+                const mine = msg.sender_id === myUserId;
+                return (
+                  <div
+                    key={msg.id} // Fix 7: No index fallback, ID is enforced
+                    style={{
+                      display: "flex",
+                      justifyContent: mine ? "flex-end" : "flex-start",
+                      alignItems: "flex-end",
+                      gap: 8,
+                    }}
+                  >
                     {!mine && (
                       <div
                         style={{
-                          fontSize: 11,
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 13,
                           fontWeight: 700,
-                          color: "#818cf8",
-                          marginBottom: 4,
-                          paddingLeft: 2,
+                          color: "#fff",
+                          flexShrink: 0,
                         }}
                       >
-                        {msg.sender}
+                        {msg.sender.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: mine
-                          ? "16px 16px 4px 16px"
-                          : "16px 16px 16px 4px",
-                        background: mine
-                          ? "linear-gradient(135deg,#6366f1,#818cf8)"
-                          : "#1a1d2b",
-                      }}
-                    >
-                      <div style={{ fontSize: 14 }}>{msg.text}</div>
-                      <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
-                        {msg.time}
+                    <div style={{ maxWidth: "65%" }}>
+                      {!mine && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#818cf8",
+                            marginBottom: 4,
+                            paddingLeft: 2,
+                          }}
+                        >
+                          {msg.sender}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: mine
+                            ? "16px 16px 4px 16px"
+                            : "16px 16px 16px 4px",
+                          background: mine
+                            ? "linear-gradient(135deg,#6366f1,#818cf8)"
+                            : "#1a1d2b",
+                        }}
+                      >
+                        <div style={{ fontSize: 14 }}>{msg.text}</div>
+                        <div
+                          style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}
+                        >
+                          {msg.time}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })) || <div style={{ opacity: 0.6 }}>No messages yet.</div>}
-          <div ref={bottomRef} />
+                );
+              })
+            ) : (
+              <div style={{ opacity: 0.6 }}>No messages yet.</div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Down Arrow Button */}
+          {!isAtBottom && (
+            <button
+              onClick={scrollToBottom}
+              style={{
+                position: "absolute",
+                bottom: 20,
+                right: 20,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg,#6366f1,#818cf8)",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 12px rgba(99,102,241,0.4)",
+                zIndex: 10,
+              }}
+            >
+              ↓
+            </button>
+          )}
         </div>
 
         {/* INPUT */}
@@ -465,7 +738,7 @@ export default function ChatPage() {
           <div style={{ display: "flex", gap: 12 }}>
             {[Paperclip, Smile].map((Icon, i) => (
               <div
-                key={i}
+                key={`input-icon-${i}`}
                 style={{
                   width: 42,
                   height: 42,
@@ -484,6 +757,7 @@ export default function ChatPage() {
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Type message..."
+              disabled={wsState !== "connected"}
               style={{
                 flex: 1,
                 padding: "12px 16px",
@@ -492,10 +766,11 @@ export default function ChatPage() {
                 background: "#1a1d2b",
                 color: "#fff",
                 outline: "none",
+                opacity: wsState !== "connected" ? 0.5 : 1,
               }}
             />
             <button
-              disabled={sending}
+              disabled={sending || !isReady()}
               onClick={handleSend}
               style={{
                 width: 48,
@@ -504,10 +779,11 @@ export default function ChatPage() {
                 border: "none",
                 background: "linear-gradient(135deg,#6366f1,#818cf8)",
                 color: "#fff",
-                cursor: "pointer",
+                cursor: !sending && isReady() ? "pointer" : "default",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                opacity: !sending && isReady() ? 1 : 0.5,
               }}
             >
               <Send size={18} />

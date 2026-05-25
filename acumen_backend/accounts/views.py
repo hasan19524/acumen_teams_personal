@@ -47,9 +47,8 @@ def register(request):
         last_name=last_name,
     )
 
-    refresh = RefreshToken.for_user(user)
-
-    from workspaces.models import UserProfile, Workspace
+    from workspaces.models import Workspace, WorkspaceMembership
+    from chat.models import Channel, ChannelMember
     from django.utils.text import slugify
     import uuid
 
@@ -63,13 +62,23 @@ def register(request):
         owner=user,
     )
 
-    UserProfile.objects.create(
-        user=user,
+    WorkspaceMembership.objects.create(
         workspace=workspace,
-        full_name=full_name,
-        company_name=company_name,
-        role="admin",
+        user=user,
+        role="owner",
     )
+
+    general = Channel.objects.create(
+        name="general",
+        slug=f"general-{slug}",
+        workspace=workspace,
+        created_by=user,
+        is_dm=False,
+    )
+    ChannelMember.objects.create(channel=general, user=user, role="admin")
+
+    refresh = RefreshToken.for_user(user)
+
     return Response(
         {
             "message": "Account created successfully!",
@@ -136,10 +145,10 @@ def login_user(request):
 def me(request):
     user = request.user
     try:
-        profile = user.profile
-        role = profile.role
-        company_name = profile.company_name
-        full_name = profile.full_name or f"{user.first_name} {user.last_name}".strip()
+        membership = user.memberships.filter(is_active=True).first()
+        role = membership.role if membership else "employee"
+        company_name = membership.workspace.name if membership else ""
+        full_name = f"{user.first_name} {user.last_name}".strip()
     except:
         role = "employee"
         company_name = ""

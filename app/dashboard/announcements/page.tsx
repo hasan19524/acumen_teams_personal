@@ -78,7 +78,7 @@ export default function AnnouncementsPage() {
         <div className="grid gap-4">
           {announcements.map((item, i) => (
             <div
-              key={i}
+              key={item.id ?? `item-${i}`}
               className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 p-6 rounded-2xl transition-all duration-300"
             >
               <div className="flex justify-between items-start">

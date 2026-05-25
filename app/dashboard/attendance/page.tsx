@@ -201,7 +201,7 @@ export default function AttendancePage() {
             {Array.isArray(history) && history.length > 0 ? (
               history.map((item, i) => (
                 <div
-                  key={i}
+                  key={item.id ?? `item-${i}`}
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 1fr 1fr",

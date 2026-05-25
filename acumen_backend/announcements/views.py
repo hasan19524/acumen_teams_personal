@@ -22,7 +22,8 @@ def ann_data(a):
 @permission_classes([IsAuthenticated])
 def announcement_list(request):
     try:
-        workspace = request.user.profile.workspace
+        membership = request.user.memberships.filter(is_active=True).first()
+        workspace = membership.workspace if membership else None
         items = Announcement.objects.filter(workspace=workspace)
     except:
         items = Announcement.objects.filter(created_by=request.user)
@@ -32,17 +33,17 @@ def announcement_list(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def announcement_create(request):
-    try:
-        profile = request.user.profile
-        if profile.role not in ["admin", "leader"]:
-            return Response(
-                {"error": "Only admins and team leaders can post announcements"},
-                status=403,
-            )
-        workspace = profile.workspace
-    except:
-        workspace = None
+    membership = request.user.memberships.filter(is_active=True).first()
+    if not membership:
+        return Response({"error": "No workspace found"}, status=400)
 
+    if membership.role not in ["owner", "admin", "manager"]:
+        return Response(
+            {"error": "Only admins and managers can post announcements"},
+            status=403,
+        )
+
+    workspace = membership.workspace
     title = (request.data.get("title") or "").strip()
     content = (request.data.get("content") or "").strip()
     if not title or not content:

@@ -43,7 +43,9 @@ export default function DashboardPage() {
     if (!authChecked) return;
     apiFetch("/api/workspaces/stats/")
       .then((r) => r.json())
-      .then((d) => { if (d) setStats(d); })
+      .then((d) => {
+        if (d) setStats(d);
+      })
       .catch(() => {});
   }, [authChecked]);
   if (!authChecked) return null;
@@ -730,7 +732,7 @@ export default function DashboardPage() {
               >
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
-                    key={i}
+                    key={`team-member-${i}`} 
                     className="team-member"
                     style={{
                       width: 36,

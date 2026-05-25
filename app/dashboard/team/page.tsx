@@ -18,7 +18,10 @@ export default function TeamPage() {
     const token = localStorage.getItem("token");
     fetch("http://127.0.0.1:8000/api/workspaces/members/", {
       headers: { Authorization: `Bearer ${token}` },
-    }).then(r => r.json()).then(d => Array.isArray(d) ? setUsers(d) : setUsers([])).catch(() => {});
+    })
+      .then((r) => r.json())
+      .then((d) => (Array.isArray(d) ? setUsers(d) : setUsers([])))
+      .catch(() => {});
   }, []);
 
   const filtered = users.filter(
@@ -87,7 +90,7 @@ export default function TeamPage() {
               const Icon = btn.icon;
               return (
                 <button
-                  key={i}
+                  key={item.id ?? `item-${i}`}
                   style={{
                     height: 46,
                     padding: "0 18px",
@@ -187,7 +190,7 @@ export default function TeamPage() {
             const b = badge("Active");
             return (
               <div
-                key={i}
+                key={item.id ?? `item-${i}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
@@ -199,8 +202,12 @@ export default function TeamPage() {
                       : "none",
                 }}
               >
-                <div style={{ fontWeight: 700 }}>{u.full_name || u.username}</div>
-                <div style={{ color: "rgba(255,255,255,.75)" }}>{u.username}</div>
+                <div style={{ fontWeight: 700 }}>
+                  {u.full_name || u.username}
+                </div>
+                <div style={{ color: "rgba(255,255,255,.75)" }}>
+                  {u.username}
+                </div>
                 <select
                   defaultValue={u.role}
                   style={{
@@ -251,9 +258,7 @@ export default function TeamPage() {
                     {"Active"}
                   </span>
                 </div>
-                <div style={{ color: "rgba(255,255,255,.72)" }}>
-                  {"-"}
-                </div>
+                <div style={{ color: "rgba(255,255,255,.72)" }}>{"-"}</div>
                 <button
                   style={{
                     width: 40,

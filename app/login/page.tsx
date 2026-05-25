@@ -32,6 +32,7 @@ export default function LoginPage() {
         localStorage.setItem("token", data.access);
         localStorage.setItem("refresh", data.refresh);
         localStorage.setItem("username", data.username || login);
+        if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
         router.push("/dashboard");
       } else {
         setError(data.error || "Invalid credentials. Please try again.");

@@ -19,7 +19,8 @@ def task_data(t):
 @permission_classes([IsAuthenticated])
 def task_list(request):
     try:
-        workspace = request.user.profile.workspace
+        membership = request.user.memberships.filter(is_active=True).first()
+        workspace = membership.workspace if membership else None
         tasks = Task.objects.filter(workspace=workspace)
     except:
         tasks = Task.objects.filter(created_by=request.user)
@@ -33,7 +34,8 @@ def task_create(request):
     if not title:
         return Response({"error": "Title required"}, status=400)
     try:
-        workspace = request.user.profile.workspace
+        membership = request.user.memberships.filter(is_active=True).first()
+        workspace = membership.workspace if membership else None
     except:
         workspace = None
     task = Task.objects.create(
