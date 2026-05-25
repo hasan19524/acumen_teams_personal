@@ -28,3 +28,6 @@ Thumbs.db
 # IDE
 .vscode/
 *.log
+
+# P~revent zip files
+*.zip

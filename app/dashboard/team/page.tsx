@@ -90,7 +90,7 @@ export default function TeamPage() {
               const Icon = btn.icon;
               return (
                 <button
-                  key={item.id ?? `item-${i}`}
+                  key={`btn-${i}`}
                   style={{
                     height: 46,
                     padding: "0 18px",
@@ -190,7 +190,7 @@ export default function TeamPage() {
             const b = badge("Active");
             return (
               <div
-                key={item.id ?? `item-${i}`}
+                key={u.id ?? `user-${i}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
