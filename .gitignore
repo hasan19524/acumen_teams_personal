@@ -31,3 +31,11 @@ Thumbs.db
 
 # P~revent zip files
 *.zip
+
+# User uploaded files
+acumen_backend/media/
+acumen_backend/uploads/
+
+# General uploads
+media/
+uploads/
