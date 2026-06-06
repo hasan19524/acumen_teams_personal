@@ -7,8 +7,8 @@ from .models import (
     ChannelMember,
     Message,
     MessageAttachment,
-    Notification,
-    NotificationPreference,
+    Reaction,
+    MessageRead,
 )
 
 # ── User & Channel Serializers ────────────────────────────────────────────────
@@ -30,13 +30,39 @@ class ChannelSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
     # For DM channels, expose the "other" user's info
     dm_partner = serializers.SerializerMethodField()
+    # Expose membership status so frontend knows if user has read-only or full access
+    is_member_active = serializers.SerializerMethodField()
+    # Owner details for private groups (raw FK is useless for frontend)
+    owner_details = UserMiniSerializer(source="owner", read_only=True, default=None)
+    # Team context for sidebar grouping
+    team_name = serializers.CharField(source="team.name", read_only=True, default=None)
 
     class Meta:
         model = Channel
-        fields = "__all__"
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "is_private",
+            "is_dm",
+            "channel_type",
+            "owner",
+            "owner_details",
+            "workspace",
+            "team",
+            "team_name",
+            "created_by",
+            "created_at",
+            "member_count",
+            "dm_partner",
+            "is_member_active",
+            "is_pending",
+        ]
+
 
     def get_member_count(self, obj):
-        return obj.members.count()
+        # Only count active members (preserves count accuracy for archived users)
+        return ChannelMember.objects.filter(channel=obj, is_active=True).count()
 
     def get_dm_partner(self, obj):
         if not obj.is_dm:
@@ -44,10 +70,24 @@ class ChannelSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request:
             return None
-        other = obj.members.exclude(user=request.user).select_related("user").first()
+        other = (
+            ChannelMember.objects.filter(channel=obj, is_active=True)
+            .exclude(user=request.user)
+            .select_related("user")
+            .first()
+        )
         if other:
             return UserMiniSerializer(other.user).data
         return None
+
+    def get_is_member_active(self, obj):
+        """Checks if the current user is an active member of this channel."""
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return ChannelMember.objects.filter(
+            channel=obj, user=request.user, is_active=True
+        ).exists()
 
 
 # ── Message & Attachment Serializers ──────────────────────────────────────────
@@ -66,12 +106,46 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         fields = ["id", "file_url", "original_filename", "file_type", "file_size"]
 
     def get_file_url(self, obj):
-        # This constructs the full http://localhost:8000/media/uploads/... URL
-        # In production with S3/Cloudflare, obj.file.url already returns the full URL
+        if not obj.file:
+            return None
         request = self.context.get("request")
-        if request and obj.file:
+        if request:
             return request.build_absolute_uri(obj.file.url)
-        return obj.file.url if obj.file else None
+        from django.conf import settings
+
+        return f"{settings.BASE_URL}{obj.file.url}"
+
+
+class ReplyToSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for the nested reply_to preview.
+    Used inside MessageSerializer for reading only.
+    Maps the DB's parent_message FK to the API's reply_to object.
+    """
+
+    sender_name = serializers.CharField(source="sender.username", read_only=True)
+    sender = UserMiniSerializer(read_only=True)
+    attachments = MessageAttachmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ["id", "content", "sender", "sender_name", "is_deleted", "attachments"]
+
+
+class ReactionSerializer(serializers.ModelSerializer):
+    user = UserMiniSerializer(read_only=True)
+
+    class Meta:
+        model = Reaction
+        fields = ["id", "user", "emoji", "created_at"]
+
+
+class MessageReadSerializer(serializers.ModelSerializer):
+    user = UserMiniSerializer(read_only=True)
+
+    class Meta:
+        model = MessageRead
+        fields = ["user", "read_at"]
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -83,11 +157,27 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    # NEW: Use the safe_content property so soft-deleted messages return "[Message deleted]"
+    # Use the safe_content property so soft-deleted messages return "[Message deleted]"
     display_content = serializers.CharField(source="safe_content", read_only=True)
 
-    # NEW: Nested attachments (allows multiple files per message)
+    # Nested attachments (allows multiple files per message)
     attachments = MessageAttachmentSerializer(many=True, read_only=True)
+
+    # Reactions & Read Receipts
+    reactions = ReactionSerializer(many=True, read_only=True)
+    reads = MessageReadSerializer(many=True, read_only=True)
+
+    # ── Reply system contract ────────────────────────────────────────────
+    # READ: nested object via parent_message FK
+    reply_to = ReplyToSerializer(source="parent_message", read_only=True)
+    # WRITE: accept reply_to_id from frontend, map to parent_message_id DB column
+    reply_to_id = serializers.IntegerField(
+        source="parent_message_id",
+        write_only=True,
+        required=False,
+        allow_null=True,
+        default=None,
+    )
 
     class Meta:
         model = Message
@@ -98,64 +188,17 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender_name",
             "content",
             "display_content",
+            "client_id",
             "is_edited",
             "edited_at",
             "is_deleted",
+            "reply_to",  # NEW: read — nested object
+            "reply_to_id",  # NEW: write — maps to parent_message_id
             "attachments",
+            "reactions",
+            "reads",
             "created_at",
             "created_time",
         ]
         # Content is writable (for creating/editing), but edit/delete tracking is read-only
         read_only_fields = ["is_edited", "edited_at", "is_deleted"]
-
-
-# ── Notification Serializers ──────────────────────────────────────────────────
-
-
-class NotificationSerializer(serializers.ModelSerializer):
-    """Serialize Notification model for API responses."""
-
-    actor_name = serializers.CharField(source="actor.get_full_name", read_only=True)
-    actor_username = serializers.CharField(source="actor.username", read_only=True)
-    workspace_name = serializers.CharField(source="workspace.name", read_only=True)
-
-    class Meta:
-        model = Notification
-        fields = [
-            "id",
-            "notification_type",
-            "actor_id",
-            "actor_name",
-            "actor_username",
-            "title",
-            "description",
-            "status",
-            "metadata",
-            "related_object_id",
-            "workspace_name",
-            "created_at",
-            "read_at",
-        ]
-        read_only_fields = [
-            "id",
-            "created_at",
-            "read_at",
-            "actor_id",
-            "actor_name",
-            "actor_username",
-        ]
-
-
-class NotificationPreferenceSerializer(serializers.ModelSerializer):
-    """Serialize user notification preferences."""
-
-    class Meta:
-        model = NotificationPreference
-        fields = [
-            "dm_requests_enabled",
-            "mentions_enabled",
-            "channel_invites_enabled",
-            "task_assignments_enabled",
-            "all_notifications_muted",
-            "updated_at",
-        ]

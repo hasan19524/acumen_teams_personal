@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "accounts",
     "workspaces",
+    "notifications",
     "chat",
     "attendance",
     "tasks",
@@ -125,3 +126,13 @@ CHANNEL_LAYERS = {
         },
     }
 }
+
+# ── Media & File Upload Configuration ────────────────────────────────────
+BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Allow up to 50MB uploads (matches file_service.py limits)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB

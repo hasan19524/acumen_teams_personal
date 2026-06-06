@@ -43,6 +43,26 @@ class Channel(models.Model):
     slug = models.SlugField(unique=True, blank=True)
     is_private = models.BooleanField(default=False)
     is_dm = models.BooleanField(default=False)
+    CHANNEL_TYPE_CHOICES = [
+        ("official", "Official Channel"),
+        ("team", "Team Chat"),
+        ("private_group", "Private Group"),
+        ("dm", "Direct Message"),
+    ]
+    channel_type = models.CharField(
+        max_length=20,
+        choices=CHANNEL_TYPE_CHOICES,
+        default="official",
+        help_text="Determines channel behavior and membership rules.",
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_channels",
+        help_text="Owner for private groups. Null for official/DMs.",
+    )
     workspace = models.ForeignKey(
         "workspaces.Workspace",
         on_delete=models.CASCADE,
@@ -58,7 +78,17 @@ class Channel(models.Model):
         related_name="channels",
     )
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_pending = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True for private groups that haven't activated yet (creator + 1 member required).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.channel_type == "dm":
+            self.is_dm = True
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -73,9 +103,17 @@ class ChannelMember(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
     joined_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    left_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ("channel", "user")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "user"],
+                condition=models.Q(is_active=True),
+                name="unique_active_channel_member",
+            )
+        ]
 
 
 class Message(models.Model):
@@ -86,6 +124,17 @@ class Message(models.Model):
     content = models.TextField(
         blank=True
     )  # CHANGED: blank=True now, because a message might just be a file
+
+    # NEW: Client-generated UUID for idempotency and optimistic reconciliation.
+    # Prevents duplicate messages on network retries and allows the frontend
+    # to match WS broadcasts with pending optimistic messages.
+    client_id = models.CharField(
+        max_length=36,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Client-generated UUID for idempotency and deduplication",
+    )
 
     # NEW: MVP Scalability - Add threads later without migrating
     parent_message = models.ForeignKey(
@@ -103,6 +152,16 @@ class Message(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+        # Ensures that a client_id can only be used once per channel.
+        # This is the database-level enforcement of upload idempotency.
+        # The condition allows messages without a client_id (null) to coexist.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "client_id"],
+                name="unique_message_client_id_per_channel",
+                condition=~models.Q(client_id=None),
+            )
+        ]
 
     # NEW: Helper property to safely return content for soft-deleted messages
     @property
@@ -120,15 +179,18 @@ class DMRequest(models.Model):
 
     Status transitions:
       pending  -> accepted  (receiver accepts; DM channel auto-created)
-      pending  -> declined  (receiver declines)
+      pending  -> rejected  (receiver rejects)
+      pending  -> expired   (10-day timer runs out)
+      rejected -> pending   (receiver undoes within 24h window)
       accepted -> (terminal)
-      declined -> (terminal; sender can re-request after 24h — future feature)
+      expired  -> (terminal)
     """
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("accepted", "Accepted"),
-        ("declined", "Declined"),
+        ("rejected", "Rejected"),
+        ("expired", "Expired"),
     ]
 
     sender = models.ForeignKey(
@@ -143,6 +205,22 @@ class DMRequest(models.Model):
         related_name="dm_requests",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    initial_message = models.TextField(
+        blank=True,
+        help_text="The single introductory message sent with the DM request."
+    )
+    expires_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the pending request expires (10 days from creation)."
+    )
+    rejected_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the request was rejected."
+    )
+    cooldown_until = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Sender cannot re-request until this time (30 days after 24h undo window)."
+    )
     # Once accepted, the created DM channel is stored here
     dm_channel = models.ForeignKey(
         Channel,
@@ -155,9 +233,9 @@ class DMRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Only one pending request between a pair at a time.
-        # Note: a separate request from B->A after A->B is declined is fine.
-        unique_together = ("sender", "receiver", "workspace")
+        # Removed unique_together. Validation in views handles logic so that
+        # a sender can re-request after cooldown, but cannot have two pending at once.
+        pass
 
     def __str__(self):
         return f"DMRequest {self.sender} -> {self.receiver} [{self.status}]"
@@ -256,131 +334,8 @@ class Report(models.Model):
         return f"Report by {self.reporter} [{self.report_type}] - {self.status}"
 
 
-# chat/models.py - ADD THIS TO EXISTING MODELS FILE
-# This is the new section to add to chat/models.py
-
-# ── Notification ──────────────────────────────────────────────────────────
-
-
-class Notification(models.Model):
-    """
-    Persistent notification record. Stores notifications that need to be delivered
-    or have been delivered to users. This is the audit trail for all notifications.
-
-    Flow:
-      1. Event occurs (DM request sent, mention created, etc.)
-      2. NotificationService.create() stores record in DB
-      3. NotificationService.emit() sends realtime event via WebSocket
-      4. If user offline: Notification row stays in DB until read
-      5. If user online: Notification row created, WebSocket sends, user marks read
-    """
-
-    NOTIFICATION_TYPE_CHOICES = [
-        ("dm_request", "DM Request"),
-        ("dm_request_accepted", "DM Request Accepted"),
-        ("mention", "Mention"),
-        ("channel_invite", "Channel Invite"),
-        ("block_created", "Block Created"),
-        ("task_assigned", "Task Assigned"),
-    ]
-
-    STATUS_CHOICES = [
-        ("unread", "Unread"),
-        ("read", "Read"),
-        ("archived", "Archived"),
-    ]
-
-    # Who receives this notification
-    recipient = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="notifications"
-    )
-
-    # Which workspace this notification is scoped to
-    workspace = models.ForeignKey(
-        "workspaces.Workspace", on_delete=models.CASCADE, related_name="notifications"
-    )
-
-    # Type of notification
-    notification_type = models.CharField(
-        max_length=50, choices=NOTIFICATION_TYPE_CHOICES
-    )
-
-    # User who triggered the notification (sender, requester, etc.)
-    actor = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="notifications_sent",
-    )
-
-    # Generic foreign key data — store the related object ID and type
-    # For DM requests: dm_request_id
-    # For mentions: message_id
-    # For channel invites: channel_id
-    related_object_id = models.IntegerField(null=True, blank=True)
-
-    # Human-readable content (fallback if object deleted)
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-
-    # Status tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="unread")
-
-    # Metadata stored as JSON for extensibility
-    # e.g. {"dm_request_id": 42, "sender_name": "alice"}
-    metadata = models.JSONField(default=dict, blank=True)
-
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    read_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        # Index on recipient + workspace + status for fast queries
-        indexes = [
-            models.Index(fields=["recipient", "workspace", "status"]),
-            models.Index(fields=["recipient", "-created_at"]),
-        ]
-
-    def __str__(self):
-        return f"Notification: {self.notification_type} for {self.recipient.username}"
-
-    def mark_read(self):
-        """Mark this notification as read."""
-        from django.utils import timezone
-
-        self.status = "read"
-        self.read_at = timezone.now()
-        self.save(update_fields=["status", "read_at"])
-
-
-class NotificationPreference(models.Model):
-    """
-    User preferences for what notifications they receive.
-    Allows users to silence specific notification types.
-    """
-
-    # Which user owns these preferences
-    user = models.OneToOneField(
-        User, on_delete=models.CASCADE, related_name="notification_preferences"
-    )
-
-    # Toggle for each notification type
-    dm_requests_enabled = models.BooleanField(default=True)
-    mentions_enabled = models.BooleanField(default=True)
-    channel_invites_enabled = models.BooleanField(default=True)
-    task_assignments_enabled = models.BooleanField(default=True)
-
-    # Global notification toggle
-    all_notifications_muted = models.BooleanField(default=False)
-
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Notification preferences for {self.user.username}"
-
 # ── File Attachments ────────────────────────────────────────────────────────
+
 
 def attachment_upload_path(instance, filename):
     """
@@ -388,25 +343,75 @@ def attachment_upload_path(instance, filename):
     Uses UUID to prevent path manipulation, collisions, and unsafe characters.
     """
     # Extract the file extension from the original filename
-    ext = filename.split('.')[-1].lower() if '.' in filename else 'bin'
-    
+    ext = filename.split(".")[-1].lower() if "." in filename else "bin"
+
     # Generate a safe, unique filename
     safe_filename = f"{uuid.uuid4()}.{ext}"
-    
+
     return f"uploads/{instance.message.channel.workspace_id}/{instance.message.channel_id}/{instance.message.id}/{safe_filename}"
+
 
 class MessageAttachment(models.Model):
     """
-    Separates file data from message text. 
+    Separates file data from message text.
     This is crucial for scalability: fetching messages doesn't pull heavy file bytes,
     and we can restrict file access independently of message access.
     """
-    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="attachments")
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name="attachments"
+    )
     file = models.FileField(upload_to=attachment_upload_path)
-    original_filename = models.CharField(max_length=255) # Stored for UI display ONLY
-    file_type = models.CharField(max_length=100) # e.g., 'image/png', 'application/pdf'
-    file_size = models.PositiveIntegerField() # in bytes
+    original_filename = models.CharField(max_length=255)  # Stored for UI display ONLY
+    file_type = models.CharField(max_length=100)  # e.g., 'image/png', 'application/pdf'
+    file_size = models.PositiveIntegerField()  # in bytes
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.original_filename
+
+
+# ── Reactions ────────────────────────────────────────────────────────────────
+
+
+class Reaction(models.Model):
+    """
+    Stores emoji reactions to messages.
+    A user can react with multiple different emojis on the same message,
+    but only once per emoji (enforced by unique_together).
+    """
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name="reactions"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    emoji = models.CharField(
+        max_length=10
+    )  # Stores the actual emoji character e.g. '👍'
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("message", "user", "emoji")
+
+    def __str__(self):
+        return f"{self.user} reacted {self.emoji} on message {self.message.id}"
+
+
+# ── Read Receipts ────────────────────────────────────────────────────────────
+
+
+class MessageRead(models.Model):
+    """
+    Tracks exactly when a user reads a specific message.
+    Powers the WhatsApp-style blue double ticks (✅✅).
+    """
+
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="reads")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("message", "user")  # A user only reads a message once
+
+    def __str__(self):
+        return f"{self.user} read message {self.message.id} at {self.read_at}"

@@ -95,3 +95,32 @@ def require_permission(permission: str):
         return wrapper
 
     return decorator
+
+
+def is_team_leader(user, team_id: int) -> bool:
+    """
+    Check if a user is an active leader of a specific team.
+    Used for team-scoped operations (announcements, tasks, member management).
+    """
+    from .models import TeamMembership
+    return TeamMembership.objects.filter(
+        user=user,
+        team_id=team_id,
+        is_active=True,
+        is_leader=True,
+    ).exists()
+
+
+def get_led_team_ids(user) -> list[int]:
+    """
+    Returns list of team IDs where the user is an active leader.
+    Used for filtering queries (e.g., "show me teams I can manage").
+    """
+    from .models import TeamMembership
+    return list(
+        TeamMembership.objects.filter(
+            user=user,
+            is_active=True,
+            is_leader=True,
+        ).values_list("team_id", flat=True)
+    )

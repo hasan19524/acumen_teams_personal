@@ -212,12 +212,23 @@ class ChatAuthService:
 
         if membership.role == "manager":
             team_membership = (
-                TeamMembership.objects.filter(user=self._user)
+                TeamMembership.objects.filter(user=self._user, is_active=True)
                 .select_related("team")
                 .first()
             )
             if team_membership and channel.team_id == team_membership.team_id:
                 return True
+
+        # Team leaders can manage their team's official chat
+        if channel.team_id and channel.channel_type == 'official':
+            if TeamMembership.objects.filter(
+                user=self._user, team_id=channel.team_id, is_active=True, is_leader=True
+            ).exists():
+                return True
+
+        # Private group owners can manage their own groups
+        if channel.channel_type == 'private_group' and channel.owner == self._user:
+            return True
 
         return False
 
@@ -230,21 +241,30 @@ class ChatAuthService:
 
     # ── Channel creation ──────────────────────────────────────────────────
 
-    def can_create_channel(self) -> bool:
+    def can_create_channel(self, channel_type: str = "official") -> bool:
         """
-        Returns True if the user's role permits channel creation.
-        Employees and guests cannot create channels.
+        Returns True if the user's role permits creating the given channel type.
+        - official/team: owner, admin, manager
+        - private_group: any active workspace member (including employees)
+        - dm: handled by DM request flow
         """
         membership = self.get_workspace_membership()
         if not membership:
             return False
-        return membership.role not in ("employee", "guest")
 
-    def require_can_create_channel(self) -> WorkspaceMembership:
+        if channel_type == "private_group":
+            return True  # Any workspace member can create private groups
+
+        # Official and Team channels require owner/admin/manager
+        return membership.role in ("owner", "admin", "manager")
+
+    def require_can_create_channel(self, channel_type: str = "official") -> WorkspaceMembership:
         """Returns membership (caller needs it) or raises."""
         membership = self.require_workspace_membership()
-        if not self.can_create_channel():
-            raise AuthorizationError("Only admins and managers can create channels.")
+        if not self.can_create_channel(channel_type):
+            if channel_type in ("official", "team"):
+                raise AuthorizationError("Only owners, admins, and managers can create official or team channels.")
+            raise AuthorizationError("You do not have permission to create channels.")
         return membership
 
     # ── Messaging ────────────────────────────────────────────────────────
@@ -274,13 +294,19 @@ class ChatAuthService:
         if membership.role == "guest":
             raise AuthorizationError("Guests cannot send messages.")
 
-        # Channel membership + workspace boundary in one query
+        # Pending groups cannot receive messages
+        if channel.is_pending:
+            raise AuthorizationError("This group is pending and cannot receive messages yet.")
+
+        # Channel membership + workspace boundary + ACTIVE status check
+        # is_active=False means they left/were removed: they can read history, but cannot send.
         if not ChannelMember.objects.filter(
             channel=channel,
             user=self._user,
+            is_active=True,
             channel__workspace=membership.workspace,
         ).exists():
-            raise AuthorizationError("You are not a member of this channel.")
+            raise AuthorizationError("You are not an active member of this channel.")
 
         # Block check — only relevant for DMs
         if channel.is_dm:
@@ -298,6 +324,29 @@ class ChatAuthService:
                 raise AuthorizationError(
                     "You cannot send messages to this conversation."
                 )
+
+
+    # ── Active membership required (reactions, uploads, replies) ────────
+
+    def require_active_channel_member(self, channel) -> None:
+        """
+        Requires the user is an ACTIVE member of the channel.
+        Inactive (left/removed) members can read history but cannot
+        react, upload, or reply.
+        """
+        from chat.models import ChannelMember
+
+        membership = self.require_workspace_membership()
+
+        if not ChannelMember.objects.filter(
+            channel=channel,
+            user=self._user,
+            is_active=True,
+            channel__workspace=membership.workspace,
+        ).exists():
+            raise AuthorizationError(
+                "You no longer have active access to this channel."
+            )
 
     # ── DM requests ───────────────────────────────────────────────────────
 
@@ -342,9 +391,15 @@ class ChatAuthService:
 
         existing_dm = (
             Channel.objects.filter(
-                is_dm=True, workspace=membership.workspace, members__user=self._user
+                is_dm=True,
+                workspace=membership.workspace,
+                members__user=self._user,
+                members__is_active=True,
             )
-            .filter(members__user_id=target_id)
+            .filter(
+                members__user_id=target_id
+            )
+            .distinct()
             .first()
         )
         if existing_dm:
@@ -453,10 +508,12 @@ class AsyncChatAuthService:
         except (Channel.DoesNotExist, ValueError, TypeError):
             return False, WSCloseCodes.GONE
 
-        # Step 3: user is a member of the channel
+        # Step 3: user is an ACTIVE member of the channel
+        # Inactive members can read history via REST, but cannot connect to WS for live messages
         is_member = ChannelMember.objects.filter(
             channel=channel,
             user=user,
+            is_active=True,
         ).exists()
         if not is_member:
             return False, WSCloseCodes.FORBIDDEN
@@ -496,8 +553,12 @@ class AsyncChatAuthService:
                 workspace=membership.workspace,
             )
 
-            if not ChannelMember.objects.filter(channel=channel, user=user).exists():
-                return False, "not_a_member"
+            if not ChannelMember.objects.filter(channel=channel, user=user, is_active=True).exists():
+                return False, "not_an_active_member"
+
+            # Pending groups cannot receive messages
+            if channel.is_pending:
+                return False, "group_is_pending"
 
             if channel.is_dm:
                 other_ids = (

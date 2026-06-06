@@ -14,7 +14,7 @@ def checkin(request):
 
     record, created = Attendance.objects.get_or_create(
         user=user,
-        date=today
+        date=today,
     )
 
     if record.check_in:
@@ -23,7 +23,12 @@ def checkin(request):
     record.check_in = timezone.now()
     record.save()
 
-    return Response({"message": "Checked in successfully"})
+    return Response(
+        {
+            "message": "Checked in successfully",
+            "check_in": record.check_in.isoformat(),
+        }
+    )
 
 
 @api_view(["POST"])
@@ -37,27 +42,53 @@ def checkout(request):
     except Attendance.DoesNotExist:
         return Response({"error": "Check in first"}, status=400)
 
+    if not record.check_in:
+        return Response({"error": "Check in first"}, status=400)
+
     if record.check_out:
         return Response({"error": "Already checked out"}, status=400)
 
-    record.check_out = timezone.now()
+    now = timezone.now()
+    record.check_out = now
+    record.duration = now - record.check_in
     record.save()
 
-    return Response({"message": "Checked out successfully"})
+    hours = record.duration.total_seconds() / 3600
+    return Response(
+        {
+            "message": "Checked out successfully",
+            "check_out": record.check_out.isoformat(),
+            "duration_hours": round(hours, 2),
+        }
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_attendance(request):
-    records = Attendance.objects.filter(user=request.user).order_by("-date")[:7]
+    user = request.user
+    today = timezone.localdate()
+
+    records = Attendance.objects.filter(user=user).order_by("-date")[:7]
 
     data = []
-
     for r in records:
-        data.append({
-            "date": r.date,
-            "check_in": r.check_in,
-            "check_out": r.check_out,
-        })
+        duration_hours = None
+        if r.duration:
+            duration_hours = round(r.duration.total_seconds() / 3600, 2)
+        elif r.check_in and not r.check_out:
+            duration_hours = round(
+                (timezone.now() - r.check_in).total_seconds() / 3600, 2
+            )
+
+        data.append(
+            {
+                "date": r.date.isoformat(),
+                "check_in": r.check_in.isoformat() if r.check_in else None,
+                "check_out": r.check_out.isoformat() if r.check_out else None,
+                "duration_hours": duration_hours,
+                "is_today": r.date == today,
+            }
+        )
 
     return Response(data)

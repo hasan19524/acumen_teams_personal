@@ -1,10 +1,35 @@
-import React from "react";
+"use client";
+
+import React, { useEffect } from "react";
+import { useNotificationStore } from "@/features/notification/store/notificationStore"; // Use the exact path ChatGPT helped you fix!
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const addNotification = useNotificationStore((s) => s.addNotification);
+
+  // TEMPORARY TEST: Fire a notification 3 seconds after the dashboard loads
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      addNotification({
+        type: "notification",
+        notification_type: "mention",
+        notification_id: `test-${Date.now()}`,
+        data: {
+          title: "New Mention",
+          message: "John Doe mentioned you in #general",
+          avatar_url: null,
+          redirect_url: "/dashboard/chat",
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }, 3000); // 3 seconds delay
+
+    return () => clearTimeout(timer);
+  }, [addNotification]);
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}

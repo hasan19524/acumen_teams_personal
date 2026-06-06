@@ -30,11 +30,10 @@ export default function TeamPage() {
       (u.username || "").toLowerCase().includes(search.toLowerCase()),
   );
 
-  const badge = (status: string) => {
-    if (status === "Active") return { bg: "#16a34a", text: "#fff" };
-    if (status === "Pending") return { bg: "#f59e0b", text: "#fff" };
-    return { bg: "#ef4444", text: "#fff" };
-  };
+  // REMOVED: Fake presence badge function.
+  // Backend presence system exists (Redis-based, used in ChatConsumer).
+  // When real presence data is wired to this page, a new badge function
+  // should be built on actual WebSocket presence events — not hardcoded.
 
   return (
     <div
@@ -169,7 +168,7 @@ export default function TeamPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
+              gridTemplateColumns: "1.6fr 1.6fr 1fr 1fr 70px",
               padding: "18px 22px",
               color: "rgba(255,255,255,.55)",
               fontWeight: 700,
@@ -181,19 +180,16 @@ export default function TeamPage() {
             <div>Email</div>
             <div>Role</div>
             <div>Department</div>
-            <div>Status</div>
-            <div>Last Seen</div>
             <div></div>
           </div>
 
           {filtered.map((u, i) => {
-            const b = badge("Active");
             return (
               <div
                 key={u.id ?? `user-${i}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr 1fr 1fr 70px",
+                  gridTemplateColumns: "1.6fr 1.6fr 1fr 1fr 70px",
                   padding: "18px 22px",
                   alignItems: "center",
                   borderBottom:
@@ -244,21 +240,6 @@ export default function TeamPage() {
                   <option>Development</option>
                   <option>Support</option>
                 </select>
-                <div>
-                  <span
-                    style={{
-                      background: b.bg,
-                      color: b.text,
-                      padding: "8px 12px",
-                      borderRadius: 999,
-                      fontWeight: 700,
-                      fontSize: 13,
-                    }}
-                  >
-                    {"Active"}
-                  </span>
-                </div>
-                <div style={{ color: "rgba(255,255,255,.72)" }}>{"-"}</div>
                 <button
                   style={{
                     width: 40,

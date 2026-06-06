@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import "./globals.css";
+import { NotificationProvider } from "@/features/notification/components/NotificationProvider";
+import { NotificationInitializer } from "@/features/notification/components/NotificationInitializer";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Acumen Teams",
-  description: "Productivity Platform",
+  description: "Business Collaboration Platform",
 };
 
 export default function RootLayout({
@@ -12,7 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <NotificationProvider>
+          <NotificationInitializer />
+          {children}
+        </NotificationProvider>
+      </body>
     </html>
   );
 }

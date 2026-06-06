@@ -16,6 +16,14 @@ class Announcement(models.Model):
         null=True,
         blank=True,
     )
+    team = models.ForeignKey(
+        "workspaces.Team",
+        on_delete=models.CASCADE,
+        related_name="announcements",
+        null=True,
+        blank=True,
+        help_text="Team this announcement targets. Null = workspace-wide announcement.",
+    )
     title = models.CharField(max_length=300)
     content = models.TextField()
     tag = models.CharField(max_length=100, blank=True, default="General")

@@ -7,17 +7,18 @@ from .views import (
     DMListCreateView,
     DMRequestListCreateView,
     DMRequestRespondView,
+    DMRequestUndoView,
     BlockView,
     ReportCreateView,
     ReportAdminView,
     MessageListView,
     SendMessageView,
     WorkspaceUsersView,
-    NotificationListView,
-    NotificationDetailView,
-    NotificationBulkMarkReadView,
-    NotificationPreferenceView,
-    UnreadNotificationCountView,
+    FileUploadView,        
+    MessageEditView,       
+    MessageDeleteView,     
+    ReactionToggleView,    
+    MessageMarkReadView,   
 )
 
 urlpatterns = [
@@ -29,6 +30,7 @@ urlpatterns = [
     # DM Requests — request-based flow for non-admins
     path("dm-requests/", DMRequestListCreateView.as_view()),
     path("dm-requests/<int:pk>/", DMRequestRespondView.as_view()),
+    path("dm-requests/<int:pk>/undo/", DMRequestUndoView.as_view()),
     # Blocks
     path("blocks/", BlockView.as_view()),
     path("blocks/<int:user_id>/", BlockView.as_view()),
@@ -42,10 +44,10 @@ urlpatterns = [
     # Users in workspace (for DM picker)
     path("users/", WorkspaceUsersView.as_view()),
     
-    # Notifications
-    path("notifications/", NotificationListView.as_view(), name="notification-list"),
-    path("notifications/<int:notification_id>/", NotificationDetailView.as_view(), name="notification-detail"),
-    path("notifications/mark-read/", NotificationBulkMarkReadView.as_view(), name="mark-read"),
-    path("notification-preferences/", NotificationPreferenceView.as_view(), name="notification-preferences"),
-    path("unread-count/", UnreadNotificationCountView.as_view(), name="unread-count"),
+        # Files & Message Actions
+    path("upload/", FileUploadView.as_view()),
+    path("messages/<int:message_id>/edit/", MessageEditView.as_view()),
+    path("messages/<int:message_id>/delete/", MessageDeleteView.as_view()),
+    path("messages/<int:message_id>/react/", ReactionToggleView.as_view()),
+    path("messages/<int:message_id>/read/", MessageMarkReadView.as_view()),
 ]

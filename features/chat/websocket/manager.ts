@@ -46,9 +46,39 @@ export class WebSocketManager {
     this.isManualClose = false;
 
     try {
-      this.ws = new WebSocket(
-        `${this.config.url}/ws/chat/${this.config.channelId}/?token=${this.config.token}`,
-      );
+      // CRITICAL FIX: Read the latest token from localStorage on every connect.
+      // This ensures reconnections use a fresh token if the old one expired
+      // and was silently refreshed by the REST API's 401 handler.
+      const currentToken =
+        (typeof window !== "undefined" && localStorage.getItem("token")) ||
+        this.config.token;
+
+      // Always read fresh token from localStorage on connect
+      const freshToken =
+        (typeof window !== "undefined" && localStorage.getItem("token")) ||
+        currentToken;
+
+      // AUTH FIX: Do not attempt connection if there is no token.
+      // The backend will reject unauthenticated WS connections anyway.
+      if (!freshToken) {
+        console.debug("[WS] No auth token found, skipping connection.");
+        this.setState("disconnected");
+        return;
+      }
+
+      // Dynamically build URL: use /ws/notifications/ if no channelId, else /ws/chat/{id}/
+      const path = this.config.channelId 
+        ? `ws/chat/${this.config.channelId}/` 
+        : `ws/notifications/`;
+      
+      let wsUrl = `${this.config.url}/${path}`;
+      if (freshToken) {
+        wsUrl += `?token=${freshToken}`;
+      }
+
+      console.debug(`[WS] Connecting to: ${wsUrl.replace(freshToken || '', '[TOKEN]')}`);
+      
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => this.handleOpen();
       this.ws.onmessage = (event) => this.handleMessage(event);
@@ -56,7 +86,7 @@ export class WebSocketManager {
       this.ws.onclose = (event) => this.handleClose(event);
     } catch (error) {
       this.config.onError(`Failed to create WebSocket: ${error}`);
-      this.scheduleReconnect();``
+      this.scheduleReconnect();
     }
   }
 
@@ -133,9 +163,9 @@ export class WebSocketManager {
   }
 
   private handleError(event: Event): void {
-    const errorMsg = `WebSocket error: ${event.type}`;
-    console.error(`[WS] ${errorMsg}`);
-    this.config.onError(errorMsg);
+    // Downgraded to console.warn to prevent Next.js dev overlay on expected auth/network failures.
+    console.warn(`[WS] Connection error. This is normal if offline or not logged in yet.`);
+    this.config.onError("WebSocket connection failed");
   }
 
   // Update the signature to accept the CloseEvent

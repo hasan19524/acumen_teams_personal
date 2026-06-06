@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/lib/auth";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -10,10 +9,12 @@ import {
   Calendar,
   Megaphone,
   Users,
+  Mail,
   Settings,
-  LogOut,
   Sparkles,
 } from "lucide-react";
+import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
+import { useNotificationStore } from "@/features/notification/store/notificationStore";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -22,13 +23,13 @@ const navItems = [
   { name: "Attendance", href: "/dashboard/attendance", icon: Calendar },
   { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
   { name: "Team", href: "/dashboard/team", icon: Users },
+  { name: "Invites", href: "/dashboard/invites", icon: Mail },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
-
-  const handleLogout = () => logout();
+  const markAllAsRead = useNotificationStore((s) => s.markAllAsRead);
 
   return (
     <aside
@@ -43,6 +44,7 @@ export default function DashboardSidebar() {
         minHeight: "100vh",
         width: 280,
         flexShrink: 0,
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       <style>{`
@@ -64,14 +66,6 @@ export default function DashboardSidebar() {
           background: rgba(255,255,255,.08) !important;
           transform: translateX(6px);
           color: #fff !important;
-        }
-        .sidebar-logout {
-          transition: all 0.3s ease;
-        }
-        .sidebar-logout:hover {
-          background: #dc2626 !important;
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(239,68,68,0.4);
         }
         .sidebar-logo {
           background: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #a5b4fc 100%);
@@ -140,10 +134,14 @@ export default function DashboardSidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
+          const showBadge = item.name === "Chat";
           return (
             <Link
               key={item.name}
               href={item.href}
+              onClick={() => {
+                if (item.name === "Chat") markAllAsRead();
+              }}
               className={`sidebar-item ${active ? "sidebar-active" : ""}`}
               style={{
                 padding: "14px 16px",
@@ -159,39 +157,19 @@ export default function DashboardSidebar() {
                   ? "linear-gradient(135deg,#6366f1,#818cf8)"
                   : "transparent",
                 boxShadow: active ? "0 8px 24px rgba(99,102,241,0.35)" : "none",
+                position: "relative",
               }}
             >
-              <Icon size={20} />
+              <div style={{ position: "relative", display: "flex" }}>
+                <Icon size={20} />
+                {showBadge && (
+                  <NotificationBadge size={16} style={{ top: -4, right: -4 }} />
+                )}
+              </div>
               {item.name}
             </Link>
           );
         })}
-      </div>
-
-      {/* Logout */}
-      <div style={{ marginTop: "auto", paddingTop: 20 }}>
-        <button
-          onClick={handleLogout}
-          className="sidebar-logout"
-          style={{
-            width: "100%",
-            border: "none",
-            cursor: "pointer",
-            background: "#ef4444",
-            color: "#fff",
-            padding: "14px",
-            borderRadius: 12,
-            fontWeight: 600,
-            fontSize: 15,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <LogOut size={18} />
-          Logout
-        </button>
       </div>
     </aside>
   );

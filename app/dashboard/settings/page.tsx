@@ -2,8 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { User, Shield, Bell, Globe, Save, KeyRound, Moon } from "lucide-react";
+import {
+  User,
+  Shield,
+  Bell,
+  Globe,
+  Save,
+  KeyRound,
+  Moon,
+  LogOut,
+} from "lucide-react";
 import DashboardSidebar from "@/components/DashboardSidebar";
+import { logout } from "@/lib/auth";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -241,7 +251,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 26 }}>
+            <div style={{ marginTop: 26, display: "flex", gap: 16 }}>
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -265,6 +275,29 @@ export default function SettingsPage() {
               >
                 <Save size={18} />
                 {saving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
+              </button>
+
+              <button
+                onClick={() => logout()}
+                style={{
+                  height: 48,
+                  padding: "0 22px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: "#ef4444",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: 15,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <LogOut size={18} />
+                Logout
               </button>
             </div>
           </>
