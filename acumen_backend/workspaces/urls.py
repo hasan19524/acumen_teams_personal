@@ -14,6 +14,8 @@ urlpatterns = [
     path(
         "members/<int:user_id>/", views.RemoveMemberView.as_view(), name="remove_member"
     ),
+    path("invite/", views.InviteMemberView.as_view(), name="invite_member"),
+    path("teams/create/", views.CreateTeamView.as_view(), name="create_team"),
     path("teams/", views.all_teams, name="all_teams"),
     path("my-team/", views.my_team, name="my_team"),
     path("stats/", views.dashboard_stats, name="dashboard_stats"),

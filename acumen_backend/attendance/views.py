@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -11,6 +12,18 @@ from .models import Attendance
 def checkin(request):
     user = request.user
     today = timezone.localdate()
+
+    # Auto-checkout any previous active sessions (forgot to check out)
+    previous_active = Attendance.objects.filter(
+        user=user,
+        check_in__isnull=False,
+        check_out__isnull=True,
+    ).exclude(date=today)
+
+    for session in previous_active:
+        session.check_out = session.check_in + timedelta(hours=8)
+        session.duration = timedelta(hours=8)
+        session.save()
 
     record, created = Attendance.objects.get_or_create(
         user=user,
@@ -77,9 +90,10 @@ def my_attendance(request):
         if r.duration:
             duration_hours = round(r.duration.total_seconds() / 3600, 2)
         elif r.check_in and not r.check_out:
-            duration_hours = round(
-                (timezone.now() - r.check_in).total_seconds() / 3600, 2
-            )
+            elapsed = (timezone.now() - r.check_in).total_seconds()
+            # Cap at 24 hours to prevent extremely wrong values
+            elapsed = min(elapsed, 86400)
+            duration_hours = round(elapsed / 3600, 2)
 
         data.append(
             {

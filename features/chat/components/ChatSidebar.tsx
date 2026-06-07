@@ -18,6 +18,16 @@ interface ChatSidebarProps {
   setNewChannelName: (v: string) => void;
   newChannelType: string;
   setNewChannelType: (v: string) => void;
+  newChannelTeamId: string;
+  setNewChannelTeamId: (v: string) => void;
+  newChannelMemberIds: number[];
+  setNewChannelMemberIds: (v: number[]) => void;
+  newChannelDMUserId: string;
+  setNewChannelDMUserId: (v: string) => void;
+  newChannelDMMessage: string;
+  setNewChannelDMMessage: (v: string) => void;
+  workspaceUsers: Array<{ id: number; username: string; full_name: string }>;
+  userTeams: Array<{ id: number; name: string }>;
   onCreateChannel: () => void;
 }
 
@@ -153,6 +163,16 @@ export function ChatSidebar({
   setNewChannelName,
   newChannelType,
   setNewChannelType,
+  newChannelTeamId,
+  setNewChannelTeamId,
+  newChannelMemberIds,
+  setNewChannelMemberIds,
+  newChannelDMUserId,
+  setNewChannelDMUserId,
+  newChannelDMMessage,
+  setNewChannelDMMessage,
+  workspaceUsers,
+  userTeams,
   onCreateChannel,
 }: ChatSidebarProps) {
   return (
@@ -354,17 +374,19 @@ export function ChatSidebar({
               >
                 Type
               </label>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[
                   { value: "official", label: "Official", icon: "🏢" },
                   { value: "team", label: "Team", icon: "👥" },
                   { value: "private_group", label: "Group", icon: "🔒" },
+                  { value: "dm", label: "DM", icon: "💬" },
                 ].map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setNewChannelType(opt.value)}
                     style={{
                       flex: 1,
+                      minWidth: 70,
                       padding: "8px 6px",
                       borderRadius: T.radiusSm,
                       border: `1px solid ${
@@ -388,55 +410,143 @@ export function ChatSidebar({
               </div>
             </div>
 
-            {/* Channel Name */}
-            <input
-              value={newChannelName}
-              onChange={(e) => setNewChannelName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
-              placeholder={
-                newChannelType === "official"
-                  ? "Official channel name"
-                  : newChannelType === "team"
-                  ? "Team channel name"
-                  : "Group name"
-              }
-              autoFocus
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: T.radiusMd,
-                border: `1px solid ${T.border}`,
-                background: T.bgInputField,
-                color: T.textPrimary,
-                outline: "none",
-                fontSize: T.fontSizeBase,
-                boxSizing: "border-box",
-                transition: "border-color 0.12s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = T.borderFocus;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = T.border;
-              }}
-            />
+            {/* OFFICIAL: Name only */}
+            {newChannelType === "official" && (
+              <>
+                <input
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
+                  placeholder="Official channel name"
+                  autoFocus
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                  }}
+                />
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+                  Workspace-wide channel. Only admins/managers can create.
+                </div>
+              </>
+            )}
 
-            {/* Type hint */}
-            <div
-              style={{
-                fontSize: 11,
-                color: T.textMuted,
-                marginTop: 6,
-                minHeight: 16,
-              }}
-            >
-              {newChannelType === "official" &&
-                "Workspace-wide channel. Only admins/managers can create."}
-              {newChannelType === "team" &&
-                "Linked to your team. Members auto-join."}
-              {newChannelType === "private_group" &&
-                "Invite-only group. Starts pending until 2 members join."}
-            </div>
+            {/* TEAM: Name + Team selector */}
+            {newChannelType === "team" && (
+              <>
+                <input
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
+                  placeholder="Team channel name"
+                  autoFocus
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    marginBottom: 10,
+                  }}
+                />
+                <select
+                  value={newChannelTeamId}
+                  onChange={(e) => setNewChannelTeamId(e.target.value)}
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">Select team...</option>
+                  {userTeams.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+                  Linked to a team. Members auto-join.
+                </div>
+              </>
+            )}
+
+            {/* PRIVATE GROUP: Name + Member selector */}
+            {newChannelType === "private_group" && (
+              <>
+                <input
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
+                  placeholder="Group name"
+                  autoFocus
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    marginBottom: 10,
+                  }}
+                />
+                <div style={{ maxHeight: 140, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: "6px 10px" }}>
+                  {workspaceUsers.length === 0 && (
+                    <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 0" }}>No users available</div>
+                  )}
+                  {workspaceUsers.map((u) => {
+                    const checked = newChannelMemberIds.includes(u.id);
+                    return (
+                      <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: T.textPrimary, fontSize: T.fontSizeSm }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setNewChannelMemberIds(
+                              checked
+                                ? newChannelMemberIds.filter((x) => x !== u.id)
+                                : [...newChannelMemberIds, u.id]
+                            );
+                          }}
+                        />
+                        {u.full_name || u.username}
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+                  Invite-only group. Starts pending until 2 members join.
+                </div>
+              </>
+            )}
+
+            {/* DM: User selector + initial message */}
+            {newChannelType === "dm" && (
+              <>
+                <select
+                  value={newChannelDMUserId}
+                  onChange={(e) => setNewChannelDMUserId(e.target.value)}
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    marginBottom: 10,
+                  }}
+                >
+                  <option value="">Select user...</option>
+                  {workspaceUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name || u.username}</option>
+                  ))}
+                </select>
+                <input
+                  value={newChannelDMMessage}
+                  onChange={(e) => setNewChannelDMMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
+                  placeholder="Initial message..."
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`, background: T.bgInputField,
+                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                  }}
+                />
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+                  Sends a DM request. The other user must accept before chatting.
+                </div>
+              </>
+            )}
 
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button
@@ -444,6 +554,10 @@ export function ChatSidebar({
                   setShowNewChannel(false);
                   setNewChannelName("");
                   setNewChannelType("official");
+                  setNewChannelTeamId("");
+                  setNewChannelMemberIds([]);
+                  setNewChannelDMUserId("");
+                  setNewChannelDMMessage("");
                 }}
                 style={{
                   flex: 1,
@@ -470,29 +584,39 @@ export function ChatSidebar({
               </button>
               <button
                 onClick={onCreateChannel}
-                disabled={!newChannelName.trim()}
+                disabled={
+                  newChannelType === "dm"
+                    ? !newChannelDMUserId
+                    : !newChannelName.trim()
+                }
                 style={{
                   flex: 1,
                   padding: 10,
                   borderRadius: T.radiusMd,
                   border: "none",
-                  background: newChannelName.trim() ? T.accent : T.border,
-                  color: newChannelName.trim() ? "#fff" : T.textMuted,
-                  cursor: newChannelName.trim() ? "pointer" : "not-allowed",
+                  background:
+                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
+                      ? T.accent : T.border,
+                  color:
+                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
+                      ? "#fff" : T.textMuted,
+                  cursor:
+                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
+                      ? "pointer" : "not-allowed",
                   fontWeight: 600,
                   fontSize: T.fontSizeSm,
                   transition: "background 0.1s",
                 }}
                 onMouseEnter={(e) => {
-                  if (newChannelName.trim())
-                    e.currentTarget.style.background = T.accentHover;
+                  const ok = newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim();
+                  if (ok) e.currentTarget.style.background = T.accentHover;
                 }}
                 onMouseLeave={(e) => {
-                  if (newChannelName.trim())
-                    e.currentTarget.style.background = T.accent;
+                  const ok = newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim();
+                  if (ok) e.currentTarget.style.background = T.accent;
                 }}
               >
-                Create
+                {newChannelType === "dm" ? "Send Request" : "Create"}
               </button>
             </div>
           </div>

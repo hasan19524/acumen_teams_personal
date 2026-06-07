@@ -7,6 +7,7 @@ import { useWebSocket } from "./useWebSocket";
 import { useFileUpload } from "./useFileUpload";
 import { Message, WSEventEnvelope } from "../types/message";
 import { Channel } from "../types/channel";
+import { apiFetch } from "@/lib/api";
 import {
   loadChannels,
   loadDMs,
@@ -72,6 +73,12 @@ export function useChatPage() {
   const [showNewChannel, setShowNewChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelType, setNewChannelType] = useState("official");
+  const [newChannelTeamId, setNewChannelTeamId] = useState("");
+  const [newChannelMemberIds, setNewChannelMemberIds] = useState<number[]>([]);
+  const [newChannelDMUserId, setNewChannelDMUserId] = useState("");
+  const [newChannelDMMessage, setNewChannelDMMessage] = useState("");
+  const [workspaceUsers, setWorkspaceUsers] = useState<Array<{ id: number; username: string; full_name: string }>>([]);
+  const [userTeams, setUserTeams] = useState<Array<{ id: number; name: string }>>([]);
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<number | null>(null);
   const [deleteModalMsgId, setDeleteModalMsgId] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -198,6 +205,18 @@ export function useChatPage() {
       setChannels(all);
       if (all.length > 0) selectChannel(all[0].id);
     });
+
+    // Fetch workspace users for DM/group member selection
+    apiFetch("/api/chat/workspace-users/")
+      .then((r) => r.json())
+      .then((data) => setWorkspaceUsers(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    // Fetch teams for team channel creation
+    apiFetch("/api/workspaces/teams/")
+      .then((r) => r.json())
+      .then((data) => setUserTeams(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, [authChecked, setChannels, selectChannel]);
 
   // ── Load Messages on Channel Select ───────────────────────────────────────
@@ -381,21 +400,42 @@ export function useChatPage() {
   }, []);
 
   const handleCreateChannel = useCallback(async () => {
-    if (!newChannelName.trim()) return;
     try {
-      const newChat = await createChannelService({
-        name: newChannelName,
-        channel_type: newChannelType as any,
-      });
-      addChannel(newChat);
-      selectChannel(newChat.id);
+      if (newChannelType === "dm") {
+        if (!newChannelDMUserId) return;
+        const res = await apiFetch("/api/chat/dm-requests/", {
+          method: "POST",
+          body: JSON.stringify({
+            receiver_id: Number(newChannelDMUserId),
+            initial_message: newChannelDMMessage || "Hello!",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("DM request failed:", data.error);
+          return;
+        }
+      } else {
+        if (!newChannelName.trim()) return;
+        const newChat = await createChannelService({
+          name: newChannelName,
+          channel_type: newChannelType as any,
+          team_id: newChannelType === "team" && newChannelTeamId ? Number(newChannelTeamId) : undefined,
+        });
+        addChannel(newChat);
+        selectChannel(newChat.id);
+      }
     } catch (error) {
       console.error("Failed to create channel:", error);
     }
     setNewChannelName("");
     setNewChannelType("official");
+    setNewChannelTeamId("");
+    setNewChannelMemberIds([]);
+    setNewChannelDMUserId("");
+    setNewChannelDMMessage("");
     setShowNewChannel(false);
-  }, [newChannelName, newChannelType, addChannel, selectChannel]);
+  }, [newChannelName, newChannelType, newChannelTeamId, newChannelDMUserId, newChannelDMMessage, addChannel, selectChannel]);
 
   const handleCopy = useCallback(async (msg: Message) => {
     try {
@@ -596,6 +636,16 @@ export function useChatPage() {
     setNewChannelName,
     newChannelType,
     setNewChannelType,
+    newChannelTeamId,
+    setNewChannelTeamId,
+    newChannelMemberIds,
+    setNewChannelMemberIds,
+    newChannelDMUserId,
+    setNewChannelDMUserId,
+    newChannelDMMessage,
+    setNewChannelDMMessage,
+    workspaceUsers,
+    userTeams,
     activeMenuMsgId,
     setActiveMenuMsgId,
     deleteModalMsgId,

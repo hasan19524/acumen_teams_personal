@@ -23,6 +23,16 @@ export default function AttendancePage() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+  const formatDuration = (hours: number | null) => {
+    if (hours == null) return "--";
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    if (h === 0 && m === 0) return "0h 0m";
+    if (m === 0) return `${h}h`;
+    if (h === 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -185,7 +195,7 @@ export default function AttendancePage() {
               {todayIn
                 ? timer
                 : todayDuration != null
-                  ? `${todayDuration}h`
+                  ? formatDuration(todayDuration)
                   : "0h 0m"}
             </h2>
           </div>
@@ -296,9 +306,7 @@ export default function AttendancePage() {
                       fontWeight: item.duration_hours != null ? 600 : 400,
                     }}
                   >
-                    {item.duration_hours != null
-                      ? `${item.duration_hours}h`
-                      : "--"}
+                    {formatDuration(item.duration_hours)}
                   </span>
                 </div>
               ))

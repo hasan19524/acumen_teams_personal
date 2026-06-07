@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 
 import DashboardSidebar from "@/components/DashboardSidebar";
+import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
+import { useNotificationStore } from "@/features/notification/store/notificationStore";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -38,6 +40,7 @@ export default function DashboardPage() {
     total_teams: 0,
     role: "employee",
   });
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -427,6 +430,7 @@ export default function DashboardPage() {
             </div>
 
             <div
+              onClick={() => router.push("/dashboard/notifications")}
               style={{
                 position: "relative",
                 cursor: "pointer",
@@ -439,19 +443,30 @@ export default function DashboardPage() {
               className="card-hover"
             >
               <Bell size={20} style={{ color: "rgba(255,255,255,.7)" }} />
-              <div
-                className="notification-badge"
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  width: 8,
-                  height: 8,
-                  background: "#ef4444",
-                  borderRadius: "50%",
-                  border: "2px solid #12141f",
-                }}
-              />
+              {unreadCount > 0 && (
+                <div
+                  className="notification-badge"
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 4px",
+                    border: "2px solid #12141f",
+                  }}
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </div>
+              )}
             </div>
 
             <div

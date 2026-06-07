@@ -116,12 +116,16 @@ export function useFileUpload(channelId: number | null) {
         reply_to: null,
         is_deleted: false,
         attachments: files.map((f) => ({
-          id: Math.random(), // Temporary ID for React keys
+          id: Math.random(),
           file_url: f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
           original_filename: f.name,
           file_type: f.type,
           file_size: f.size,
         })),
+
+        reactions: [],
+        reads: [],
+
         created_at: new Date().toISOString(),
         created_time: new Date().toLocaleTimeString([], {
           hour: "2-digit",

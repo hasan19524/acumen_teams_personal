@@ -57,6 +57,18 @@ export default function ChatPage() {
         setShowNewChannel={chat.setShowNewChannel}
         newChannelName={chat.newChannelName}
         setNewChannelName={chat.setNewChannelName}
+        newChannelType={chat.newChannelType}
+        setNewChannelType={chat.setNewChannelType}
+        newChannelTeamId={chat.newChannelTeamId}
+        setNewChannelTeamId={chat.setNewChannelTeamId}
+        newChannelMemberIds={chat.newChannelMemberIds}
+        setNewChannelMemberIds={chat.setNewChannelMemberIds}
+        newChannelDMUserId={chat.newChannelDMUserId}
+        setNewChannelDMUserId={chat.setNewChannelDMUserId}
+        newChannelDMMessage={chat.newChannelDMMessage}
+        setNewChannelDMMessage={chat.setNewChannelDMMessage}
+        workspaceUsers={chat.workspaceUsers}
+        userTeams={chat.userTeams}
         onCreateChannel={chat.handleCreateChannel}
       />
 
