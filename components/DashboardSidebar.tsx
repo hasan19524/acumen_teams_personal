@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -11,7 +11,7 @@ import {
   Users,
   Mail,
   Settings,
-  Sparkles,
+  LogOut,
 } from "lucide-react";
 import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
@@ -29,7 +29,16 @@ const navItems = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const markAllAsRead = useNotificationStore((s) => s.markAllAsRead);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("username");
+    localStorage.removeItem("user_id");
+    router.push("/login");
+  };
 
   return (
     <aside
@@ -67,12 +76,13 @@ export default function DashboardSidebar() {
           transform: translateX(6px);
           color: #fff !important;
         }
-        .sidebar-logo {
-          background: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #a5b4fc 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          font-family: 'Syne', sans-serif;
+        .sidebar-logout {
+          transition: all 0.3s ease;
+        }
+        .sidebar-logout:hover {
+          background: #dc2626 !important;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(239,68,68,0.4);
         }
       `}</style>
 
@@ -83,50 +93,13 @@ export default function DashboardSidebar() {
           borderBottom: "1px solid rgba(255,255,255,.08)",
         }}
       >
-        <h2
-          className="sidebar-logo"
-          style={{
-            margin: 0,
-            fontSize: 20,
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            letterSpacing: "-0.3px",
-          }}
-        >
-          <Sparkles size={22} style={{ color: "#818cf8", flexShrink: 0 }} />
-          <span
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              lineHeight: 1.2,
-            }}
-          >
-            <span style={{ fontSize: 19, letterSpacing: "6px" }}>ACUMEN</span>
-            <span
-              style={{
-                fontSize: 18,
-                letterSpacing: "5px",
-                paddingLeft: "52px",
-              }}
-            >
-              TEAMS
-            </span>
-          </span>
-        </h2>
-        <p
-          style={{
-            marginTop: 6,
-            color: "rgba(255,255,255,.4)",
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "1.5px",
-          }}
-        >
-          Business Workspace
-        </p>
+        <div style={{ display: "flex", alignItems: "center", padding: "8px 0", marginLeft: "-10px" }}>
+          <img
+            src="/acumen-logo.svg"
+            alt="Acumen Teams"
+            style={{ width: "255px", height: "auto" }}
+          />
+        </div>
       </div>
 
       {/* Nav Items */}
@@ -170,6 +143,32 @@ export default function DashboardSidebar() {
             </Link>
           );
         })}
+      </div>
+
+      {/* Logout */}
+      <div style={{ marginTop: "auto", paddingTop: 20 }}>
+        <button
+          onClick={handleLogout}
+          className="sidebar-logout"
+          style={{
+            width: "100%",
+            border: "none",
+            cursor: "pointer",
+            background: "#ef4444",
+            color: "#fff",
+            padding: "14px",
+            borderRadius: 12,
+            fontWeight: 600,
+            fontSize: 15,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <LogOut size={18} />
+          Logout
+        </button> 
       </div>
     </aside>
   );
