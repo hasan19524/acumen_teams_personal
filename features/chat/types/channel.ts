@@ -32,6 +32,9 @@ export type Channel = {
   dm_partner: UserMini | null;
   is_member_active: boolean;
   is_pending: boolean; // True if private group awaiting minimum members
+  last_message?: string | null;
+  last_message_time?: string | null;
+  unread_count?: number;
 };
 
 // ── Channel Member Types ───────────────────────────────────────────────
@@ -59,6 +62,9 @@ export type CreateChannelPayload = {
 export type ChatUser = {
   id: number;
   name: string;
+is_pending?: boolean;
+  dm_request_id?: number;
+  created_by?: number;
   avatar: string;
   color: string;
   unread: number;

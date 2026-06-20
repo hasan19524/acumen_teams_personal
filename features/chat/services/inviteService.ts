@@ -1,4 +1,6 @@
+// features/chat/services/inviteService.ts
 import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 
 export type InviteCounts = {
   workspace: number;
@@ -29,13 +31,15 @@ export type DMRequestItem = {
 };
 
 export async function loadInviteCounts(): Promise<InviteCounts> {
-  const res = await apiFetch(`/api/workspaces/invites/counts/`);
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/workspaces/${wsId}/invites/counts/`);
   if (!res.ok) throw new Error("Failed to load invite counts");
   return await res.json();
 }
 
 export async function loadInviteTab(tab: string): Promise<{ items: any[] }> {
-  const res = await apiFetch(`/api/workspaces/invites/?tab=${tab}`);
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/workspaces/${wsId}/invites/?tab=${tab}`);
   if (!res.ok) throw new Error("Failed to load invite tab");
   return await res.json();
 }
@@ -80,54 +84,52 @@ export type PrivateGroupInviteResponse = {
 
 // ── Team Invite Actions ────────────────────────────────────────────────
 
-/**
- * Accept or reject a team invite.
- * Accepting auto-joins the team chat channel.
- */
 export async function respondTeamInvite(
   inviteId: number,
   status: "accepted" | "rejected",
 ): Promise<TeamInviteResponse> {
-  const res = await apiFetch(`/api/workspaces/teams/invite/${inviteId}/`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(
+    `/api/workspaces/${wsId}/teams/invite/${inviteId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to respond to team invite");
+  if (!res.ok)
+    throw new Error(data.error || "Failed to respond to team invite");
   return data;
 }
 
 // ── Private Group Invite Actions ───────────────────────────────────────
 
-/**
- * Accept or reject a private group invite.
- * Accepting instantly joins the group. If this is the second member,
- * the group activates (is_pending becomes false).
- */
 export async function respondGroupInvite(
   inviteId: number,
   status: "accepted" | "rejected",
 ): Promise<PrivateGroupInviteResponse> {
-  const res = await apiFetch(`/api/workspaces/groups/invite/${inviteId}/`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(
+    `/api/workspaces/${wsId}/groups/invite/${inviteId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to respond to group invite");
+  if (!res.ok)
+    throw new Error(data.error || "Failed to respond to group invite");
   return data;
 }
 
 // ── Group Invite Send ──────────────────────────────────────────────────
 
-/**
- * Invite users to a private group.
- * Only creator or group admin can invite.
- */
 export async function sendGroupInvites(
   channelId: number,
   userIds: number[],
 ): Promise<{ created_count: number; invite_ids: number[] }> {
-  const res = await apiFetch(`/api/workspaces/groups/invite/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/workspaces/${wsId}/groups/invite/`, {
     method: "POST",
     body: JSON.stringify({ channel_id: channelId, user_ids: userIds }),
   });
@@ -138,17 +140,30 @@ export async function sendGroupInvites(
 
 // ── Cleanup Pending Groups ─────────────────────────────────────────────
 
-/**
- * Delete pending private groups older than 24h with fewer than 2 members.
- */
 export async function cleanupPendingGroups(): Promise<{
   deleted_groups: string[];
   count: number;
 }> {
-  const res = await apiFetch(`/api/workspaces/groups/cleanup/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/workspaces/${wsId}/groups/cleanup/`, {
     method: "POST",
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to cleanup pending groups");
+  if (!res.ok)
+    throw new Error(data.error || "Failed to cleanup pending groups");
+  return data;
+}
+
+export async function sendTeamInvite(
+  userId: number,
+  teamId: number,
+): Promise<any> {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/workspaces/${wsId}/teams/invite/`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, team_id: teamId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to send team invite");
   return data;
 }

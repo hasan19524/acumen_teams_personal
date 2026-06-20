@@ -1,10 +1,11 @@
 // features/announcements/services/announcementService.ts
 
 import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 import {
   Announcement,
   CreateAnnouncementPayload,
-} from "../../chat/types/announcement";
+} from "@/features/announcements/types/announcement";
 
 export const announcementService = {
   /**
@@ -12,9 +13,12 @@ export const announcementService = {
    * (workspace-wide + team-scoped).
    */
   getAnnouncements: async (): Promise<Announcement[]> => {
-    const res = await apiFetch("/api/announcements/");
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/announcements/${wsId}/`);
     if (!res.ok) throw new Error("Failed to fetch announcements");
-    return res.json();
+    const data = await res.json();
+    // Handle paginated response
+    return data.results || data;
   },
 
   /**
@@ -25,7 +29,8 @@ export const announcementService = {
   createAnnouncement: async (
     payload: CreateAnnouncementPayload,
   ): Promise<Announcement> => {
-    const res = await apiFetch("/api/announcements/", {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/announcements/${wsId}/create/`, {
       method: "POST",
       body: JSON.stringify({
         title: payload.title,
@@ -44,9 +49,25 @@ export const announcementService = {
    * Delete an announcement.
    */
   deleteAnnouncement: async (announcementId: number): Promise<void> => {
-    const res = await apiFetch(`/api/announcements/${announcementId}/`, {
-      method: "DELETE",
-    });
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(
+      `/api/announcements/${wsId}/${announcementId}/delete/`,
+      {
+        method: "DELETE",
+      },
+    );
     if (!res.ok) throw new Error("Failed to delete announcement");
+  },
+
+  // NEW: Mark as read
+  markAsRead: async (announcementId: number): Promise<void> => {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(
+      `/api/announcements/${wsId}/${announcementId}/mark-read/`,
+      {
+        method: "POST",
+      },
+    );
+    if (!res.ok) throw new Error("Failed to mark as read");
   },
 };

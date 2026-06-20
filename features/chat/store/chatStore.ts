@@ -10,6 +10,7 @@ interface ChatStore {
   messages: Record<number, Message[]>;
   pagination: Record<number, { nextOffset: number; hasOlder: boolean }>;
   selectedChannelId: number | null;
+  myUserId: number | null;
 
   // Channel state (Phase 9C)
   channels: Channel[];
@@ -43,14 +44,18 @@ interface ChatStore {
 
   // Derived channel getters
   getOfficialChannels: () => Channel[];
+  getTeamChannels: () => Channel[];
   getPrivateGroups: () => Channel[];
   getDMs: () => Channel[];
+
+  setMyUserId: (id: number | null) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: {},
   pagination: {},
   selectedChannelId: null,
+  myUserId: null,
   channels: [],
   isLoadingChannels: false,
   typingUsers: {},
@@ -142,6 +147,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             return state;
           }
 
+          // 1.5 Update Channel Sidebar (Last Message & Unread Count)
+          const updatedChannels = state.channels.map((c) => {
+            if (c.id === channelId) {
+              const isMyMessage = msg.sender?.id === get().myUserId;
+              return {
+                ...c,
+                last_message: msg.content || "📎 Attachment",
+                last_message_time: "Now",
+                unread_count: isMyMessage || state.selectedChannelId === channelId ? 0 : (c.unread_count || 0) + 1,
+              };
+            }
+            return c;
+          });
+
           // 2. Optimistic Reconciliation
           if (msg.client_id) {
             const optimisticIndex = currentMessages.findIndex(
@@ -162,7 +181,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
           // 3. Standard Append
           const updated = [...currentMessages, msg].slice(-MAX_MESSAGES);
-          return { messages: { ...state.messages, [channelId]: updated } };
+          return { 
+            messages: { ...state.messages, [channelId]: updated },
+            channels: updatedChannels // FIX: Return the updated channels so the sidebar updates
+          };
         }
 
         case "message.updated": {
@@ -302,5 +324,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   getDMs: () => {
     return get().channels.filter((c) => c.channel_type === "dm");
+  },
+
+  setMyUserId: (id) => {
+    set({ myUserId: id });
   },
 }));

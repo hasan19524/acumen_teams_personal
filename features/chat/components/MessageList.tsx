@@ -1,5 +1,4 @@
 // features/chat/components/MessageList.tsx
-
 "use client";
 
 import { RefObject } from "react";
@@ -10,7 +9,6 @@ import {
   Reply,
   Copy,
   Pencil,
-  Trash2,
   CheckCircle2,
   Check,
   MoreVertical,
@@ -19,10 +17,35 @@ import {
   Download,
 } from "lucide-react";
 import { T } from "../design/tokens";
-import { Message, Attachment } from "../types/message";
+import { Message } from "../types/message";
 import { Channel } from "../types/channel";
 import { isGrouped } from "../utils/grouping";
 import { renderMessageContent, resolveFileUrl } from "../utils/rendering";
+
+const formatDateSeparator = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const isWithin30Min = (createdAt: string) => {
+  const diff = (Date.now() - new Date(createdAt).getTime()) / 60000; // minutes
+  return diff <= 30;
+};
+
+const isUnread = (msg: Message, myUserId: number) => {
+  if (msg.sender?.id === myUserId || msg.is_deleted) return false;
+  return !msg.reads?.some((r: any) => r.user?.id === myUserId);
+};
 
 interface MessageListProps {
   selectedChannel: Channel | null;
@@ -49,14 +72,13 @@ interface MessageListProps {
   onDeleteForMe: (msgId: number) => void;
   onDeleteForEveryone: (msgId: number) => void;
   setDeleteModalMsgId: (id: number | null) => void;
-  // ADDED: Gallery opening
   onGalleryOpen: (
     items: Array<{ url: string; type: string; name: string }>,
     index: number,
   ) => void;
-  // Reactions & Read Receipts
   onToggleReaction: (messageId: number, emoji: string) => void;
   onMarkRead: (messageId: number) => void;
+  typingUsers?: { id: number; username: string }[];
 }
 
 function renderAttachments(
@@ -91,26 +113,26 @@ function renderAttachments(
             <div
               key={att.id}
               style={{
-                background: T.borderSubtle,
+                background: "rgba(255,255,255,0.05)",
                 borderRadius: T.radiusSm,
-                padding: 6,
+                padding: 8,
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: 10,
                 transition: "background 0.12s",
                 cursor: "pointer",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
               }}
             >
               <div
                 style={{
-                  width: 28,
-                  height: 28,
+                  width: 32,
+                  height: 32,
                   borderRadius: T.radiusXs,
                   background: T.accentMuted,
                   display: "flex",
@@ -119,7 +141,7 @@ function renderAttachments(
                   flexShrink: 0,
                 }}
               >
-                <FileText size={14} style={{ color: T.accentHover }} />
+                <FileText size={16} style={{ color: T.accentHover }} />
               </div>
               <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
                 <div
@@ -137,7 +159,7 @@ function renderAttachments(
                   style={{
                     fontSize: T.fontSizeXs,
                     color: T.textMuted,
-                    marginTop: 1,
+                    marginTop: 2,
                   }}
                 >
                   {(att.file_size / 1024).toFixed(1)} KB
@@ -151,7 +173,7 @@ function renderAttachments(
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   color: T.textMuted,
-                  padding: 6,
+                  padding: 8,
                   borderRadius: T.radiusSm,
                   transition: "color 0.12s",
                   display: "flex",
@@ -163,7 +185,7 @@ function renderAttachments(
                   e.currentTarget.style.color = T.textMuted;
                 }}
               >
-                <Download size={14} />
+                <Download size={16} />
               </a>
             </div>
           ))}
@@ -172,10 +194,10 @@ function renderAttachments(
       {mediaAtts.length > 0 && (
         <div
           style={{
-            marginTop: displayText || fileAtts.length > 0 ? 6 : 0,
+            marginTop: displayText || fileAtts.length > 0 ? 8 : 0,
             display: "grid",
             gridTemplateColumns: mediaAtts.length === 1 ? "1fr" : "1fr 1fr",
-            gap: 3,
+            gap: 4,
             maxWidth: T.mediaGridMax,
             borderRadius: T.radiusXs,
             overflow: "hidden",
@@ -213,11 +235,9 @@ function renderAttachments(
                         height: T.imageHeight,
                         objectFit: "cover",
                         display: "block",
-                        borderRadius: T.radiusXs,
                       }}
                       muted
                     />
-                    {/* Video play icon overlay */}
                     <div
                       style={{
                         position: "absolute",
@@ -226,14 +246,13 @@ function renderAttachments(
                         alignItems: "center",
                         justifyContent: "center",
                         background: "rgba(0,0,0,0.25)",
-                        borderRadius: T.radiusXs,
                         pointerEvents: "none",
                       }}
                     >
                       <div
                         style={{
-                          width: 32,
-                          height: 32,
+                          width: 36,
+                          height: 36,
                           borderRadius: "50%",
                           background: "rgba(0,0,0,0.6)",
                           display: "flex",
@@ -242,8 +261,8 @@ function renderAttachments(
                         }}
                       >
                         <svg
-                          width="14"
-                          height="16"
+                          width="16"
+                          height="18"
                           viewBox="0 0 14 16"
                           fill="none"
                         >
@@ -261,7 +280,6 @@ function renderAttachments(
                       height: T.imageHeight,
                       objectFit: "cover",
                       display: "block",
-                      borderRadius: T.radiusXs,
                     }}
                   />
                 ) : null}
@@ -324,6 +342,7 @@ export function MessageList({
   onGalleryOpen,
   onToggleReaction,
   onMarkRead,
+  typingUsers,
 }: MessageListProps) {
   const channelMessages = selectedChannel
     ? messages[selectedChannel.id] || []
@@ -348,7 +367,7 @@ export function MessageList({
           style={{
             width: "100%",
             maxWidth: T.chatMaxWidth,
-            padding: "20px 24px",
+            padding: "16px 24px",
             display: "flex",
             flexDirection: "column",
             gap: 0,
@@ -386,6 +405,15 @@ export function MessageList({
             ? channelMessages.map((msg, index) => {
                 const allMsgs = channelMessages;
                 const mine = msg.sender?.id === myUserId;
+                const prevMsg = index > 0 ? allMsgs[index - 1] : null;
+                const showDateSeparator =
+                  !prevMsg ||
+                  new Date(prevMsg.created_at).toDateString() !==
+                    new Date(msg.created_at).toDateString();
+                const isLastMine =
+                  mine &&
+                  (index === allMsgs.length - 1 ||
+                    allMsgs[index + 1]?.sender?.id !== myUserId);
                 const displayName = msg.sender?.username || "User";
                 const displayText = msg.is_deleted
                   ? "[Message deleted]"
@@ -415,688 +443,704 @@ export function MessageList({
                 }
 
                 const isSelected = selectedMsgIds.has(msg.id);
+                const prevMsgUnread = prevMsg
+                  ? isUnread(prevMsg, myUserId)
+                  : false;
+                const currentUnread = isUnread(msg, myUserId);
+                const showUnreadDivider = currentUnread && !prevMsgUnread;
+
+                const hasMedia = msg.attachments?.some(
+                  (a) =>
+                    a.file_type?.startsWith("image/") ||
+                    a.file_type?.startsWith("video/"),
+                );
 
                 return (
                   <div
                     key={msg.id}
-                    id={`msg-${msg.id}`}
-                    className="message-row"
-                    onClick={() => {
-                      if (isSelectMode) onToggleMessageSelection(msg.id);
-                    }}
                     style={{
+                      width: "100%",
                       display: "flex",
-                      justifyContent: "flex-start",
-                      alignItems: "flex-start",
-                      gap: 0,
-                      marginTop: grouped ? 2 : 14,
-                      paddingTop: grouped ? 0 : 2,
-                      background: isSelected ? T.accentMuted : "transparent",
-                      cursor: isSelectMode ? "pointer" : "default",
-                      transition: "background 0.1s",
+                      flexDirection: "column",
+                      animation: "msgFadeIn 0.2s ease-out",
                     }}
                   >
-                    {/* Select Mode Checkbox */}
-                    {isSelectMode && (
+                    {showUnreadDivider && (
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          justifyContent: "center",
-                          width: 36,
-                          flexShrink: 0,
-                          paddingTop: grouped ? 0 : 2,
+                          gap: 12,
+                          margin: "12px 0 6px",
+                          width: "100%",
                         }}
                       >
                         <div
                           style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            border: isSelected
-                              ? "none"
-                              : `2px solid ${T.textMuted}`,
-                            background: isSelected ? T.accent : "transparent",
+                            flex: 1,
+                            height: 1,
+                            background: T.accent,
+                            opacity: 0.5,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: T.accent,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.5,
+                          }}
+                        >
+                          Unread Messages
+                        </span>
+                        <div
+                          style={{
+                            flex: 1,
+                            height: 1,
+                            background: T.accent,
+                            opacity: 0.5,
+                          }}
+                        />
+                      </div>
+                    )}
+                    {showDateSeparator && (
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          margin: "12px 0 6px",
+                          width: "100%",
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: T.bgHoverStrong,
+                            padding: "4px 12px",
+                            borderRadius: T.radiusMd,
+                            fontSize: "11px",
+                            color: T.textMuted,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatDateSeparator(msg.created_at)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Message Row Wrapper */}
+                    <div
+                      id={`msg-${msg.id}`}
+                      className="message-row"
+                      onClick={() => {
+                        if (isSelectMode) onToggleMessageSelection(msg.id);
+                      }}
+                      style={{
+                        display: "flex",
+                        justifyContent: mine ? "flex-end" : "flex-start",
+                        alignItems: "flex-end",
+                        gap: T.gapSm,
+                        marginTop: grouped ? 2 : 10, // Tighter spacing
+                        cursor: isSelectMode ? "pointer" : "default",
+                        background: isSelected ? T.accentMuted : "transparent",
+                        borderRadius: T.radiusSm,
+                        padding: "2px 4px",
+                      }}
+                    >
+                      {/* Select Mode Checkbox */}
+                      {isSelectMode && (
+                        <div
+                          style={{
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            transition: "all 0.1s",
+                            width: 24,
+                            flexShrink: 0,
+                            paddingBottom: 4,
                           }}
                         >
-                          {isSelected && <Check size={12} color="#fff" />}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Avatar */}
-                    {!mine && (
-                      <div
-                        style={{
-                          width: 36,
-                          flexShrink: 0,
-                          display: "flex",
-                          justifyContent: "center",
-                          paddingTop: grouped ? 0 : 2,
-                        }}
-                      >
-                        {!grouped ? (
                           <div
                             style={{
-                              width: 30,
-                              height: 30,
+                              width: 20,
+                              height: 20,
                               borderRadius: "50%",
-                              background:
-                                "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                              border: isSelected
+                                ? "none"
+                                : `2px solid ${T.textMuted}`,
+                              background: isSelected ? T.accent : "transparent",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#fff",
                             }}
                           >
-                            {displayName.charAt(0).toUpperCase()}
+                            {isSelected && <Check size={12} color="#fff" />}
                           </div>
-                        ) : null}
-                      </div>
-                    )}
-                    {mine && <div style={{ width: 36, flexShrink: 0 }} />}
-
-                    <div
-                      style={{
-                        maxWidth: T.bubbleMaxWidth,
-                        flex: "0 1 auto",
-                        minWidth: 80,
-                        marginLeft: mine ? "auto" : 0,
-                      }}
-                    >
-                      {/* Sender name */}
-                      {!mine && !grouped && (
-                        <div
-                          style={{
-                            fontSize: T.fontSizeXs + 1,
-                            fontWeight: 600,
-                            color: T.accentHover,
-                            marginBottom: 3,
-                            paddingLeft: 2,
-                          }}
-                        >
-                          {displayName}
                         </div>
                       )}
 
-                      {/* Bubble + Menu row */}
+                      {/* Avatar */}
+                      {!mine && (
+                        <div
+                          style={{
+                            width: 28,
+                            flexShrink: 0,
+                            display: "flex",
+                            justifyContent: "center",
+                            paddingBottom: 4,
+                          }}
+                        >
+                          {!grouped ? (
+                            <div
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                background:
+                                  "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#fff",
+                              }}
+                            >
+                              {displayName.charAt(0).toUpperCase()}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                      {mine && <div style={{ width: 28, flexShrink: 0 }} />}
+
+                      {/* Content Column (Bubble + Meta) */}
                       <div
                         style={{
                           display: "flex",
-                          alignItems: "flex-start",
-                          gap: 2,
-                          flexDirection: mine ? "row-reverse" : "row",
-                          marginBottom:
-                            msg.reactions && msg.reactions.length > 0 ? 28 : 0,
+                          flexDirection: "column",
+                          maxWidth: "75%",
+                          alignItems: mine ? "flex-end" : "flex-start",
                         }}
                       >
-                        {/* Bubble */}
-                        <div
-                          style={{
-                            padding:
-                              !displayText &&
-                              msg.attachments?.some(
-                                (a) =>
-                                  a.file_type?.startsWith("image/") ||
-                                  a.file_type?.startsWith("video/"),
-                              )
-                                ? "4px"
-                                : grouped
-                                  ? "6px 12px"
-                                  : "8px 12px",
-                            borderRadius: mine
-                              ? grouped
-                                ? "12px 12px 4px 12px"
-                                : "14px 14px 4px 14px"
-                              : grouped
-                                ? "12px 12px 12px 4px"
-                                : "14px 14px 4px 14px",
-                            background: mine ? T.bgBubbleMine : T.bgBubbleOther,
-                            position: "relative",
-                            overflow: "visible",
-                          }}
-                        >
-                          {/* Reply Preview */}
-                          {resolvedReplyTo &&
-                            typeof resolvedReplyTo === "object" && (
-                              <div
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (resolvedReplyTo.id)
-                                    onScrollToMessage(resolvedReplyTo.id);
-                                }}
-                                style={{
-                                  background: mine
-                                    ? "rgba(0,0,0,0.15)"
-                                    : T.accentSubtle,
-                                  borderLeft: mine
-                                    ? "2px solid rgba(255,255,255,0.3)"
-                                    : `2px solid ${T.accent}`,
-                                  borderRadius: T.radiusXs,
-                                  padding: "4px 8px",
-                                  marginBottom: 6,
-                                  cursor: "pointer",
-                                  overflow: "hidden",
-                                  maxWidth: "100%",
-                                  display: "flex",
-                                  gap: 8,
-                                  alignItems: "center",
-                                  transition: "background 0.1s",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = mine
-                                    ? "rgba(0,0,0,0.2)"
-                                    : "rgba(99,102,241,0.1)";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = mine
-                                    ? "rgba(0,0,0,0.14)"
-                                    : T.accentSubtle;
-                                }}
-                              >
-                                {resolvedReplyTo.attachments?.length > 0 &&
-                                  resolvedReplyTo.attachments[0].file_type?.startsWith(
-                                    "image/",
-                                  ) && (
-                                    <div
-                                      style={{
-                                        flexShrink: 0,
-                                        width: 32,
-                                        height: 32,
-                                        borderRadius: 3,
-                                        overflow: "hidden",
-                                      }}
-                                    >
-                                      <img
-                                        src={resolveFileUrl(
-                                          resolvedReplyTo.attachments[0]
-                                            .file_url,
-                                        )}
-                                        style={{
-                                          width: "100%",
-                                          height: "100%",
-                                          objectFit: "cover",
-                                        }}
-                                        alt=""
-                                      />
-                                    </div>
-                                  )}
-                                {resolvedReplyTo.attachments?.length > 0 &&
-                                  resolvedReplyTo.attachments[0].file_type?.startsWith(
-                                    "video/",
-                                  ) && (
-                                    <div
-                                      style={{
-                                        flexShrink: 0,
-                                        width: 32,
-                                        height: 32,
-                                        borderRadius: 3,
-                                        overflow: "hidden",
-                                        background: "rgba(0,0,0,0.3)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 11,
-                                      }}
-                                    >
-                                      🎬
-                                    </div>
-                                  )}
-                                <div
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                      color: mine
-                                        ? "rgba(255,255,255,0.65)"
-                                        : T.accentHover,
-                                      marginBottom: 2,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                  >
-                                    {resolvedReplyTo.sender?.username ||
-                                      resolvedReplyTo.sender_name ||
-                                      "User"}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: 12,
-                                      lineHeight: 1.35,
-                                      color: mine
-                                        ? "rgba(255,255,255,0.45)"
-                                        : T.textMuted,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      overflowWrap: "anywhere",
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    {resolvedReplyTo.is_deleted
-                                      ? "[Deleted]"
-                                      : resolvedReplyTo.content?.substring(
-                                          0,
-                                          80,
-                                        ) || "📎 Media"}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                          {displayText && (
-                            <div
-                              style={{
-                                fontSize: isEmojiOnly(displayText)
-                                  ? "2.5rem"
-                                  : T.fontSizeBase,
-                                lineHeight: isEmojiOnly(displayText)
-                                  ? 1.2
-                                  : 1.45,
-                                wordBreak: "break-word",
-                                overflowWrap: "anywhere",
-                                hyphens: "auto",
-                                color: msg.is_deleted
-                                  ? T.textMuted
-                                  : T.textPrimary,
-                                fontStyle: msg.is_deleted ? "italic" : "normal",
-                                minWidth: 0,
-                              }}
-                            >
-                              {msg.is_deleted
-                                ? displayText
-                                : renderMessageContent(displayText, mine)}
-                            </div>
-                          )}
-
-                          {renderAttachments(msg, displayText, onGalleryOpen)}
-
-                          {/* Upload progress */}
-                          {msg._status === "pending" &&
-                            msg._progress !== undefined &&
-                            msg._progress < 100 && (
-                              <div
-                                style={{
-                                  marginTop: 6,
-                                  background: "rgba(0,0,0,0.2)",
-                                  borderRadius: 3,
-                                  height: 3,
-                                  overflow: "hidden",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: `${msg._progress}%`,
-                                    height: "100%",
-                                    background: T.accentHover,
-                                    borderRadius: 3,
-                                    transition: "width 0.2s",
-                                  }}
-                                />
-                              </div>
-                            )}
-                          {msg._status === "failed" && (
-                            <div
-                              style={{
-                                marginTop: 4,
-                                fontSize: T.fontSizeXs + 1,
-                                color: T.danger,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              <AlertCircle size={12} /> Upload failed
-                            </div>
-                          )}
-
-                          {/* Metadata Row */}
+                        {!mine && !grouped && (
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: mine ? "flex-end" : "flex-start",
-                              gap: 6,
-                              marginTop: 4,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: T.textSecondary,
+                              marginLeft: 4,
+                              marginBottom: 2,
                             }}
                           >
-                            {msg.is_edited && !msg.is_deleted && (
-                              <span
-                                style={{
-                                  fontSize: T.fontSizeXs,
-                                  color: T.textMeta,
-                                  fontWeight: 400,
-                                }}
-                              >
-                                edited
-                              </span>
-                            )}
-                            <span
-                              style={{
-                                fontSize: T.fontSizeXs,
-                                color: T.textMeta,
-                              }}
-                            >
-                              {msg.created_time}
-                            </span>
-                            {/* Read Receipts (Double Ticks) */}
-                            {mine && !msg.is_deleted && (
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  color:
-                                    msg.reads && msg.reads.length > 0
-                                      ? "#53bdeb"
-                                      : T.textMeta,
-                                  display: "flex",
-                                  alignItems: "center",
-                                }}
-                              >
-                                {msg.reads && msg.reads.length > 0 ? "✓✓" : "✓"}
-                              </span>
-                            )}
+                            {displayName}
                           </div>
+                        )}
 
-                          {/* Reactions Display — WhatsApp/Messenger floating pill */}
-                          {msg.reactions && msg.reactions.length > 0 && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                bottom: -16,
-                                [mine ? "right" : "left"]: 4,
-                                display: "flex",
-                                gap: 3,
-                                zIndex: 10,
-                              }}
-                            >
-                              {Object.values(
-                                msg.reactions.reduce((acc: any, r: any) => {
-                                  if (!acc[r.emoji])
-                                    acc[r.emoji] = {
-                                      emoji: r.emoji,
-                                      count: 0,
-                                      reacted: false,
-                                    };
-                                  acc[r.emoji].count++;
-                                  if (r.user?.id === myUserId)
-                                    acc[r.emoji].reacted = true;
-                                  return acc;
-                                }, {}),
-                              ).map((group: any) => (
-                                <button
-                                  key={group.emoji}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-end",
+                            gap: 4,
+                            flexDirection: mine ? "row-reverse" : "row",
+                          }}
+                        >
+                          {/* Bubble */}
+                          <div
+                            style={{
+                              padding:
+                                !displayText && hasMedia ? "0px" : "8px 12px",
+                              borderRadius: mine
+                                ? grouped
+                                  ? "12px 12px 4px 12px"
+                                  : "14px 14px 4px 14px"
+                                : grouped
+                                  ? "12px 12px 12px 4px"
+                                  : "14px 14px 14px 4px",
+                              background: mine ? T.accent : T.surface,
+                              border: mine ? "none" : `1px solid ${T.border}`,
+                              position: "relative",
+                              overflow: "visible",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                            }}
+                          >
+                            {/* Reply Preview */}
+                            {resolvedReplyTo &&
+                              typeof resolvedReplyTo === "object" && (
+                                <div
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onToggleReaction(msg.id, group.emoji);
+                                    if (resolvedReplyTo.id)
+                                      onScrollToMessage(resolvedReplyTo.id);
                                   }}
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 4,
-                                    minWidth: 28,
-                                    height: 24,
-                                    padding: "0 8px",
-                                    borderRadius: 12,
-                                    border: "none",
-                                    background: group.reacted
-                                      ? "rgba(99,102,241,0.35)"
-                                      : "rgba(40,42,54,0.95)",
+                                    background: mine
+                                      ? "rgba(0,0,0,0.15)"
+                                      : T.accentSubtle,
+                                    borderLeft: mine
+                                      ? "2px solid rgba(255,255,255,0.3)"
+                                      : `2px solid ${T.accent}`,
+                                    borderRadius: T.radiusXs,
+                                    padding: "4px 8px",
+                                    marginBottom: 6,
                                     cursor: "pointer",
-                                    transition: "all 0.15s ease",
-                                    boxShadow: group.reacted
-                                      ? "0 0 0 1.5px rgba(99,102,241,0.5), 0 2px 8px rgba(0,0,0,0.3)"
-                                      : "0 0 0 1px rgba(255,255,255,0.08), 0 2px 8px rgba(0,0,0,0.3)",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "scale(1.12)";
-                                    e.currentTarget.style.boxShadow =
-                                      group.reacted
-                                        ? "0 0 0 1.5px rgba(99,102,241,0.7), 0 4px 12px rgba(0,0,0,0.4)"
-                                        : "0 0 0 1px rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.4)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "scale(1)";
-                                    e.currentTarget.style.boxShadow =
-                                      group.reacted
-                                        ? "0 0 0 1.5px rgba(99,102,241,0.5), 0 2px 8px rgba(0,0,0,0.3)"
-                                        : "0 0 0 1px rgba(255,255,255,0.08), 0 2px 8px rgba(0,0,0,0.3)";
+                                    overflow: "hidden",
+                                    maxWidth: "100%",
+                                    display: "flex",
+                                    gap: 8,
+                                    alignItems: "center",
                                   }}
                                 >
-                                  <span style={{ fontSize: 14, lineHeight: 1 }}>
-                                    {group.emoji}
-                                  </span>
-                                  {group.count > 1 && (
-                                    <span
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div
                                       style={{
                                         fontSize: 11,
                                         fontWeight: 700,
-                                        color: group.reacted
-                                          ? "#a5b4fc"
-                                          : "rgba(255,255,255,0.6)",
-                                        lineHeight: 1,
+                                        color: mine
+                                          ? "rgba(255,255,255,0.65)"
+                                          : T.accentHover,
+                                        marginBottom: 2,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
                                       }}
                                     >
-                                      {group.count}
+                                      {resolvedReplyTo.sender?.username ||
+                                        resolvedReplyTo.sender_name ||
+                                        "User"}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 12,
+                                        lineHeight: 1.35,
+                                        color: mine
+                                          ? "rgba(255,255,255,0.45)"
+                                          : T.textMuted,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        overflowWrap: "anywhere",
+                                        wordBreak: "break-word",
+                                      }}
+                                    >
+                                      {resolvedReplyTo.is_deleted
+                                        ? "[Deleted]"
+                                        : resolvedReplyTo.content?.substring(
+                                            0,
+                                            80,
+                                          ) || "📎 Media"}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Text Content */}
+                            {displayText && (
+                              <div
+                                style={{
+                                  fontSize: isEmojiOnly(displayText)
+                                    ? "2.5rem"
+                                    : T.fontSizeBase,
+                                  lineHeight: isEmojiOnly(displayText)
+                                    ? 1.2
+                                    : 1.4,
+                                  wordBreak: "break-word",
+                                  overflowWrap: "anywhere",
+                                  hyphens: "auto",
+                                  color: msg.is_deleted
+                                    ? T.textMuted
+                                    : T.textPrimary,
+                                  fontStyle: msg.is_deleted
+                                    ? "italic"
+                                    : "normal",
+                                  minWidth: 0,
+                                }}
+                              >
+                                {msg.is_deleted
+                                  ? displayText
+                                  : renderMessageContent(displayText, mine)}
+                              </div>
+                            )}
+
+                            {renderAttachments(msg, displayText, onGalleryOpen)}
+
+                            {/* Upload progress */}
+                            {msg._status === "pending" &&
+                              msg._progress !== undefined &&
+                              msg._progress < 100 && (
+                                <div
+                                  style={{
+                                    marginTop: 6,
+                                    background: "rgba(0,0,0,0.2)",
+                                    borderRadius: 3,
+                                    height: 3,
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: `${msg._progress}%`,
+                                      height: "100%",
+                                      background: T.accentHover,
+                                      borderRadius: 3,
+                                      transition: "width 0.2s",
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            {msg._status === "failed" && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 11,
+                                  color: T.danger,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <AlertCircle size={12} /> Upload failed
+                              </div>
+                            )}
+
+                            {/* Timestamp (Inside Bubble - Bottom Right) */}
+                            {/* If it's media only, overlay it. Otherwise, put it below text. */}
+                            {hasMedia && !displayText ? (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  bottom: 6,
+                                  right: 8,
+                                  background: "rgba(0,0,0,0.6)",
+                                  color: "#fff",
+                                  fontSize: 10,
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                  zIndex: 5,
+                                }}
+                              >
+                                {msg.created_time}
+                              </span>
+                            ) : (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "flex-end",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  marginTop: 2,
+                                  fontSize: 10,
+                                  color: mine
+                                    ? "rgba(255,255,255,0.6)"
+                                    : T.textMuted,
+                                }}
+                              >
+                                {msg.is_edited && !msg.is_deleted && (
+                                  <span style={{ fontStyle: "italic" }}>
+                                    edited
+                                  </span>
+                                )}
+                                <span>{msg.created_time}</span>
+                              </div>
+                            )}
+
+                            {/* Reactions Display */}
+                            {msg.reactions && msg.reactions.length > 0 && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: -10,
+                                  [mine ? "right" : "left"]: 4,
+                                  display: "flex",
+                                  gap: 3,
+                                  zIndex: 10,
+                                }}
+                              >
+                                {Object.values(
+                                  msg.reactions.reduce((acc: any, r: any) => {
+                                    if (!acc[r.emoji])
+                                      acc[r.emoji] = {
+                                        emoji: r.emoji,
+                                        count: 0,
+                                        reacted: false,
+                                      };
+                                    acc[r.emoji].count++;
+                                    if (r.user?.id === myUserId)
+                                      acc[r.emoji].reacted = true;
+                                    return acc;
+                                  }, {}),
+                                ).map((group: any) => (
+                                  <button
+                                    key={group.emoji}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onToggleReaction(msg.id, group.emoji);
+                                    }}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: 4,
+                                      minWidth: 28,
+                                      height: 22,
+                                      padding: "0 8px",
+                                      borderRadius: 12,
+                                      border: "none",
+                                      background: group.reacted
+                                        ? "rgba(99,102,241,0.35)"
+                                        : T.surfaceHover,
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease",
+                                      boxShadow:
+                                        "0 0 0 1px rgba(255,255,255,0.08), 0 2px 4px rgba(0,0,0,0.2)",
+                                    }}
+                                  >
+                                    <span
+                                      style={{ fontSize: 13, lineHeight: 1 }}
+                                    >
+                                      {group.emoji}
                                     </span>
-                                  )}
-                                </button>
-                              ))}
+                                    {group.count > 1 && (
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          color: T.textSecondary,
+                                          lineHeight: 1,
+                                        }}
+                                      >
+                                        {group.count}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Menu trigger */}
+                          {showMenu && (
+                            <div
+                              className="msg-menu-trigger"
+                              style={{
+                                opacity: 0,
+                                pointerEvents: "none",
+                                transition: "opacity 0.12s",
+                                position: "relative",
+                                flexShrink: 0,
+                                alignSelf: "center",
+                                paddingBottom: 4,
+                              }}
+                            >
+                              <button
+                                className="msg-menu-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSetActiveMenuMsgId(
+                                    activeMenuMsgId === msg.id ? null : msg.id,
+                                  );
+                                }}
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: T.radiusSm,
+                                  background: "transparent",
+                                  border: "none",
+                                  color: T.textMuted,
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  transition: "all 0.1s",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background =
+                                    T.bgHoverStrong;
+                                  e.currentTarget.style.color = T.textSecondary;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background =
+                                    "transparent";
+                                  e.currentTarget.style.color = T.textMuted;
+                                }}
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+
+                              {activeMenuMsgId === msg.id && (
+                                <div
+                                  className="msg-dropdown"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    position: "absolute",
+                                    top: "auto",
+                                    bottom: 30,
+                                    right: mine ? -4 : "auto",
+                                    left: mine ? "auto" : 0,
+                                    background: T.bgMenu,
+                                    border: `1px solid ${T.borderHover}`,
+                                    borderRadius: T.radiusMd,
+                                    padding: `${T.gapXs} 0`,
+                                    minWidth: 160,
+                                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                                    zIndex: 50,
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {[
+                                    {
+                                      icon: <span>👍</span>,
+                                      label: "Like",
+                                      action: () =>
+                                        onToggleReaction(msg.id, "👍"),
+                                      danger: false,
+                                    },
+                                    {
+                                      icon: <span>❤️</span>,
+                                      label: "Love",
+                                      action: () =>
+                                        onToggleReaction(msg.id, "❤️"),
+                                      danger: false,
+                                    },
+                                    {
+                                      icon: <span>😂</span>,
+                                      label: "Laugh",
+                                      action: () =>
+                                        onToggleReaction(msg.id, "😂"),
+                                      danger: false,
+                                    },
+                                    {
+                                      icon: <Reply size={14} />,
+                                      label: "Reply",
+                                      action: () => onReply(msg),
+                                      danger: false,
+                                    },
+                                    {
+                                      icon: <CheckCircle2 size={14} />,
+                                      label: "Select",
+                                      action: () => onEnterSelectMode(msg.id),
+                                      danger: false,
+                                    },
+                                    {
+                                      icon:
+                                        copiedMsgId === msg.id ? (
+                                          <Check size={14} />
+                                        ) : (
+                                          <Copy size={14} />
+                                        ),
+                                      label:
+                                        copiedMsgId === msg.id
+                                          ? "Copied"
+                                          : "Copy",
+                                      action: () => onCopy(msg),
+                                      danger: false,
+                                      color:
+                                        copiedMsgId === msg.id
+                                          ? T.success
+                                          : undefined,
+                                    },
+                                    ...(mine && isWithin30Min(msg.created_at)
+                                      ? [
+                                          {
+                                            icon: <Pencil size={14} />,
+                                            label: "Edit",
+                                            action: () => onEdit(msg),
+                                            danger: false,
+                                          },
+                                        ]
+                                      : []),
+                                  ].map((item, i, arr) => {
+                                    const isLast =
+                                      i === arr.length - 1 && item.danger;
+                                    return (
+                                      <div key={i}>
+                                        {isLast && (
+                                          <div
+                                            style={{
+                                              height: 1,
+                                              background: T.border,
+                                              margin: "3px 0",
+                                            }}
+                                          />
+                                        )}
+                                        <button
+                                          onClick={item.action}
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 10,
+                                            width: "100%",
+                                            padding: "8px 14px",
+                                            background: "transparent",
+                                            border: "none",
+                                            color: item.danger
+                                              ? T.danger
+                                              : item.color || T.textSecondary,
+                                            cursor: "pointer",
+                                            fontSize: T.fontSizeSm,
+                                            fontFamily: "inherit",
+                                            transition: "background 0.08s",
+                                            fontWeight: 500,
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.background =
+                                              item.danger
+                                                ? T.dangerHover
+                                                : T.bgHoverStrong;
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.background =
+                                              "transparent";
+                                          }}
+                                        >
+                                          {item.icon}
+                                          <span>{item.label}</span>
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
 
-                        {/* Menu trigger */}
-                        {showMenu && (
-                          <div
-                            className="msg-menu-trigger"
-                            style={{
-                              opacity: 0,
-                              pointerEvents: "none",
-                              transition: "opacity 0.12s",
-                              position: "relative",
-                              flexShrink: 0,
-                              alignSelf: "center",
-                            }}
-                          >
-                            <button
-                              className="msg-menu-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSetActiveMenuMsgId(
-                                  activeMenuMsgId === msg.id ? null : msg.id,
-                                );
-                              }}
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: T.radiusSm,
-                                background: "transparent",
-                                border: "none",
-                                color: T.textMuted,
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "all 0.1s",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background =
-                                  T.bgHoverStrong;
-                                e.currentTarget.style.color = T.textSecondary;
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background =
-                                  "transparent";
-                                e.currentTarget.style.color = T.textMuted;
-                              }}
-                            >
-                              <MoreVertical size={14} />
-                            </button>
-
-                            {activeMenuMsgId === msg.id && (
-                              <div
-                                className="msg-dropdown"
-                                onClick={(e) => e.stopPropagation()}
+                        {/* Seen Receipt (Outside Bubble - Below) */}
+                        {mine &&
+                          !msg.is_deleted &&
+                          msg._status !== "pending" &&
+                          isLastMine &&
+                          msg.reads &&
+                          msg.reads.length > 0 &&
+                          (() => {
+                            const otherRead =
+                              msg.reads.find(
+                                (r: any) => r.user?.id !== myUserId,
+                              ) || msg.reads[0];
+                            if (!otherRead || !otherRead.read_at) return null;
+                            const diffMin = Math.floor(
+                              (Date.now() -
+                                new Date(otherRead.read_at).getTime()) /
+                                60000,
+                            );
+                            let text = "Seen";
+                            if (diffMin < 1) text = "Seen just now";
+                            else if (diffMin < 60)
+                              text = `Seen ${diffMin}m ago`;
+                            else if (diffMin < 1440)
+                              text = `Seen ${Math.floor(diffMin / 60)}h ago`;
+                            return (
+                              <span
                                 style={{
-                                  position: "absolute",
-                                  top: "auto",
-                                  bottom: 30,
-                                  right: mine ? -4 : "auto",
-                                  left: mine ? "auto" : 0,
-                                  background: T.bgMenu,
-                                  border: `1px solid ${T.borderHover}`,
-                                  borderRadius: T.radiusMd,
-                                  padding: `${T.gapXs} 0`,
-                                  minWidth: 160,
-                                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                                  zIndex: 50,
-                                  overflow: "hidden",
+                                  fontSize: 11,
+                                  color: T.accentHover,
+                                  fontWeight: 500,
+                                  marginTop: 2,
+                                  marginRight: 4,
                                 }}
                               >
-                                {[
-                                  {
-                                    icon: <span>👍</span>,
-                                    label: "Like",
-                                    action: () =>
-                                      onToggleReaction(msg.id, "👍"),
-                                    danger: false,
-                                  },
-                                  {
-                                    icon: <span>❤️</span>,
-                                    label: "Love",
-                                    action: () =>
-                                      onToggleReaction(msg.id, "❤️"),
-                                    danger: false,
-                                  },
-                                  {
-                                    icon: <span>😂</span>,
-                                    label: "Laugh",
-                                    action: () =>
-                                      onToggleReaction(msg.id, "😂"),
-                                    danger: false,
-                                  },
-                                  {
-                                    icon: <Reply size={14} />,
-                                    label: "Reply",
-                                    action: () => onReply(msg),
-                                    danger: false,
-                                  },
-                                  {
-                                    icon: <CheckCircle2 size={14} />,
-                                    label: "Select",
-                                    action: () => onEnterSelectMode(msg.id),
-                                    danger: false,
-                                  },
-                                  {
-                                    icon:
-                                      copiedMsgId === msg.id ? (
-                                        <Check size={14} />
-                                      ) : (
-                                        <Copy size={14} />
-                                      ),
-                                    label:
-                                      copiedMsgId === msg.id
-                                        ? "Copied"
-                                        : "Copy",
-                                    action: () => onCopy(msg),
-                                    danger: false,
-                                    color:
-                                      copiedMsgId === msg.id
-                                        ? T.success
-                                        : undefined,
-                                  },
-                                  ...(mine
-                                    ? [
-                                        {
-                                          icon: <Pencil size={14} />,
-                                          label: "Edit",
-                                          action: () => onEdit(msg),
-                                          danger: false,
-                                        },
-                                      ]
-                                    : []),
-                                  ...(mine
-                                    ? [
-                                        {
-                                          icon: <Trash2 size={14} />,
-                                          label: "Delete",
-                                          action: () => {
-                                            onSetActiveMenuMsgId(null);
-                                            setDeleteModalMsgId(msg.id);
-                                          },
-                                          danger: true,
-                                        },
-                                      ]
-                                    : []),
-                                ].map((item, i, arr) => {
-                                  const isLast =
-                                    i === arr.length - 1 && item.danger;
-                                  return (
-                                    <div key={i}>
-                                      {isLast && (
-                                        <div
-                                          style={{
-                                            height: 1,
-                                            background: T.border,
-                                            margin: "3px 0",
-                                          }}
-                                        />
-                                      )}
-                                      <button
-                                        onClick={item.action}
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 10,
-                                          width: "100%",
-                                          padding: "8px 14px",
-                                          background: "transparent",
-                                          border: "none",
-                                          color: item.danger
-                                            ? T.danger
-                                            : item.color || T.textSecondary,
-                                          cursor: "pointer",
-                                          fontSize: T.fontSizeSm,
-                                          fontFamily: "inherit",
-                                          transition: "background 0.08s",
-                                          fontWeight: 500,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.background =
-                                            item.danger
-                                              ? T.dangerHover
-                                              : T.bgHoverStrong;
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.background =
-                                            "transparent";
-                                        }}
-                                      >
-                                        {item.icon}
-                                        <span>{item.label}</span>
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                {text}
+                              </span>
+                            );
+                          })()}
                       </div>
                     </div>
                   </div>
@@ -1109,15 +1153,17 @@ export function MessageList({
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    padding: 60,
+                    height: "100%",
+                    padding: 40,
                     color: T.textMuted,
-                    gap: 12,
+                    gap: 16,
+                    textAlign: "center",
                   }}
                 >
                   <div
                     style={{
-                      width: 48,
-                      height: 48,
+                      width: 64,
+                      height: 64,
                       borderRadius: "50%",
                       background: T.bgHoverStrong,
                       display: "flex",
@@ -1125,22 +1171,82 @@ export function MessageList({
                       justifyContent: "center",
                     }}
                   >
-                    <Send size={20} style={{ color: T.textFaint }} />
+                    <Send size={28} style={{ color: T.textFaint }} />
                   </div>
-                  <div style={{ fontSize: T.fontSizeSm }}>No messages yet</div>
                   <div
                     style={{
-                      fontSize: T.fontSizeXs + 1,
-                      color: T.textFaint,
+                      fontSize: 18,
+                      color: T.textSecondary,
+                      fontWeight: 600,
                     }}
                   >
-                    Start the conversation
+                    No messages yet
+                  </div>
+                  <div
+                    style={{ fontSize: 14, color: T.textFaint, maxWidth: 300 }}
+                  >
+                    Send a message to start the conversation in{" "}
+                    {selectedChannel.name}
                   </div>
                 </div>
               )}
+
+          {typingUsers && typingUsers.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-end",
+                gap: 8,
+                marginTop: 12,
+                marginLeft: 44,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                  flexShrink: 0,
+                }}
+              />
+              <div
+                style={{
+                  background: T.surface,
+                  border: `1px solid ${T.border}`,
+                  padding: "8px 12px",
+                  borderRadius: "14px 14px 14px 4px",
+                  display: "flex",
+                  gap: 4,
+                  alignItems: "center",
+                  height: 28,
+                }}
+              >
+                <div className="typing-dots-bubble">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <style>{`
+                  .typing-dots-bubble { display: flex; gap: 4px; align-items: center; }
+                  .typing-dots-bubble span { width: 6px; height: 6px; border-radius: "50%"; background: ${T.textMuted}; animation: typingBounce 1.4s infinite ease-in-out both; }
+                  .typing-dots-bubble span:nth-child(1) { animation-delay: -0.32s; }
+                  .typing-dots-bubble span:nth-child(2) { animation-delay: -0.16s; }
+                  @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+                `}</style>
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
+
+      <style>{`
+        @keyframes msgFadeIn { 
+          from { opacity: 0; transform: translateY(8px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+      `}</style>
 
       {/* Scroll to bottom */}
       {!isAtBottom && (
@@ -1148,34 +1254,32 @@ export function MessageList({
           onClick={onScrollToBottom}
           style={{
             position: "absolute",
-            bottom: 16,
-            right: 24,
-            height: 32,
-            paddingLeft: 10,
-            paddingRight: 10,
-            borderRadius: 16,
-            background: T.bgMenu,
-            border: `1px solid ${T.borderHover}`,
-            color: T.textSecondary,
+            bottom: 20,
+            right: 28,
+            height: 40,
+            width: 40,
+            borderRadius: "50%",
+            background: T.accent,
+            border: "none",
+            color: "#fff",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 6,
-            fontSize: T.fontSizeSm,
-            fontWeight: 500,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
             zIndex: 10,
             transition: "all 0.12s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = T.bgHoverStrong;
+            e.currentTarget.style.transform = "scale(1.1)";
+            e.currentTarget.style.background = T.accentHover;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = T.bgMenu;
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.background = T.accent;
           }}
         >
-          <ArrowDown size={14} /> Down
+          <ArrowDown size={20} />
         </button>
       )}
     </div>

@@ -426,3 +426,46 @@ This project is licensed under the MIT License.
 Building Acumen — a next-gen tech ecosystem 🚀
 
 ---
+
+colour system choosen
+/_ Background _/
+
+--background: #081325;
+--background-secondary: #101D35;
+
+/_ Surfaces _/
+
+--surface: #172440;
+--surface-hover: #20304E;
+
+/_ Sidebar _/
+
+--sidebar: #0D1B3D;
+--sidebar-hover: #16284F;
+--sidebar-active: #2A3D73;
+
+/_ Brand _/
+
+--primary: #E31E24;
+--primary-hover: #F23138;
+
+--secondary: #4B1587;
+--secondary-hover: #5B1FA1;
+
+/_ States _/
+
+--success: #1FA463;
+--warning: #F5B041;
+--info: #5DADE2;
+--error: #E31E24;
+
+/_ Text _/
+
+--text: #FFFFFF;
+--text-secondary: #E8ECF6;
+--text-muted: #B7C0D8;
+
+/_ Borders _/
+
+--border: #2A3A5C;
+--divider: #24334F;

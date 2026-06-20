@@ -1,5 +1,4 @@
 // features/chat/components/ChatInput.tsx
-
 "use client";
 
 import { useRef, useEffect } from "react";
@@ -27,6 +26,10 @@ interface ChatInputProps {
   setShowEmojiPicker: (v: boolean) => void;
   handleEmojiClick: (emojiData: any) => void;
   onTyping: () => void;
+  isDMPending?: boolean;
+  isDMReceiver?: boolean;
+  onAcceptDM?: () => void;
+  onBlockDM?: () => void;
 }
 
 export function ChatInput({
@@ -45,6 +48,10 @@ export function ChatInput({
   setShowEmojiPicker,
   handleEmojiClick,
   onTyping,
+  isDMPending = false,
+  isDMReceiver = false,
+  onAcceptDM,
+  onBlockDM,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -92,7 +99,7 @@ export function ChatInput({
           position: "relative",
           padding: "12px 20px",
           borderTop: `1px solid ${T.border}`,
-          background: T.bgInput,
+          background: T.bgSecondary,
           flexShrink: 0,
         }}
       >
@@ -113,6 +120,72 @@ export function ChatInput({
             e.target.value = "";
           }}
         />
+
+        {/* DM Request Banner */}
+        {isDMPending && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              marginBottom: 8,
+              borderRadius: T.radiusSm,
+              background: T.accentSubtle,
+              border: `1px solid ${T.accent}`,
+            }}
+          >
+            <span style={{ fontSize: T.fontSizeSm, color: T.textSecondary }}>
+              {isDMReceiver
+                ? "You haven't accepted this message request yet."
+                : "Request sent. Waiting for acceptance."}
+            </span>
+            {isDMReceiver ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={onBlockDM}
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${T.danger}`,
+                    color: T.danger,
+                    padding: "5px 12px",
+                    borderRadius: T.radiusXs,
+                    fontSize: T.fontSizeXs,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Block
+                </button>
+                <button
+                  onClick={onAcceptDM}
+                  style={{
+                    background: T.accent,
+                    border: "none",
+                    color: "#fff",
+                    padding: "5px 12px",
+                    borderRadius: T.radiusXs,
+                    fontSize: T.fontSizeXs,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Accept
+                </button>
+              </div>
+            ) : (
+              <span
+                style={{
+                  fontSize: T.fontSizeXs,
+                  color: T.textMuted,
+                  fontStyle: "italic",
+                }}
+              >
+                Pending
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Reply Bar */}
         {replyingTo && (
@@ -431,7 +504,7 @@ export function ChatInput({
                 ? `Reply to ${replyingTo.sender?.username || "User"}...`
                 : "Message..."
             }
-            disabled={wsState !== "connected"}
+            disabled={wsState !== "connected" || (isDMPending && isDMReceiver)}
             style={{
               flex: 1,
               padding: "9px 14px",

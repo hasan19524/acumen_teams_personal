@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { getCurrentUserId } from "@/lib/auth";
 import { useChatStore } from "../store/chatStore";
 import { useWebSocket } from "./useWebSocket";
 import { useFileUpload } from "./useFileUpload";
 import { Message, WSEventEnvelope } from "../types/message";
 import { Channel } from "../types/channel";
-import { apiFetch } from "@/lib/api";
 import {
   loadChannels,
   loadDMs,
@@ -18,7 +18,10 @@ import {
   editMessage,
   toggleReaction,
   markMessageRead,
+  getWorkspaceUsers,
 } from "../services/channelService";
+import { workspaceService } from "@/features/workspace/workspaceService";
+import { createDMRequest, respondDMRequest } from "../services/dmRequestService";
 
 
 export function useChatPage() {
@@ -30,14 +33,10 @@ export function useChatPage() {
   const isAtBottomRef = useRef(true);
   const isLoadingOlderRef = useRef(false);
   const initialLoadDoneRef = useRef<Set<number>>(new Set());
-  const prevScrollHeightRef = useRef(0);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const { authChecked } = useAuth();
-  const myUserId =
-    typeof window !== "undefined"
-      ? parseInt(localStorage.getItem("user_id") || "0")
-      : 0;
+  const myUserId = getCurrentUserId() || 0;
 
   // ── Store ─────────────────────────────────────────────────────────────────
   const {
@@ -72,7 +71,7 @@ export function useChatPage() {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showNewChannel, setShowNewChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
-  const [newChannelType, setNewChannelType] = useState("official");
+  const [newChannelType, setNewChannelType] = useState("private_group");
   const [newChannelTeamId, setNewChannelTeamId] = useState("");
   const [newChannelMemberIds, setNewChannelMemberIds] = useState<number[]>([]);
   const [newChannelDMUserId, setNewChannelDMUserId] = useState("");
@@ -82,6 +81,7 @@ export function useChatPage() {
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<number | null>(null);
   const [deleteModalMsgId, setDeleteModalMsgId] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [activeThread, setActiveThread] = useState<Message | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<number | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -200,21 +200,19 @@ export function useChatPage() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    Promise.all([loadChannels(), loadDMs()]).then(([channels, dms]) => {
-      const all = [...channels, ...dms];
+    Promise.all([loadChannels(), loadDMs()]).then(([loadedChannels, loadedDms]) => {
+      const all = [...loadedChannels, ...loadedDms];
       setChannels(all);
       if (all.length > 0) selectChannel(all[0].id);
     });
 
     // Fetch workspace users for DM/group member selection
-    apiFetch("/api/chat/workspace-users/")
-      .then((r) => r.json())
+    getWorkspaceUsers()
       .then((data) => setWorkspaceUsers(Array.isArray(data) ? data : []))
       .catch(() => {});
 
     // Fetch teams for team channel creation
-    apiFetch("/api/workspaces/teams/")
-      .then((r) => r.json())
+    workspaceService.getTeams()
       .then((data) => setUserTeams(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [authChecked, setChannels, selectChannel]);
@@ -255,7 +253,7 @@ export function useChatPage() {
         });
       },
     );
-  }, [selectedChannelId, setMessages, setPagination]);
+  }, [selectedChannelId, setMessages, setPagination, myUserId, markMessageRead]);
 
   // ── Scroll Restoration after loading older ────────────────────────────────
   // Handled directly inside handleScroll callback for precision.
@@ -288,6 +286,44 @@ export function useChatPage() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
+    const handleSendThread = useCallback((content: string) => {
+    if (!selectedChannelId || !activeThread || !isReady()) return;
+
+    const clientId = crypto.randomUUID();
+    const tempId = -Date.now();
+    const myUsername = localStorage.getItem("username") || "You";
+
+    const optimisticMsg: Message = {
+      id: tempId,
+      channel: selectedChannelId,
+      sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
+      sender_name: myUsername,
+      content: content,
+      display_content: content,
+      client_id: clientId,
+      is_edited: false,
+      edited_at: null,
+      is_deleted: false,
+      reply_to: activeThread,
+      attachments: [],
+      reactions: [],
+      reads: [],
+      created_at: new Date().toISOString(),
+      created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      _status: "pending",
+    };
+
+    const currentMsgs = messages[selectedChannelId] || [];
+    setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
+
+    wsSend({
+      type: "message",
+      content: content,
+      client_id: clientId,
+      reply_to: activeThread.id,
+    });
+  }, [selectedChannelId, activeThread, isReady, wsSend, messages, setMessages, myUserId]);
+
   const handleSend = useCallback(() => {
     if (!selectedChannelId) return;
 
@@ -301,11 +337,42 @@ export function useChatPage() {
         console.warn("WebSocket not ready");
         return;
       }
+
+      const clientId = crypto.randomUUID();
+      const tempId = -Date.now(); // Negative ID to avoid collision
+      const myUsername = localStorage.getItem("username") || "You";
+
+      const optimisticMsg: Message = {
+        id: tempId,
+        channel: selectedChannelId,
+        sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
+        sender_name: myUsername,
+        content: messageInput,
+        display_content: messageInput,
+        client_id: clientId,
+        is_edited: false,
+        edited_at: null,
+        is_deleted: false,
+        reply_to: replyingTo ? replyingTo : null,
+        attachments: [],
+        reactions: [],
+        reads: [],
+        created_at: new Date().toISOString(),
+        created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        _status: "pending",
+      };
+
+      // Add optimistic message to store immediately
+      const currentMsgs = messages[selectedChannelId] || [];
+      setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
+
       wsSend({
         type: "message",
         content: messageInput,
+        client_id: clientId, // Send client_id for deduplication
         ...(replyingTo ? { reply_to: replyingTo.id } : {}),
       });
+      
       setMessageInput("");
       setReplyingTo(null);
 
@@ -323,6 +390,9 @@ export function useChatPage() {
     wsSend,
     replyingTo,
     uploadFiles,
+    messages,
+    setMessages,
+    myUserId,
   ]);
 
   const handleScroll = useCallback(
@@ -403,17 +473,25 @@ export function useChatPage() {
     try {
       if (newChannelType === "dm") {
         if (!newChannelDMUserId) return;
-        const res = await apiFetch("/api/chat/dm-requests/", {
-          method: "POST",
-          body: JSON.stringify({
+        try {
+          // Backend should create the channel immediately and return it
+          const res: any = await createDMRequest({
             receiver_id: Number(newChannelDMUserId),
             initial_message: newChannelDMMessage || "Hello!",
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          console.error("DM request failed:", data.error);
-          return;
+          });
+          
+          // If backend returns a channel object, add it and select it
+          if (res && res.id) {
+            // Assuming backend returns the channel object directly or nested
+            const newChannel: any = res.channel || res; 
+            // Check if it's a valid channel object (has name property)
+            if (newChannel && newChannel.name) {
+              addChannel(newChannel);
+              selectChannel(newChannel.id);
+            }
+          }
+        } catch (err: any) {
+          console.error("DM request failed:", err.message);
         }
       } else {
         if (!newChannelName.trim()) return;
@@ -429,7 +507,7 @@ export function useChatPage() {
       console.error("Failed to create channel:", error);
     }
     setNewChannelName("");
-    setNewChannelType("official");
+    setNewChannelType("private_group");
     setNewChannelTeamId("");
     setNewChannelMemberIds([]);
     setNewChannelDMUserId("");
@@ -480,8 +558,36 @@ export function useChatPage() {
     }
   }, []);
 
+  const handleAcceptDM = useCallback(async () => {
+    const reqId = (selectedChannel as any)?.dm_request_id;
+    if (!reqId) return;
+    try {
+      await respondDMRequest(reqId, { status: "accepted" });
+      // The WebSocket will broadcast the channel update, removing `is_pending`
+      // We can also force a local update for instant feedback
+      if (selectedChannel) selectChannel(selectedChannel.id); 
+    } catch (error) {
+      console.error("Failed to accept DM:", error);
+    }
+  }, [selectedChannel, selectChannel]);
+
+  const handleBlockDM = useCallback(async () => {
+    const reqId = (selectedChannel as any)?.dm_request_id;
+    if (!reqId) return;
+    try {
+      await respondDMRequest(reqId, { status: "rejected" });
+      // Remove the channel from the list locally
+      if (selectedChannel) {
+        useChatStore.getState().removeChannel(selectedChannel.id);
+        selectChannel(null);
+      }
+    } catch (error) {
+      console.error("Failed to block DM:", error);
+    }
+  }, [selectedChannel, selectChannel]);
+
   const handleReply = useCallback((msg: Message) => {
-    setReplyingTo(msg);
+    setActiveThread(msg); // Open the thread panel instead of the bottom reply bar
     setActiveMenuMsgId(null);
   }, []);
 
@@ -652,6 +758,8 @@ export function useChatPage() {
     setDeleteModalMsgId,
     replyingTo,
     setReplyingTo,
+    activeThread,
+    setActiveThread,
     copiedMsgId,
     editingMessageId,
     setEditingMessageId,
@@ -681,6 +789,7 @@ export function useChatPage() {
 
     // Actions
     handleSend,
+    handleSendThread,
     handleScroll,
     scrollToBottom,
     scrollToMessage,
@@ -692,6 +801,8 @@ export function useChatPage() {
     typingUsers,
     handleToggleReaction,
     handleMarkRead,
+    handleAcceptDM,
+    handleBlockDM,
     handleEditMessage,
     handleSaveEdit,
     handleDeleteForEveryone,

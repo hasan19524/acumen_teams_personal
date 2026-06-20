@@ -1,9 +1,14 @@
+# acumen_backend/accounts/views.py
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from workspaces.services import WorkspaceService
+from workspaces.models import WorkspaceMembership
 
 
 @api_view(["POST"])
@@ -47,35 +52,10 @@ def register(request):
         last_name=last_name,
     )
 
-    from workspaces.models import Workspace, WorkspaceMembership
-    from chat.models import Channel, ChannelMember
-    from django.utils.text import slugify
-    import uuid
-
-    slug = slugify(company_name or username)
-    if Workspace.objects.filter(slug=slug).exists():
-        slug = f"{slug}-{uuid.uuid4().hex[:6]}"
-
-    workspace = Workspace.objects.create(
-        name=company_name or f"{username}'s Workspace",
-        slug=slug,
-        owner=user,
+    # Use WorkspaceService to properly provision System Teams and Chats
+    workspace = WorkspaceService.create_workspace(
+        name=company_name or f"{username}'s Workspace", owner=user
     )
-
-    WorkspaceMembership.objects.create(
-        workspace=workspace,
-        user=user,
-        role="owner",
-    )
-
-    general = Channel.objects.create(
-        name="general",
-        slug=f"general-{slug}",
-        workspace=workspace,
-        created_by=user,
-        is_dm=False,
-    )
-    ChannelMember.objects.create(channel=general, user=user, role="admin")
 
     refresh = RefreshToken.for_user(user)
 
@@ -88,6 +68,7 @@ def register(request):
             "email": user.email,
             "full_name": f"{user.first_name} {user.last_name}".strip(),
             "user_id": user.id,
+            "workspace_id": workspace.id,  # CRITICAL: Provide workspace_id to frontend
         },
         status=status.HTTP_201_CREATED,
     )
@@ -95,6 +76,7 @@ def register(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([AnonRateThrottle])
 def login_user(request):
     data = request.data
     login_input = data.get("login", "").strip()
@@ -110,12 +92,12 @@ def login_user(request):
     if "@" in login_input:
         try:
             user_candidate = User.objects.get(email=login_input)
-        except:
+        except User.DoesNotExist:
             pass
     else:
         try:
             user_candidate = User.objects.get(username=login_input)
-        except:
+        except User.DoesNotExist:
             pass
 
     if not user_candidate or not user_candidate.check_password(password):
@@ -126,6 +108,14 @@ def login_user(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
+    # Fetch the user's active workspace to provide ID to frontend
+    membership = (
+        user_candidate.memberships.filter(is_active=True)
+        .select_related("workspace")
+        .first()
+    )
+    workspace_id = membership.workspace.id if membership else None
+
     refresh = RefreshToken.for_user(user_candidate)
     return Response(
         {
@@ -135,6 +125,7 @@ def login_user(request):
             "email": user_candidate.email,
             "full_name": f"{user_candidate.first_name} {user_candidate.last_name}".strip(),
             "user_id": user_candidate.id,
+            "workspace_id": workspace_id,  # CRITICAL: Provide workspace_id to frontend
         },
         status=status.HTTP_200_OK,
     )
@@ -145,13 +136,23 @@ def login_user(request):
 def me(request):
     user = request.user
     try:
-        membership = user.memberships.filter(is_active=True).first()
-        role = membership.role if membership else "employee"
-        company_name = membership.workspace.name if membership else ""
+        membership = (
+            user.memberships.filter(is_active=True).select_related("workspace").first()
+        )
+        if membership:
+            role = membership.role
+            company_name = membership.workspace.name
+            ws_id = membership.workspace.id
+        else:
+            role = None
+            company_name = ""
+            ws_id = None
+
         full_name = f"{user.first_name} {user.last_name}".strip()
-    except:
-        role = "employee"
+    except Exception:
+        role = None
         company_name = ""
+        ws_id = None
         full_name = f"{user.first_name} {user.last_name}".strip()
 
     return Response(
@@ -162,6 +163,7 @@ def me(request):
             "full_name": full_name or user.username,
             "role": role,
             "company_name": company_name,
+            "workspace_id": ws_id,  # Also return it here for safety
         }
     )
 

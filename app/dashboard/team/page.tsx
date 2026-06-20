@@ -1,215 +1,200 @@
+// app/dashboard/team/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search,
   UserPlus,
-  Shield,
-  Download,
   MoreHorizontal,
   X,
+  Users,
+  Building2,
+  Mail,
+  Copy,
+  Trash2,
+  CheckCircle2,
+  Link as LinkIcon,
+  Shield,
+  MessageSquare,
+  ArrowRightCircle,
+  Loader2,
+  Crown,
+  CalendarDays,
 } from "lucide-react";
-import DashboardSidebar from "@/components/DashboardSidebar";
+
+import { workspaceService } from "@/features/workspace/workspaceService";
+import { loadChannels } from "@/features/chat/services/channelService";
+import {
+  sendTeamInvite,
+  sendGroupInvites,
+} from "@/features/chat/services/inviteService";
+
+// ── Design Tokens ─────────────────────────────────────────────────
+const tk = {
+  bgApp: "#020617",
+  bgSurface: "rgba(15,23,42,0.8)",
+  bgHover: "rgba(255,255,255,0.04)",
+  bgHoverStrong: "rgba(255,255,255,0.08)",
+  border: "rgba(255,255,255,0.06)",
+  borderHover: "rgba(255,255,255,0.14)",
+  textPrimary: "#f1f5f9",
+  textSecondary: "#94a3b8",
+  textMuted: "#64748b",
+  accent: "#3b82f6",
+  accentHover: "#4f46e5",
+  success: "#10b981",
+  danger: "#ef4444",
+  warning: "#f59e0b",
+  radiusMd: "12px",
+  radiusLg: "16px",
+};
+
+type Tab = "members" | "teams" | "invites";
 
 export default function TeamPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("members");
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  // Data State
   const [users, setUsers] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [myRole, setMyRole] = useState("member");
+  const [inviteCounts, setInviteCounts] = useState({
+    workspace: 0,
+    teams: 0,
+    private_groups: 0,
+    dm_requests: 0,
+  });
+
+  const isAdmin = myRole === "owner" || myRole === "admin";
+
+  // UI State
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<any | null>(null);
+  const [isEditingTeam, setIsEditingTeam] = useState(false);
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamDesc, setEditTeamDesc] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: string;
+    user: any;
+  } | null>(null);
+
+  // Form State
+  const [inviteType, setInviteType] = useState<"workspace" | "team" | "group">(
+    "workspace",
+  );
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("employee");
+  const [inviteRole, setInviteRole] = useState("member");
   const [inviteTeamId, setInviteTeamId] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
-  const [inviteType, setInviteType] = useState<"workspace" | "team" | "group">(
-    "workspace",
-  );
   const [teamInviteUserId, setTeamInviteUserId] = useState("");
   const [teamInviteTeamId, setTeamInviteTeamId] = useState("");
   const [groupInviteChannelId, setGroupInviteChannelId] = useState("");
   const [groupInviteUserIds, setGroupInviteUserIds] = useState<number[]>([]);
-  const [workspaceUsers, setWorkspaceUsers] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
-  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamLeaderId, setNewTeamLeaderId] = useState("");
   const [createTeamLoading, setCreateTeamLoading] = useState(false);
-  const [createTeamError, setCreateTeamError] = useState("");
-  const [createTeamSuccess, setCreateTeamSuccess] = useState("");
-  const [teams, setTeams] = useState<any[]>([]);
-  const [showLinkModal, setShowLinkModal] = useState(false);
-  const [linkRole, setLinkRole] = useState("employee");
+
+  const [linkRole, setLinkRole] = useState("member");
   const [linkExpiry, setLinkExpiry] = useState(96);
   const [generatedLink, setGeneratedLink] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const fetchMembers = () => {
-    const token = localStorage.getItem("token");
-    fetch("http://127.0.0.1:8000/api/workspaces/members/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => (Array.isArray(d) ? setUsers(d) : setUsers([])))
-      .catch(() => {});
+  // ── Data Fetching ──────────────────────────────────────────────
+  const fetchAllData = async () => {
+    setIsLoading(true);
+    try {
+      const [membersData, teamsData, channelsData, statsData, countsData] =
+        await Promise.all([
+          workspaceService.getMembers(),
+          workspaceService.getTeams(),
+          loadChannels(),
+          workspaceService.getStats(),
+          import("@/features/chat/services/inviteService").then((m) =>
+            m.loadInviteCounts(),
+          ),
+        ]);
+      setUsers(Array.isArray(membersData) ? membersData : []);
+      setTeams(Array.isArray(teamsData) ? teamsData : []);
+      setChannels(
+        Array.isArray(channelsData)
+          ? channelsData.filter((c: any) => c.channel_type === "private_group")
+          : [],
+      );
+      if (statsData?.role) setMyRole(statsData.role);
+      setInviteCounts(countsData);
+    } catch (err) {
+      console.error("Failed to fetch admin data:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchMembers();
+    fetchAllData();
   }, []);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    fetch("http://127.0.0.1:8000/api/workspaces/teams/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => (Array.isArray(d) ? setTeams(d) : setTeams([])))
-      .catch(() => {});
-  }, []);
+  // Removed the global mousedown listener to prevent the menu from closing before clicks register.
+  // The root container's onClick now handles closing the menu when clicking outside.
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    fetch("http://127.0.0.1:8000/api/workspaces/members/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) =>
-        Array.isArray(d) ? setWorkspaceUsers(d) : setWorkspaceUsers([]),
-      )
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    fetch("http://127.0.0.1:8000/api/chat/channels/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        const list = Array.isArray(d) ? d : d.results || [];
-        setChannels(
-          list.filter((c: any) => c.channel_type === "private_group"),
-        );
-      })
-      .catch(() => {});
-  }, []);
-
+  // ── Handlers ───────────────────────────────────────────────────
   const handleInvite = async () => {
     setInviteError("");
     setInviteSuccess("");
-    if (!inviteUsername && !inviteEmail) {
-      setInviteError("Username or email required");
-      return;
-    }
+    if (inviteType === "workspace" && !inviteUsername && !inviteEmail)
+      return setInviteError("Username or email required");
+    if (inviteType === "team" && (!teamInviteUserId || !teamInviteTeamId))
+      return setInviteError("User and team are required");
+    if (
+      inviteType === "group" &&
+      (!groupInviteChannelId || groupInviteUserIds.length === 0)
+    )
+      return setInviteError("Group and at least one user are required");
+
     setInviteLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const body: Record<string, any> = { role: inviteRole };
-      if (inviteUsername) body.username = inviteUsername;
-      if (inviteEmail) body.email = inviteEmail;
-      if (inviteTeamId) body.team_id = Number(inviteTeamId);
-
-      const res = await fetch("http://127.0.0.1:8000/api/workspaces/invite/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setInviteError(data.error || "Failed to invite user");
-      } else {
-        setInviteSuccess(data.detail || "User invited successfully");
-        setInviteUsername("");
-        setInviteEmail("");
-        setInviteRole("employee");
-        setInviteTeamId("");
-        fetchMembers();
-      }
-    } catch {
-      setInviteError("Network error");
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleTeamInvite = async () => {
-    setInviteError("");
-    setInviteSuccess("");
-    if (!teamInviteUserId || !teamInviteTeamId) {
-      setInviteError("User and team are required");
-      return;
-    }
-    setInviteLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        "http://127.0.0.1:8000/api/workspaces/teams/invite/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            user_id: Number(teamInviteUserId),
-            team_id: Number(teamInviteTeamId),
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setInviteError(data.error || "Failed to send team invite");
-      } else {
+      if (inviteType === "workspace") {
+        const payload: any = { role: inviteRole };
+        if (inviteUsername) payload.username = inviteUsername;
+        if (inviteEmail) payload.email = inviteEmail;
+        if (inviteTeamId) payload.team_id = Number(inviteTeamId);
+        await workspaceService.inviteMember(payload);
+        setInviteSuccess("User invited successfully");
+      } else if (inviteType === "team") {
+        await sendTeamInvite(
+          Number(teamInviteUserId),
+          Number(teamInviteTeamId),
+        );
         setInviteSuccess("Team invite sent successfully");
-        setTeamInviteUserId("");
-        setTeamInviteTeamId("");
-      }
-    } catch {
-      setInviteError("Network error");
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleGroupInvite = async () => {
-    setInviteError("");
-    setInviteSuccess("");
-    if (!groupInviteChannelId || groupInviteUserIds.length === 0) {
-      setInviteError("Group and at least one user are required");
-      return;
-    }
-    setInviteLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        "http://127.0.0.1:8000/api/workspaces/groups/invite/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            channel_id: Number(groupInviteChannelId),
-            user_ids: groupInviteUserIds,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setInviteError(data.error || "Failed to send group invite");
-      } else {
+      } else if (inviteType === "group") {
+        const data = await sendGroupInvites(
+          Number(groupInviteChannelId),
+          groupInviteUserIds,
+        );
         setInviteSuccess(`Invited ${data.created_count} user(s) to group`);
-        setGroupInviteChannelId("");
-        setGroupInviteUserIds([]);
       }
-    } catch {
-      setInviteError("Network error");
+      setInviteUsername("");
+      setInviteEmail("");
+      setInviteRole("member");
+      setInviteTeamId("");
+      setTeamInviteUserId("");
+      setTeamInviteTeamId("");
+      setGroupInviteChannelId("");
+      setGroupInviteUserIds([]);
+      fetchAllData();
+    } catch (err: any) {
+      setInviteError(err.message || "Failed to send invite");
     } finally {
       setInviteLoading(false);
     }
@@ -220,24 +205,11 @@ export default function TeamPage() {
     setGeneratedLink("");
     setLinkCopied(false);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        "http://127.0.0.1:8000/api/workspaces/invite/generate/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ role: linkRole, expires_hours: linkExpiry }),
-        },
-      );
-      const data = await res.json();
-      if (res.ok && data.invite_url) {
-        setGeneratedLink(data.invite_url);
-      } else {
-        setInviteError(data.error || "Failed to generate link");
-      }
+      const data = await workspaceService.generateInviteLink({
+        role: linkRole,
+        expires_hours: linkExpiry,
+      });
+      if (data.invite_url) setGeneratedLink(data.invite_url);
     } catch {
       setInviteError("Network error");
     } finally {
@@ -245,1038 +217,2110 @@ export default function TeamPage() {
     }
   };
 
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedLink);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      setInviteError("Failed to copy");
-    }
-  };
-
-  const openInviteModal = (type: "workspace" | "team" | "group") => {
-    setInviteType(type);
-    setShowInviteModal(true);
-    setInviteError("");
-    setInviteSuccess("");
-  };
-
   const handleCreateTeam = async () => {
-    setCreateTeamError("");
-    setCreateTeamSuccess("");
-    if (!newTeamName.trim()) {
-      setCreateTeamError("Team name is required");
-      return;
-    }
+    if (!newTeamName.trim()) return;
     setCreateTeamLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const body: Record<string, any> = { name: newTeamName };
-      if (newTeamLeaderId) body.leader_id = Number(newTeamLeaderId);
-
-      const res = await fetch(
-        "http://127.0.0.1:8000/api/workspaces/teams/create/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setCreateTeamError(data.error || "Failed to create team");
-      } else {
-        setCreateTeamSuccess("Team created successfully");
-        setNewTeamName("");
-        setNewTeamLeaderId("");
-        fetchMembers();
-      }
+      const payload: any = { name: newTeamName };
+      if (newTeamLeaderId) payload.leader_id = Number(newTeamLeaderId);
+      await workspaceService.createTeam(payload);
+      setShowCreateTeamModal(false);
+      setNewTeamName("");
+      setNewTeamLeaderId("");
+      fetchAllData();
     } catch {
-      setCreateTeamError("Network error");
     } finally {
       setCreateTeamLoading(false);
     }
   };
 
-  const filtered = users.filter(
-    (u) =>
-      (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (u.username || "").toLowerCase().includes(search.toLowerCase()),
+  const handleRoleChange = async (userId: number, newRole: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.user_id === userId ? { ...u, role: newRole } : u)),
+    );
+    setConfirmAction(null);
+    try {
+      await workspaceService.updateMemberRole(userId, newRole);
+      if (selectedMember?.user_id === userId)
+        setSelectedMember((prev: any) => ({ ...prev, role: newRole }));
+    } catch (err: any) {
+      alert(err.message || "Failed to update role");
+      fetchAllData();
+    }
+  };
+
+  const handleMoveTeam = async (userId: number, teamId: number | null) => {
+    const team = teams.find((t) => t.id === teamId);
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.user_id === userId ? { ...u, team: team?.name || "Unassigned" } : u,
+      ),
+    );
+    setConfirmAction(null);
+    try {
+      await workspaceService.moveTeam(userId, teamId);
+      if (selectedMember?.user_id === userId)
+        setSelectedMember((prev: any) => ({
+          ...prev,
+          team: team?.name || "Unassigned",
+        }));
+    } catch (err: any) {
+      alert(err.message || "Failed to move team");
+      fetchAllData();
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    setUsers((prev) => prev.filter((u) => u.user_id !== userId));
+    setSelectedMember(null);
+    setConfirmAction(null);
+    try {
+      await workspaceService.removeMember(userId);
+    } catch (err: any) {
+      alert(err.message || "Failed to remove member");
+      fetchAllData();
+    }
+  };
+
+  const handleOpenTeamDrawer = (team: any) => {
+    setSelectedTeam(team);
+    setEditTeamName(team.name);
+    setEditTeamDesc(team.description || "");
+    setIsEditingTeam(false);
+  };
+
+  const handleSaveTeam = async () => {
+    try {
+      await workspaceService.updateTeam(selectedTeam.id, {
+        name: editTeamName,
+        description: editTeamDesc,
+      });
+      const updatedTeam = {
+        ...selectedTeam,
+        name: editTeamName,
+        description: editTeamDesc,
+      };
+      setSelectedTeam(updatedTeam);
+      setIsEditingTeam(false);
+      fetchAllData();
+    } catch (err) {
+      alert("Failed to update team");
+    }
+  };
+
+  const handleDeleteTeam = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to delete the team "${selectedTeam.name}"? This will also delete the team chat channel.`,
+      )
+    )
+      return;
+    try {
+      await workspaceService.deleteTeam(selectedTeam.id);
+      setSelectedTeam(null);
+      fetchAllData();
+    } catch (err) {
+      alert("Failed to delete team");
+    }
+  };
+
+  // ── Derived Data ───────────────────────────────────────────────
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesSearch =
+        (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (u.username || "").toLowerCase().includes(search.toLowerCase());
+      const matchesRole = roleFilter === "all" || u.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [users, search, roleFilter]);
+
+  const standardTeams = useMemo(
+    () => teams.filter((t) => t.team_type === "standard" || !t.team_type),
+    [teams],
   );
 
-  // REMOVED: Fake presence badge function.
-  // Backend presence system exists (Redis-based, used in ChatConsumer).
-  // When real presence data is wired to this page, a new badge function
-  // should be built on actual WebSocket presence events — not hardcoded.
+  const getRoleBadge = (role: string) => {
+    const styles: Record<string, any> = {
+      owner: { bg: "rgba(168,85,247,0.15)", color: "#c084fc" },
+      admin: { bg: "rgba(59,130,246,0.15)", color: "#60a5fa" },
+      member: { bg: "rgba(255,255,255,0.08)", color: "#94a3b8" },
+      guest: { bg: "rgba(255,255,255,0.05)", color: "#64748b" },
+    };
+    const s = styles[role] || styles.member;
+    return (
+      <span
+        style={{
+          padding: "4px 8px",
+          borderRadius: "6px",
+          fontSize: "11px",
+          fontWeight: 600,
+          background: s.bg,
+          color: s.color,
+          textTransform: "capitalize",
+        }}
+      >
+        {role}
+      </span>
+    );
+  };
 
+  // ── Render ─────────────────────────────────────────────────────
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg,#020617 0%, #020b22 100%)",
-        color: "#fff",
-        display: "flex",
+        background: tk.bgApp,
+        color: tk.textPrimary,
         fontFamily: "Inter, sans-serif",
+        padding: "32px 40px",
       }}
+      onClick={() => setActiveMenuId(null)}
     >
-      {/* SHARED SIDEBAR */}
-      <DashboardSidebar />
-
-      {/* Main — unchanged */}
-      <main style={{ flex: 1, padding: "26px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 48,
-                fontWeight: 800,
-                letterSpacing: -1,
-              }}
-            >
-              Workspace Admin Console
-            </h1>
-            <p
-              style={{
-                marginTop: 8,
-                color: "rgba(255,255,255,.65)",
-                fontSize: 16,
-              }}
-            >
-              Manage users, roles, permissions and members
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {[
-              { icon: Shield, text: "Permissions" },
-              { icon: Download, text: "Export" },
-            ].map((btn, i) => {
-              const Icon = btn.icon;
-              return (
-                <button
-                  key={`btn-${i}`}
-                  style={{
-                    height: 46,
-                    padding: "0 18px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,.06)",
-                    background: "rgba(255,255,255,.03)",
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  <Icon size={17} /> {btn.text}
-                </button>
-              );
-            })}
+      {/* HEADER */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          marginBottom: "32px",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "28px",
+              fontWeight: 700,
+              letterSpacing: "-0.5px",
+            }}
+          >
+            Workspace Administration
+          </h1>
+          <p
+            style={{
+              margin: "8px 0 0",
+              color: tk.textSecondary,
+              fontSize: "15px",
+            }}
+          >
+            Manage members, teams and workspace permissions.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "12px" }}>
+          {isAdmin && (
             <button
               onClick={() => {
-                setShowCreateTeamModal(true);
-                setCreateTeamError("");
-                setCreateTeamSuccess("");
+                setShowInviteModal(true);
+                setInviteError("");
+                setInviteSuccess("");
               }}
-              style={{
-                height: 46,
-                padding: "0 20px",
-                borderRadius: 14,
-                border: "1px solid rgba(34,197,94,.3)",
-                background: "rgba(34,197,94,.1)",
-                color: "#86efac",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
+              style={btnPrimary}
+            >
+              <UserPlus size={16} /> Invite
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowCreateTeamModal(true)}
+              style={btnSecondary}
             >
               + Create Team
             </button>
-            <button
-              onClick={() => {
-                setShowLinkModal(true);
-                setGeneratedLink("");
-                setLinkCopied(false);
-                setInviteError("");
-              }}
-              style={{
-                height: 46,
-                padding: "0 20px",
-                borderRadius: 14,
-                border: "1px solid rgba(251,191,36,.3)",
-                background: "rgba(251,191,36,.1)",
-                color: "#fcd34d",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              🔗 Invite Link
-            </button>
-            <button
-              onClick={() => openInviteModal("workspace")}
-              style={{
-                height: 46,
-                padding: "0 20px",
-                borderRadius: 14,
-                border: "none",
-                background: "linear-gradient(135deg,#3b82f6,#4f46e5)",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              <UserPlus size={18} /> Workspace Invite
-            </button>
-            <button
-              onClick={() => openInviteModal("team")}
-              style={{
-                height: 46,
-                padding: "0 20px",
-                borderRadius: 14,
-                border: "1px solid rgba(139,92,246,.3)",
-                background: "rgba(139,92,246,.1)",
-                color: "#c4b5fd",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              <UserPlus size={18} /> Team Invite
-            </button>
-            <button
-              onClick={() => openInviteModal("group")}
-              style={{
-                height: 46,
-                padding: "0 20px",
-                borderRadius: 14,
-                border: "1px solid rgba(8,145,178,.3)",
-                background: "rgba(8,145,178,.1)",
-                color: "#67e8f9",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              <UserPlus size={18} /> Group Invite
-            </button>
-          </div>
+          )}
         </div>
+      </div>
 
-        <div
-          style={{
-            marginTop: 28,
-            background: "rgba(255,255,255,.025)",
-            border: "1px solid rgba(255,255,255,.05)",
-            borderRadius: 18,
-            padding: 14,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <Search size={18} color="rgba(255,255,255,.6)" />
-          <input
-            placeholder="Search users..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "16px",
+          marginBottom: "32px",
+        }}
+      >
+        <SummaryCard
+          label="Members"
+          value={isLoading ? "..." : users.length}
+          icon={Users}
+          color="#3b82f6"
+        />
+        <SummaryCard
+          label="Teams"
+          value={isLoading ? "..." : standardTeams.length}
+          icon={Building2}
+          color="#8b5cf6"
+        />
+        <SummaryCard
+          label="Pending Invites"
+          value={
+            isLoading
+              ? "..."
+              : inviteCounts.workspace +
+                inviteCounts.teams +
+                inviteCounts.private_groups +
+                inviteCounts.dm_requests
+          }
+          icon={Mail}
+          color="#f59e0b"
+        />
+      </div>
+
+      {/* TABS */}
+      <div
+        style={{
+          display: "flex",
+          gap: "4px",
+          borderBottom: `1px solid ${tk.border}`,
+          marginBottom: "20px",
+        }}
+      >
+        {(["members", "teams", "invites"] as Tab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
             style={{
-              flex: 1,
+              padding: "10px 16px",
               background: "transparent",
               border: "none",
-              outline: "none",
-              color: "#fff",
-              fontSize: 15,
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            marginTop: 24,
-            borderRadius: 22,
-            overflow: "visible",
-            border: "1px solid rgba(255,255,255,.05)",
-            background: "rgba(255,255,255,.02)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.6fr 1.6fr 1fr 1fr 70px",
-              padding: "18px 22px",
-              color: "rgba(255,255,255,.55)",
-              fontWeight: 700,
-              fontSize: 14,
-              borderBottom: "1px solid rgba(255,255,255,.05)",
+              borderBottom:
+                activeTab === tab
+                  ? `2px solid ${tk.accent}`
+                  : "2px solid transparent",
+              color: activeTab === tab ? tk.textPrimary : tk.textMuted,
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+              textTransform: "capitalize",
             }}
           >
-            <div>User</div>
-            <div>Email</div>
-            <div>Role</div>
-            <div>Department</div>
-            <div></div>
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* MEMBERS TAB */}
+      {activeTab === "members" && (
+        <div>
+          <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+            <div
+              style={{
+                flex: 1,
+                background: tk.bgSurface,
+                border: `1px solid ${tk.border}`,
+                borderRadius: tk.radiusMd,
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <Search size={16} color={tk.textMuted} />
+              <input
+                placeholder="Search members..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: tk.textPrimary,
+                  fontSize: "14px",
+                }}
+              />
+            </div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              style={{
+                background: tk.bgSurface,
+                border: `1px solid ${tk.border}`,
+                borderRadius: tk.radiusMd,
+                padding: "0 16px",
+                color: tk.textPrimary,
+                outline: "none",
+                fontSize: "14px",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Roles</option>
+              <option value="owner">Owner</option>
+              <option value="admin">Admin</option>
+              <option value="member">Member</option>
+              <option value="guest">Guest</option>
+            </select>
           </div>
 
-          {filtered.map((u, i) => {
-            return (
-              <div
-                key={u.id ?? `user-${i}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.6fr 1.6fr 1fr 1fr 70px",
-                  padding: "18px 22px",
-                  alignItems: "center",
-                  borderBottom:
-                    i !== filtered.length - 1
-                      ? "1px solid rgba(255,255,255,.04)"
-                      : "none",
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>
-                  {u.full_name || u.username}
-                </div>
-                <div style={{ color: "rgba(255,255,255,.75)" }}>
-                  {u.username}
-                </div>
-                <select
-                  defaultValue={u.role}
-                  style={{
-                    height: 42,
-                    background: "rgba(255,255,255,.03)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,.06)",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    outline: "none",
-                  }}
-                >
-                  <option>Super Admin</option>
-                  <option>Admin</option>
-                  <option>Manager</option>
-                  <option>HR</option>
-                  <option>Employee</option>
-                </select>
-                <select
-                  defaultValue={u.team || "No Team"}
-                  style={{
-                    height: 42,
-                    background: "rgba(255,255,255,.03)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,.06)",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    outline: "none",
-                  }}
-                >
-                  <option>Management</option>
-                  <option>Sales</option>
-                  <option>Human Resources</option>
-                  <option>Development</option>
-                  <option>Support</option>
-                </select>
-                <button
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 12,
-                    border: "none",
-                    background: "rgba(255,255,255,.04)",
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        {/* Generate Invite Link Modal */}
-        {showLinkModal && (
           <div
             style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 9999,
+              background: tk.bgSurface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: tk.radiusLg,
+              overflow: "visible", // Fix: Allow dropdown to overflow
             }}
-            onClick={() => setShowLinkModal(false)}
           >
             <div
               style={{
-                background: "#0f172a",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 20,
-                padding: 28,
-                width: 460,
-                maxWidth: "90vw",
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr 1.5fr 1fr 40px",
+                padding: "12px 16px",
+                borderBottom: `1px solid ${tk.border}`,
+                color: tk.textMuted,
+                fontSize: "12px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
+              <div>Name</div>
+              <div>Role</div>
+              <div>Team</div>
+              <div>Status</div>
+              <div></div>
+            </div>
+
+            {isLoading ? (
               <div
                 style={{
+                  padding: "40px",
+                  textAlign: "center",
+                  color: tk.textMuted,
                   display: "flex",
-                  justifyContent: "space-between",
+                  justifyContent: "center",
                   alignItems: "center",
-                  marginBottom: 20,
+                  gap: "8px",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
-                  Generate Invite Link
-                </h2>
-                <button
-                  onClick={() => setShowLinkModal(false)}
+                <Loader2 size={16} className="animate-spin" /> Loading
+                members...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div
+                style={{
+                  padding: "40px",
+                  textAlign: "center",
+                  color: tk.textMuted,
+                }}
+              >
+                No members found.
+              </div>
+            ) : (
+              filteredUsers.map((u, i) => (
+                <div
+                  key={u.user_id || i}
+                  onClick={() => {
+                    setSelectedMember(u);
+                    setActiveMenuId(null);
+                  }}
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: "#fff",
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1.5fr 1fr 40px",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                    borderBottom:
+                      i !== filteredUsers.length - 1
+                        ? `1px solid ${tk.border}`
+                        : "none",
                     cursor: "pointer",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = tk.bgHover)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 600,
+                        fontSize: "13px",
+                      }}
+                    >
+                      {(u.full_name || u.username || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                    <div style={{ overflow: "hidden" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {u.full_name || u.username}
+                      </div>
+                      <div style={{ fontSize: "12px", color: tk.textMuted }}>
+                        @{u.username}
+                      </div>
+                    </div>
+                  </div>
+                  <div>{getRoleBadge(u.role)}</div>
+                  <div style={{ color: tk.textSecondary, fontSize: "14px" }}>
+                    {u.team || "Unassigned"}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: tk.success,
+                        display: "inline-block",
+                      }}
+                    ></span>
+                    <span style={{ color: tk.textSecondary, fontSize: "13px" }}>
+                      Online
+                    </span>
+                  </div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isAdmin)
+                        setActiveMenuId(
+                          activeMenuId === u.user_id ? null : u.user_id,
+                        );
+                    }}
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {isAdmin && (
+                      <button
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: tk.textMuted,
+                          cursor: "pointer",
+                          padding: "4px",
+                        }}
+                      >
+                        <MoreHorizontal size={18} />
+                      </button>
+                    )}
+                    {activeMenuId === u.user_id && isAdmin && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 0,
+                          top: "100%",
+                          marginTop: "4px",
+                          background: tk.bgSurface,
+                          border: `1px solid ${tk.borderHover}`,
+                          borderRadius: "8px",
+                          padding: "4px",
+                          zIndex: 50,
+                          minWidth: "180px",
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()} // FIX: Prevent bubbling
+                      >
+                        <MenuButton
+                          icon={<MessageSquare size={14} />}
+                          label="View Profile"
+                          onClick={() => {
+                            setSelectedMember(u);
+                            setActiveMenuId(null);
+                          }}
+                        />
+                        <MenuButton
+                          icon={<Shield size={14} />}
+                          label="Change Role"
+                          onClick={() => {
+                            setSelectedMember(u);
+                            setConfirmAction({ type: "role", user: u });
+                            setActiveMenuId(null);
+                          }}
+                        />
+                        <MenuButton
+                          icon={<ArrowRightCircle size={14} />}
+                          label="Move Team"
+                          onClick={() => {
+                            setSelectedMember(u);
+                            setConfirmAction({ type: "move", user: u });
+                            setActiveMenuId(null);
+                          }}
+                        />
+                        <div
+                          style={{
+                            height: "1px",
+                            background: tk.border,
+                            margin: "4px 0",
+                          }}
+                        ></div>
+                        <MenuButton
+                          icon={<Trash2 size={14} />}
+                          label="Remove"
+                          danger
+                          onClick={() =>
+                            setConfirmAction({ type: "remove", user: u })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TEAMS TAB */}
+      {activeTab === "teams" && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "16px",
+          }}
+        >
+          {isLoading ? (
+            <div
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: tk.textMuted,
+                gridColumn: "1 / -1",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <Loader2 size={16} className="animate-spin" /> Loading teams...
+            </div>
+          ) : standardTeams.length === 0 ? (
+            <div
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: tk.textMuted,
+                gridColumn: "1 / -1",
+              }}
+            >
+              <Building2
+                size={32}
+                style={{ marginBottom: "8px", opacity: 0.5 }}
+              />
+              <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+                No Teams Yet
+              </div>
+              <div style={{ fontSize: "14px" }}>
+                Create your first team to get started.
+              </div>
+            </div>
+          ) : (
+            standardTeams.map((t) => (
+              <div
+                key={t.id}
+                style={{
+                  background: tk.bgSurface,
+                  border: `1px solid ${tk.border}`,
+                  borderRadius: tk.radiusLg,
+                  padding: "20px",
+                  transition: "border-color 0.2s",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.borderColor = tk.borderHover)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.borderColor = tk.border)
+                }
+                onClick={() => setSelectedTeam(t)}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: "16px",
                   }}
                 >
-                  <X size={20} />
-                </button>
-              </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "44px",
+                        height: "44px",
+                        borderRadius: "10px",
+                        background: "rgba(139,92,246,0.15)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Users size={22} style={{ color: "#a78bfa" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "16px" }}>
+                        {t.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: tk.textMuted,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <CalendarDays size={12} />{" "}
+                        {new Date(t.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      padding: "4px 8px",
+                      background: "rgba(255,255,255,0.05)",
+                      borderRadius: "4px",
+                      color: tk.textSecondary,
+                      textTransform: "uppercase",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Public
+                  </span>
+                </div>
 
-              <p
-                style={{
-                  color: "rgba(255,255,255,.5)",
-                  fontSize: 13,
-                  margin: "0 0 16px",
-                }}
-              >
-                Create a shareable link. Send it to anyone — they can sign up
-                and join your workspace.
-              </p>
-
-              {inviteError && (
-                <p
-                  style={{ color: "#f87171", fontSize: 14, margin: "0 0 12px" }}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderTop: `1px solid ${tk.border}`,
+                    paddingTop: "16px",
+                  }}
                 >
-                  {inviteError}
-                </p>
-              )}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: tk.textMuted,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Members
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <div style={{ display: "flex" }}>
+                        {users
+                          .filter((u) => u.team === t.name)
+                          .slice(0, 3)
+                          .map((u, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                width: "24px",
+                                height: "24px",
+                                borderRadius: "50%",
+                                background:
+                                  "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+                                border: `2px solid ${tk.bgSurface}`,
+                                marginLeft: i > 0 ? "-8px" : "0",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "10px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {(u.full_name || u.username).charAt(0)}
+                            </div>
+                          ))}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          color: tk.textSecondary,
+                          marginLeft: "8px",
+                        }}
+                      >
+                        {t.member_count} Total
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: tk.textMuted,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Leader
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: tk.textPrimary,
+                        fontWeight: 500,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Crown size={12} color={tk.warning} />{" "}
+                      {t.leaders?.[0] || "None"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,.5)",
-                  marginBottom: 6,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Role for new member
-              </label>
+      {/* INVITES TAB */}
+      {activeTab === "invites" && (
+        <div
+          style={{
+            background: tk.bgSurface,
+            border: `1px solid ${tk.border}`,
+            borderRadius: tk.radiusLg,
+            padding: "24px",
+          }}
+        >
+          <h3 style={{ margin: "0 0 8px", fontSize: "16px", fontWeight: 700 }}>
+            Generate Invite Link
+          </h3>
+          <p
+            style={{
+              margin: "0 0 20px",
+              fontSize: "13px",
+              color: tk.textSecondary,
+            }}
+          >
+            Create a shareable link to invite users to this workspace.
+          </p>
+
+          <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Role</label>
               <select
                 value={linkRole}
                 onChange={(e) => setLinkRole(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,.1)",
-                  background: "rgba(255,255,255,.05)",
-                  color: "#fff",
-                  marginBottom: 16,
-                  outline: "none",
-                }}
+                style={selectStyle}
               >
-                <option value="employee">Employee</option>
-                <option value="manager">Manager</option>
+                <option value="member">Member</option>
                 <option value="admin">Admin</option>
                 <option value="guest">Guest</option>
               </select>
-
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,.5)",
-                  marginBottom: 6,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                Link expires in
-              </label>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Expires In</label>
               <select
                 value={linkExpiry}
                 onChange={(e) => setLinkExpiry(Number(e.target.value))}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,.1)",
-                  background: "rgba(255,255,255,.05)",
-                  color: "#fff",
-                  marginBottom: 20,
-                  outline: "none",
-                }}
+                style={selectStyle}
               >
-                <option value={24}>1 day</option>
-                <option value={96}>4 days</option>
-                <option value={168}>7 days</option>
-                <option value={720}>30 days</option>
+                <option value={24}>1 Day</option>
+                <option value={96}>4 Days</option>
+                <option value={168}>7 Days</option>
+                <option value={720}>30 Days</option>
               </select>
-
-              {!generatedLink && (
-                <button
-                  onClick={handleGenerateLink}
-                  disabled={linkLoading}
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: "linear-gradient(135deg,#f59e0b,#d97706)",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: linkLoading ? "wait" : "pointer",
-                    opacity: linkLoading ? 0.7 : 1,
-                  }}
-                >
-                  {linkLoading ? "Generating..." : "Generate Link"}
-                </button>
-              )}
-
-              {generatedLink && (
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "rgba(255,255,255,.5)",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    Share this link
-                  </label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      readOnly
-                      value={generatedLink}
-                      style={{
-                        flex: 1,
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,.1)",
-                        background: "rgba(255,255,255,.05)",
-                        color: "#4ade80",
-                        fontSize: 13,
-                        outline: "none",
-                      }}
-                    />
-                    <button
-                      onClick={handleCopyLink}
-                      style={{
-                        padding: "10px 16px",
-                        borderRadius: 10,
-                        border: "none",
-                        background: linkCopied
-                          ? "#16a34a"
-                          : "rgba(255,255,255,.1)",
-                        color: "#fff",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {linkCopied ? "✓ Copied" : "Copy"}
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setGeneratedLink("");
-                      setLinkCopied(false);
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "transparent",
-                      color: "rgba(255,255,255,.5)",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      marginTop: 10,
-                    }}
-                  >
-                    Generate Another
-                  </button>
-                </div>
-              )}
             </div>
           </div>
-        )}
-
-        {/* Create Team Modal */}
-        {showCreateTeamModal && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 9999,
-            }}
-            onClick={() => setShowCreateTeamModal(false)}
+          <button
+            onClick={handleGenerateLink}
+            disabled={linkLoading}
+            style={{ ...btnPrimary, width: "100%" }}
           >
+            {linkLoading ? (
+              "Generating..."
+            ) : (
+              <>
+                <LinkIcon size={16} /> Generate Link
+              </>
+            )}
+          </button>
+          {generatedLink && (
             <div
               style={{
-                background: "#0f172a",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 20,
-                padding: 28,
-                width: 420,
-                maxWidth: "90vw",
+                marginTop: "20px",
+                background: tk.bgApp,
+                border: `1px solid ${tk.border}`,
+                borderRadius: "8px",
+                padding: "16px",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 20,
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: tk.textMuted,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
-                  Create New Team
-                </h2>
-                <button
-                  onClick={() => setShowCreateTeamModal(false)}
+                Active Invite Link
+              </div>
+              <div
+                style={{ display: "flex", gap: "8px", alignItems: "center" }}
+              >
+                <input
+                  readOnly
+                  value={generatedLink}
                   style={{
-                    background: "none",
+                    flex: 1,
+                    padding: "10px 14px",
+                    borderRadius: "6px",
+                    border: `1px solid ${tk.border}`,
+                    background: "transparent",
+                    color: tk.success,
+                    fontSize: "13px",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedLink);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: "6px",
                     border: "none",
+                    background: linkCopied ? tk.success : tk.bgHoverStrong,
                     color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  {linkCopied ? (
+                    <>
+                      <CheckCircle2 size={14} /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} /> Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MEMBER DRAWER */}
+      {selectedMember && !confirmAction && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 100,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+          onClick={() => setSelectedMember(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "400px",
+              maxWidth: "90vw",
+              height: "100vh",
+              background: tk.bgSurface,
+              borderLeft: `1px solid ${tk.border}`,
+              padding: "24px",
+              overflowY: "auto",
+              animation: "slideIn 0.3s ease-out",
+            }}
+          >
+            <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+                Member Details
+              </h3>
+              <button
+                onClick={() => setSelectedMember(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: tk.textMuted,
+                  cursor: "pointer",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "32px",
+                  fontWeight: 700,
+                  marginBottom: "16px",
+                }}
+              >
+                {(selectedMember.full_name || selectedMember.username)
+                  .charAt(0)
+                  .toUpperCase()}
+              </div>
+              <div style={{ fontSize: "20px", fontWeight: 700 }}>
+                {selectedMember.full_name || selectedMember.username}
+              </div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: tk.textSecondary,
+                  marginTop: "4px",
+                }}
+              >
+                @{selectedMember.username}
+              </div>
+              <div style={{ marginTop: "12px" }}>
+                {getRoleBadge(selectedMember.role)}
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: "16px", marginBottom: "32px" }}>
+              <InfoRow
+                label="Email"
+                value={`${selectedMember.username}@acumen.app`}
+              />
+              <InfoRow
+                label="Team"
+                value={selectedMember.team || "Unassigned"}
+              />
+              <InfoRow
+                label="Joined Workspace"
+                value={
+                  selectedMember.joined_at
+                    ? new Date(selectedMember.joined_at).toLocaleDateString()
+                    : "Recently"
+                }
+              />
+              <InfoRow label="Status" value="Active" statusColor={tk.success} />
+            </div>
+            <div style={{ display: "grid", gap: "8px" }}>
+              <button
+                style={drawerBtn}
+                onClick={() => alert("Redirecting to chat...")}
+              >
+                <MessageSquare size={16} /> Send Message
+              </button>
+              {isAdmin && (
+                <button
+                  style={drawerBtn}
+                  onClick={() =>
+                    setConfirmAction({ type: "role", user: selectedMember })
+                  }
+                >
+                  <Shield size={16} /> Change Role
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  style={drawerBtn}
+                  onClick={() =>
+                    setConfirmAction({ type: "move", user: selectedMember })
+                  }
+                >
+                  <ArrowRightCircle size={16} /> Move Team
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  style={{
+                    ...drawerBtn,
+                    color: tk.danger,
+                    borderColor: "rgba(239,68,68,0.3)",
+                  }}
+                  onClick={() =>
+                    setConfirmAction({ type: "remove", user: selectedMember })
+                  }
+                >
+                  <Trash2 size={16} /> Remove Member
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEAM DRAWER */}
+      {selectedTeam && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 100,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+          onClick={() => setSelectedTeam(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "450px",
+              maxWidth: "90vw",
+              height: "100vh",
+              background: tk.bgSurface,
+              borderLeft: `1px solid ${tk.border}`,
+              padding: "24px",
+              overflowY: "auto",
+              animation: "slideIn 0.3s ease-out",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "32px",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+                Team Details
+              </h3>
+              <div style={{ display: "flex", gap: "12px" }}>
+                {isAdmin && !isEditingTeam && (
+                  <button
+                    onClick={() => setIsEditingTeam(true)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: tk.accent,
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedTeam(null)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: tk.textMuted,
                     cursor: "pointer",
                   }}
                 >
                   <X size={20} />
                 </button>
               </div>
+            </div>
 
-              {createTeamError && (
-                <p
-                  style={{ color: "#f87171", fontSize: 14, margin: "0 0 12px" }}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                marginBottom: "32px",
+              }}
+            >
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "12px",
+                  background: "rgba(139,92,246,0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={28} style={{ color: "#a78bfa" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                {isEditingTeam ? (
+                  <input
+                    value={editTeamName}
+                    onChange={(e) => setEditTeamName(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      marginBottom: "4px",
+                    }}
+                  />
+                ) : (
+                  <div style={{ fontSize: "20px", fontWeight: 700 }}>
+                    {selectedTeam.name}
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: tk.textMuted,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
                 >
-                  {createTeamError}
-                </p>
-              )}
-              {createTeamSuccess && (
-                <p
-                  style={{ color: "#4ade80", fontSize: 14, margin: "0 0 12px" }}
-                >
-                  {createTeamSuccess}
-                </p>
-              )}
+                  <Crown size={12} color={tk.warning} />{" "}
+                  {selectedTeam.leaders?.[0] || "No Leader"} •{" "}
+                  {selectedTeam.member_count} Members
+                </div>
+              </div>
+            </div>
 
+            <div style={{ display: "grid", gap: "16px", marginBottom: "32px" }}>
+              {isEditingTeam ? (
+                <div>
+                  <label style={labelStyle}>Description</label>
+                  <textarea
+                    value={editTeamDesc}
+                    onChange={(e) => setEditTeamDesc(e.target.value)}
+                    rows={3}
+                    style={{ ...inputStyle, resize: "vertical" }}
+                    placeholder="What does this team do?"
+                  />
+                </div>
+              ) : (
+                <InfoRow
+                  label="Description"
+                  value={selectedTeam.description || "No description provided."}
+                />
+              )}
+              <InfoRow
+                label="Created On"
+                value={new Date(selectedTeam.created_at).toLocaleDateString()}
+              />
+              <InfoRow label="Visibility" value="Public" />
+            </div>
+
+            {isEditingTeam ? (
+              <div
+                style={{ display: "flex", gap: "8px", marginBottom: "32px" }}
+              >
+                <button
+                  style={{ ...btnSecondary, flex: 1 }}
+                  onClick={() => setIsEditingTeam(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={{ ...btnPrimary, flex: 1 }}
+                  onClick={handleSaveTeam}
+                >
+                  Save Changes
+                </button>
+              </div>
+            ) : (
+              <>
+                <h4
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: tk.textSecondary,
+                    margin: "0 0 12px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Team Members
+                </h4>
+                <div
+                  style={{ display: "grid", gap: "8px", marginBottom: "32px" }}
+                >
+                  {users
+                    .filter((u) => u.team === selectedTeam.name)
+                    .map((u) => (
+                      <div
+                        key={u.user_id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "8px",
+                          background: tk.bgApp,
+                          borderRadius: "8px",
+                          border: `1px solid ${tk.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 600,
+                            fontSize: "13px",
+                          }}
+                        >
+                          {(u.full_name || u.username).charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "14px", fontWeight: 600 }}>
+                            {u.full_name || u.username}
+                          </div>
+                          <div
+                            style={{ fontSize: "12px", color: tk.textMuted }}
+                          >
+                            @{u.username}
+                          </div>
+                        </div>
+                        {getRoleBadge(u.role)}
+                      </div>
+                    ))}
+                  {users.filter((u) => u.team === selectedTeam.name).length ===
+                    0 && (
+                    <div
+                      style={{
+                        padding: "16px",
+                        textAlign: "center",
+                        color: tk.textMuted,
+                        background: tk.bgApp,
+                        borderRadius: "8px",
+                        border: `1px solid ${tk.border}`,
+                      }}
+                    >
+                      No members assigned to this team yet.
+                    </div>
+                  )}
+                </div>
+
+                {isAdmin && (
+                  <div
+                    style={{
+                      borderTop: `1px solid ${tk.border}`,
+                      paddingTop: "24px",
+                    }}
+                  >
+                    <button
+                      onClick={handleDeleteTeam}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        border: `1px solid rgba(239,68,68,0.3)`,
+                        background: "transparent",
+                        color: tk.danger,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Trash2 size={16} /> Delete Team
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODALS */}
+      {confirmAction && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+          onClick={() => setConfirmAction(null)}
+        >
+          <div
+            style={{
+              background: tk.bgSurface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "400px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  textTransform: "capitalize",
+                }}
+              >
+                {confirmAction.type === "remove"
+                  ? "Remove Member"
+                  : confirmAction.type === "role"
+                    ? "Change Role"
+                    : "Move Team"}
+              </h3>
+              <button
+                onClick={() => setConfirmAction(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: tk.textMuted,
+                  cursor: "pointer",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {confirmAction.type === "remove" && (
+              <div>
+                <p
+                  style={{
+                    color: tk.textSecondary,
+                    fontSize: "14px",
+                    margin: "0 0 20px",
+                  }}
+                >
+                  Are you sure you want to remove{" "}
+                  <b style={{ color: tk.textPrimary }}>
+                    {confirmAction.user.full_name ||
+                      confirmAction.user.username}
+                  </b>{" "}
+                  from the workspace? This action cannot be undone.
+                </p>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    style={{ ...btnSecondary, flex: 1 }}
+                    onClick={() => setConfirmAction(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{ ...btnDanger, flex: 1 }}
+                    onClick={() =>
+                      handleRemoveMember(confirmAction.user.user_id)
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {confirmAction.type === "role" && (
+              <div>
+                <p
+                  style={{
+                    color: tk.textSecondary,
+                    fontSize: "14px",
+                    margin: "0 0 12px",
+                  }}
+                >
+                  Select a new role for{" "}
+                  <b style={{ color: tk.textPrimary }}>
+                    {confirmAction.user.full_name ||
+                      confirmAction.user.username}
+                  </b>
+                  .
+                </p>
+                <select
+                  id="role-select"
+                  defaultValue={confirmAction.user.role}
+                  style={{
+                    ...selectStyle,
+                    marginBottom: "20px",
+                    width: "100%",
+                  }}
+                >
+                  <option value="admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="guest">Guest</option>
+                </select>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    style={{ ...btnSecondary, flex: 1 }}
+                    onClick={() => setConfirmAction(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{ ...btnPrimary, flex: 1 }}
+                    onClick={() =>
+                      handleRoleChange(
+                        confirmAction.user.user_id,
+                        (
+                          document.getElementById(
+                            "role-select",
+                          ) as HTMLSelectElement
+                        ).value,
+                      )
+                    }
+                  >
+                    Save Role
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {confirmAction.type === "move" && (
+              <div>
+                <p
+                  style={{
+                    color: tk.textSecondary,
+                    fontSize: "14px",
+                    margin: "0 0 12px",
+                  }}
+                >
+                  Select a new team for{" "}
+                  <b style={{ color: tk.textPrimary }}>
+                    {confirmAction.user.full_name ||
+                      confirmAction.user.username}
+                  </b>
+                  .
+                </p>
+                <select
+                  id="team-select"
+                  defaultValue=""
+                  style={{
+                    ...selectStyle,
+                    marginBottom: "20px",
+                    width: "100%",
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {standardTeams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    style={{ ...btnSecondary, flex: 1 }}
+                    onClick={() => setConfirmAction(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{ ...btnPrimary, flex: 1 }}
+                    onClick={() =>
+                      handleMoveTeam(
+                        confirmAction.user.user_id,
+                        (
+                          document.getElementById(
+                            "team-select",
+                          ) as HTMLSelectElement
+                        ).value
+                          ? Number(
+                              (
+                                document.getElementById(
+                                  "team-select",
+                                ) as HTMLSelectElement
+                              ).value,
+                            )
+                          : null,
+                      )
+                    }
+                  >
+                    Move Team
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CREATE TEAM MODAL */}
+      {showCreateTeamModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+          onClick={() => setShowCreateTeamModal(false)}
+        >
+          <div
+            style={{
+              background: tk.bgSurface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "420px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+                Create New Team
+              </h2>
+              <button
+                onClick={() => setShowCreateTeamModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: tk.textMuted,
+                  cursor: "pointer",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Team Name</label>
               <input
-                placeholder="Team Name"
+                placeholder="e.g. Design Team"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,.1)",
-                  background: "rgba(255,255,255,.05)",
-                  color: "#fff",
-                  marginBottom: 12,
-                  outline: "none",
-                }}
+                style={inputStyle}
               />
-
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label style={labelStyle}>Team Leader (Optional)</label>
               <select
                 value={newTeamLeaderId}
                 onChange={(e) => setNewTeamLeaderId(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,.1)",
-                  background: "rgba(255,255,255,.05)",
-                  color: "#fff",
-                  marginBottom: 20,
-                  outline: "none",
-                }}
+                style={inputStyle}
               >
-                <option value="">Select leader (optional)</option>
-                {workspaceUsers.map((u: any) => (
+                <option value="">Select a leader...</option>
+                {users.map((u) => (
                   <option key={u.user_id} value={u.user_id}>
                     {u.full_name || u.username}
                   </option>
                 ))}
               </select>
-
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={handleCreateTeam}
-                disabled={createTeamLoading}
+                style={{ ...btnSecondary, flex: 1 }}
+                onClick={() => setShowCreateTeamModal(false)}
+              >
+                Cancel
+              </button>
+              <button
                 style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "linear-gradient(135deg,#22c55e,#16a34a)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  cursor: createTeamLoading ? "wait" : "pointer",
-                  opacity: createTeamLoading ? 0.7 : 1,
+                  ...btnPrimary,
+                  flex: 1,
+                  opacity: !newTeamName.trim() || createTeamLoading ? 0.6 : 1,
                 }}
+                onClick={handleCreateTeam}
+                disabled={createTeamLoading || !newTeamName.trim()}
               >
                 {createTeamLoading ? "Creating..." : "Create Team"}
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Invite Modal */}
-        {showInviteModal && (
+      {/* INVITE MODAL */}
+      {showInviteModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+          onClick={() => setShowInviteModal(false)}
+        >
           <div
             style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 9999,
+              background: tk.bgSurface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "480px",
             }}
-            onClick={() => setShowInviteModal(false)}
+            onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
-                background: "#0f172a",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: 20,
-                padding: 28,
-                width: 420,
-                maxWidth: "90vw",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              <div
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+                Invite to Acumen Teams
+              </h2>
+              <button
+                onClick={() => setShowInviteModal(false)}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 20,
+                  background: "none",
+                  border: "none",
+                  color: tk.textMuted,
+                  cursor: "pointer",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
-                  {inviteType === "workspace" && "Invite to Workspace"}
-                  {inviteType === "team" && "Invite to Team"}
-                  {inviteType === "group" && "Invite to Private Group"}
-                </h2>
+                <X size={20} />
+              </button>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "4px",
+                background: tk.bgApp,
+                borderRadius: "8px",
+                padding: "4px",
+                marginBottom: "20px",
+              }}
+            >
+              {[
+                { key: "workspace", label: "Workspace" },
+                { key: "team", label: "Team" },
+                { key: "group", label: "Group" },
+              ].map((t) => (
                 <button
-                  onClick={() => setShowInviteModal(false)}
+                  key={t.key}
+                  onClick={() => setInviteType(t.key as any)}
                   style={{
-                    background: "none",
+                    flex: 1,
+                    padding: "8px",
+                    borderRadius: "6px",
                     border: "none",
-                    color: "#fff",
+                    background:
+                      inviteType === t.key ? tk.bgHoverStrong : "transparent",
+                    color: inviteType === t.key ? tk.textPrimary : tk.textMuted,
+                    fontWeight: 600,
+                    fontSize: "13px",
                     cursor: "pointer",
                   }}
                 >
-                  <X size={20} />
+                  {t.label}
                 </button>
-              </div>
-
-              {inviteError && (
-                <p
-                  style={{ color: "#f87171", fontSize: 14, margin: "0 0 12px" }}
-                >
-                  {inviteError}
-                </p>
-              )}
-              {inviteSuccess && (
-                <p
-                  style={{ color: "#4ade80", fontSize: 14, margin: "0 0 12px" }}
-                >
-                  {inviteSuccess}
-                </p>
-              )}
-
-              {/* WORKSPACE INVITE FORM */}
-              {inviteType === "workspace" && (
-                <>
-                  <input
-                    placeholder="Username"
-                    value={inviteUsername}
-                    onChange={(e) => setInviteUsername(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 12,
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    placeholder="Email (alternative)"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 12,
-                      outline: "none",
-                    }}
-                  />
-                  <select
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 12,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
-                    <option value="guest">Guest</option>
-                  </select>
-                  <select
-                    value={inviteTeamId}
-                    onChange={(e) => setInviteTeamId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 20,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="">No team (unassigned)</option>
-                    {teams.map((t: any) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleInvite}
-                    disabled={inviteLoading}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: 12,
-                      border: "none",
-                      background: "linear-gradient(135deg,#3b82f6,#4f46e5)",
-                      color: "#fff",
-                      fontWeight: 700,
-                      cursor: inviteLoading ? "wait" : "pointer",
-                      opacity: inviteLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {inviteLoading ? "Inviting..." : "Add to Workspace"}
-                  </button>
-                </>
-              )}
-
-              {/* TEAM INVITE FORM */}
-              {inviteType === "team" && (
-                <>
-                  <select
-                    value={teamInviteUserId}
-                    onChange={(e) => setTeamInviteUserId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 12,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="">Select user...</option>
-                    {workspaceUsers.map((u: any) => (
-                      <option key={u.user_id} value={u.user_id}>
-                        {u.full_name || u.username}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={teamInviteTeamId}
-                    onChange={(e) => setTeamInviteTeamId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 20,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="">Select team...</option>
-                    {teams.map((t: any) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleTeamInvite}
-                    disabled={inviteLoading}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: 12,
-                      border: "none",
-                      background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-                      color: "#fff",
-                      fontWeight: 700,
-                      cursor: inviteLoading ? "wait" : "pointer",
-                      opacity: inviteLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {inviteLoading ? "Inviting..." : "Send Team Invite"}
-                  </button>
-                </>
-              )}
-
-              {/* GROUP INVITE FORM */}
-              {inviteType === "group" && (
-                <>
-                  <select
-                    value={groupInviteChannelId}
-                    onChange={(e) => setGroupInviteChannelId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.1)",
-                      background: "rgba(255,255,255,.05)",
-                      color: "#fff",
-                      marginBottom: 12,
-                      outline: "none",
-                    }}
-                  >
-                    <option value="">Select group...</option>
-                    {channels.map((c: any) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div
-                    style={{
-                      maxHeight: 160,
-                      overflowY: "auto",
-                      marginBottom: 20,
-                    }}
-                  >
-                    {workspaceUsers.map((u: any) => {
-                      const id = u.user_id;
-                      const checked = groupInviteUserIds.includes(id);
-                      return (
-                        <label
-                          key={id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "6px 4px",
-                            cursor: "pointer",
-                            color: "#fff",
-                            fontSize: 14,
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              setGroupInviteUserIds((prev) =>
-                                checked
-                                  ? prev.filter((x) => x !== id)
-                                  : [...prev, id],
-                              );
-                            }}
-                          />
-                          {u.full_name || u.username}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={handleGroupInvite}
-                    disabled={inviteLoading}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: 12,
-                      border: "none",
-                      background: "linear-gradient(135deg,#0891b2,#06b6d4)",
-                      color: "#fff",
-                      fontWeight: 700,
-                      cursor: inviteLoading ? "wait" : "pointer",
-                      opacity: inviteLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {inviteLoading ? "Inviting..." : "Send Group Invite"}
-                  </button>
-                </>
-              )}
+              ))}
             </div>
+            {inviteError && (
+              <div
+                style={{
+                  color: tk.danger,
+                  fontSize: "13px",
+                  marginBottom: "16px",
+                  textAlign: "center",
+                }}
+              >
+                {inviteError}
+              </div>
+            )}
+            {inviteSuccess && (
+              <div
+                style={{
+                  color: tk.success,
+                  fontSize: "13px",
+                  marginBottom: "16px",
+                  textAlign: "center",
+                }}
+              >
+                {inviteSuccess}
+              </div>
+            )}
+            {inviteType === "workspace" && (
+              <div style={{ display: "grid", gap: "12px" }}>
+                <input
+                  placeholder="Username"
+                  value={inviteUsername}
+                  onChange={(e) => setInviteUsername(e.target.value)}
+                  style={inputStyle}
+                />
+                <input
+                  placeholder="Email (alternative)"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  style={inputStyle}
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="guest">Guest</option>
+                </select>
+                <select
+                  value={inviteTeamId}
+                  onChange={(e) => setInviteTeamId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">No team (unassigned)</option>
+                  {standardTeams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {inviteType === "team" && (
+              <div style={{ display: "grid", gap: "12px" }}>
+                <select
+                  value={teamInviteUserId}
+                  onChange={(e) => setTeamInviteUserId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Select user...</option>
+                  {users.map((u) => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.full_name || u.username}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={teamInviteTeamId}
+                  onChange={(e) => setTeamInviteTeamId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Select team...</option>
+                  {standardTeams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {inviteType === "group" && (
+              <div style={{ display: "grid", gap: "12px" }}>
+                <select
+                  value={groupInviteChannelId}
+                  onChange={(e) => setGroupInviteChannelId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Select group...</option>
+                  {channels.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div
+                  style={{
+                    maxHeight: "150px",
+                    overflowY: "auto",
+                    border: `1px solid ${tk.border}`,
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                  }}
+                >
+                  {users.map((u) => {
+                    const id = u.user_id;
+                    const checked = groupInviteUserIds.includes(id);
+                    return (
+                      <label
+                        key={id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "6px 0",
+                          cursor: "pointer",
+                          color: tk.textPrimary,
+                          fontSize: "14px",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setGroupInviteUserIds(
+                              checked
+                                ? groupInviteUserIds.filter((x) => x !== id)
+                                : [...groupInviteUserIds, id],
+                            )
+                          }
+                        />
+                        {u.full_name || u.username}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={handleInvite}
+              disabled={inviteLoading}
+              style={{
+                ...btnPrimary,
+                width: "100%",
+                marginTop: "24px",
+                opacity: inviteLoading ? 0.6 : 1,
+              }}
+            >
+              {inviteLoading ? "Inviting..." : "Send Invite"}
+            </button>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Sub-components & Styles ───────────────────────────────────────
+const SummaryCard = ({ label, value, icon: Icon, color }: any) => (
+  <div
+    style={{
+      background: "rgba(15,23,42,0.8)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: "16px",
+      padding: "20px",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "12px",
+      }}
+    >
+      <span style={{ color: "#64748b", fontSize: "13px", fontWeight: 500 }}>
+        {label}
+      </span>
+      <Icon size={18} style={{ color, opacity: 0.8 }} />
+    </div>
+    <div style={{ fontSize: "24px", fontWeight: 700 }}>{value}</div>
+  </div>
+);
+
+const MenuButton = ({ icon, label, onClick, danger }: any) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      width: "100%",
+      padding: "8px 12px",
+      background: "transparent",
+      border: "none",
+      color: danger ? "#ef4444" : "#94a3b8",
+      cursor: "pointer",
+      fontSize: "13px",
+      fontWeight: 500,
+      borderRadius: "4px",
+      transition: "background 0.1s",
+    }}
+    onMouseEnter={(e) =>
+      (e.currentTarget.style.background = danger
+        ? "rgba(239,68,68,0.1)"
+        : "rgba(255,255,255,0.04)")
+    }
+    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+  >
+    {icon} {label}
+  </button>
+);
+
+const InfoRow = ({ label, value, statusColor }: any) => (
+  <div
+    style={{
+      padding: "16px",
+      background: "#020617",
+      borderRadius: "8px",
+      border: "1px solid rgba(255,255,255,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        color: "#64748b",
+        textTransform: "uppercase",
+        marginBottom: "4px",
+      }}
+    >
+      {label}
+    </div>
+    <div
+      style={{
+        fontSize: "14px",
+        color: statusColor || "#f1f5f9",
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+      }}
+    >
+      {statusColor && (
+        <span
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            background: statusColor,
+            display: "inline-block",
+          }}
+        ></span>
+      )}
+      {value}
+    </div>
+  </div>
+);
+
+const btnPrimary: React.CSSProperties = {
+  height: "40px",
+  padding: "0 18px",
+  borderRadius: "8px",
+  border: "none",
+  background: "#3b82f6",
+  color: "#fff",
+  fontWeight: 600,
+  fontSize: "14px",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  transition: "background 0.2s",
+};
+const btnSecondary: React.CSSProperties = {
+  height: "40px",
+  padding: "0 18px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "transparent",
+  color: "#f1f5f9",
+  fontWeight: 600,
+  fontSize: "14px",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  transition: "background 0.2s",
+};
+const btnDanger: React.CSSProperties = {
+  height: "40px",
+  padding: "0 18px",
+  borderRadius: "8px",
+  border: "none",
+  background: "#ef4444",
+  color: "#fff",
+  fontWeight: 600,
+  fontSize: "14px",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  transition: "background 0.2s",
+};
+const drawerBtn: React.CSSProperties = {
+  padding: "12px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.06)",
+  background: "transparent",
+  color: "#f1f5f9",
+  fontWeight: 500,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  fontSize: "14px",
+  transition: "background 0.2s",
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 16px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.06)",
+  background: "#020617",
+  color: "#f1f5f9",
+  outline: "none",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer" };
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 600,
+  color: "#64748b",
+  marginBottom: "6px",
+  textTransform: "uppercase",
+};

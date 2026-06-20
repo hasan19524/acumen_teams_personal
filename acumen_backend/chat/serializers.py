@@ -27,7 +27,7 @@ class UserMiniSerializer(serializers.ModelSerializer):
 
 class ChannelSerializer(serializers.ModelSerializer):
     created_by = UserMiniSerializer(read_only=True)
-    member_count = serializers.SerializerMethodField()
+    member_count = serializers.IntegerField(read_only=True)
     # For DM channels, expose the "other" user's info
     dm_partner = serializers.SerializerMethodField()
     # Expose membership status so frontend knows if user has read-only or full access
@@ -36,6 +36,11 @@ class ChannelSerializer(serializers.ModelSerializer):
     owner_details = UserMiniSerializer(source="owner", read_only=True, default=None)
     # Team context for sidebar grouping
     team_name = serializers.CharField(source="team.name", read_only=True, default=None)
+    
+    # NEW: Sidebar preview fields
+    last_message = serializers.SerializerMethodField()
+    last_message_time = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Channel
@@ -57,12 +62,71 @@ class ChannelSerializer(serializers.ModelSerializer):
             "dm_partner",
             "is_member_active",
             "is_pending",
+            "last_message",
+            "last_message_time",
+            "unread_count",
         ]
 
+    def get_last_message(self, obj):
+        # Use annotated field if available (from the view), otherwise fallback to query
+        if hasattr(obj, 'last_message_content'):
+            if not obj.last_message_content:
+                return None
+            if obj.last_message_content:
+                return obj.last_message_content
+            return "📎 Attachment" # Fallback if content is empty but message exists
+        
+        # Fallback for single object retrieves (e.g., DM creation)
+        last_msg = Message.objects.filter(channel=obj, is_deleted=False).order_by("-created_at").first()
+        if not last_msg: return None
+        if last_msg.content: return last_msg.content
+        if last_msg.attachments.exists(): return "📎 Attachment"
+        return ""
 
-    def get_member_count(self, obj):
-        # Only count active members (preserves count accuracy for archived users)
-        return ChannelMember.objects.filter(channel=obj, is_active=True).count()
+    def get_last_message_time(self, obj):
+        # Use annotated field if available
+        if hasattr(obj, 'last_message_created'):
+            if not obj.last_message_created:
+                return None
+            from django.utils import timezone
+            created_at = obj.last_message_created
+            now = timezone.now()
+            if created_at.date() == now.date():
+                return created_at.strftime("%I:%M %p")
+            elif (now.date() - created_at.date()).days == 1:
+                return "Yesterday"
+            else:
+                return created_at.strftime("%d/%m/%Y")
+            
+        # Fallback
+        last_msg = Message.objects.filter(channel=obj, is_deleted=False).order_by("-created_at").first()
+        if not last_msg: return None
+        from django.utils import timezone
+        now = timezone.now()
+        if last_msg.created_at.date() == now.date():
+            return last_msg.created_at.strftime("%I:%M %p")
+        elif (now.date() - last_msg.created_at.date()).days == 1:
+            return "Yesterday"
+        else:
+            return last_msg.created_at.strftime("%d/%m/%Y")
+
+    def get_unread_count(self, obj):
+        # Use annotated field if available
+        if hasattr(obj, 'unread_count'):
+            return obj.unread_count
+            
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return 0
+        return Message.objects.filter(
+            channel=obj
+        ).exclude(
+            sender=request.user
+        ).exclude(
+            reads__user=request.user
+        ).count()
+
+
 
     def get_dm_partner(self, obj):
         if not obj.is_dm:

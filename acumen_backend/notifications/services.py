@@ -268,7 +268,9 @@ class NotificationService:
             workspace = Workspace.objects.get(id=event.workspace_id)
             recipients = NotificationService._get_recipients(event, workspace)
 
-            notification_ids = []
+            notifications_to_create = []
+            valid_recipients = []
+
             for recipient in recipients:
                 # Never notify the actor about their own action
                 if recipient.id == event.actor_id:
@@ -277,19 +279,28 @@ class NotificationService:
                 if not NotificationService._check_preferences(recipient, event):
                     continue
 
-                notification = Notification.objects.create(
-                    recipient=recipient,
-                    workspace=workspace,
-                    notification_type=event.event_type,
-                    actor=actor,
-                    related_object_id=NotificationService._get_related_object_id(event),
-                    title=NotificationService._get_title(event, recipient),
-                    description=NotificationService._get_description(event),
-                    metadata=event.data,
+                notifications_to_create.append(
+                    Notification(
+                        recipient=recipient,
+                        workspace=workspace,
+                        notification_type=event.event_type,
+                        actor=actor,
+                        related_object_id=NotificationService._get_related_object_id(event),
+                        title=NotificationService._get_title(event, recipient),
+                        description=NotificationService._get_description(event),
+                        metadata=event.data,
+                    )
                 )
-                notification_ids.append(notification.id)
+                valid_recipients.append(recipient)
 
-            NotificationService._emit_async(event, notification_ids, recipients)
+            if not notifications_to_create:
+                return None
+
+            # PERFORMANCE: Bulk create notifications in a single query
+            created_notifications = Notification.objects.bulk_create(notifications_to_create)
+            notification_ids = [n.id for n in created_notifications]
+
+            NotificationService._emit_async(event, notification_ids, valid_recipients)
 
             return notification_ids[0] if notification_ids else None
 

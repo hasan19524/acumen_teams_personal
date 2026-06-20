@@ -111,6 +111,7 @@ export default function LoginPage() {
         localStorage.setItem("refresh", data.refresh);
         localStorage.setItem("username", data.username || login);
         if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+        if (data.workspace_id) localStorage.setItem("workspace_id", String(data.workspace_id));
         router.push("/dashboard");
       } else {
         setError(data.detail || "Login failed.");

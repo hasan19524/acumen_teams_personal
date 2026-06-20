@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "@/components/DashboardSidebar";
+
 import {
   loadInviteCounts,
   loadInviteTab,
@@ -118,7 +118,10 @@ export default function InvitesPage() {
     try {
       await respondGroupInvite(inviteId, "accepted");
       setItems((prev) => prev.filter((i) => i.id !== inviteId));
-      setCounts((prev) => ({ ...prev, private_groups: prev.private_groups - 1 }));
+      setCounts((prev) => ({
+        ...prev,
+        private_groups: prev.private_groups - 1,
+      }));
     } catch (err) {
       console.error("Failed to accept group invite:", err);
     } finally {
@@ -131,7 +134,10 @@ export default function InvitesPage() {
     try {
       await respondGroupInvite(inviteId, "rejected");
       setItems((prev) => prev.filter((i) => i.id !== inviteId));
-      setCounts((prev) => ({ ...prev, private_groups: prev.private_groups - 1 }));
+      setCounts((prev) => ({
+        ...prev,
+        private_groups: prev.private_groups - 1,
+      }));
     } catch (err) {
       console.error("Failed to reject group invite:", err);
     } finally {
@@ -160,8 +166,6 @@ export default function InvitesPage() {
         fontFamily: "Inter, sans-serif",
       }}
     >
-      <DashboardSidebar />
-
       <div style={{ flex: 1, padding: 32 }}>
         <h1
           style={{

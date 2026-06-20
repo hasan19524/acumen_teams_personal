@@ -1,3 +1,4 @@
+// components/DashboardSidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -11,7 +12,6 @@ import {
   Users,
   Mail,
   Settings,
-  LogOut,
 } from "lucide-react";
 import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
@@ -32,19 +32,11 @@ export default function DashboardSidebar() {
   const router = useRouter();
   const markAllAsRead = useNotificationStore((s) => s.markAllAsRead);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refresh");
-    localStorage.removeItem("username");
-    localStorage.removeItem("user_id");
-    router.push("/login");
-  };
-
   return (
     <aside
       style={{
-        background: "#12141f",
-        borderRight: "1px solid rgba(255,255,255,.06)",
+        background: "#0D1B3D", // Acumen Sidebar Color
+        borderRight: "1px solid #2A3A5C", // Acumen Border
         padding: "32px 18px",
         display: "flex",
         flexDirection: "column",
@@ -58,31 +50,18 @@ export default function DashboardSidebar() {
     >
       <style>{`
         .sidebar-item {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.2s ease;
           position: relative;
-          overflow: hidden;
+          border-left: 4px solid transparent;
         }
-        .sidebar-item::before {
-          content: '';
-          position: absolute;
-          top: 0; left: -100%;
-          width: 100%; height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
-          transition: left 0.5s;
-        }
-        .sidebar-item:hover::before { left: 100%; }
         .sidebar-item:not(.sidebar-active):hover {
-          background: rgba(255,255,255,.08) !important;
-          transform: translateX(6px);
-          color: #fff !important;
+          background: #16284F !important; // Acumen Sidebar Hover
+          color: #FFFFFF !important;
         }
-        .sidebar-logout {
-          transition: all 0.3s ease;
-        }
-        .sidebar-logout:hover {
-          background: #dc2626 !important;
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(239,68,68,0.4);
+        .sidebar-item.sidebar-active {
+          background: #2A3D73 !important; // Acumen Sidebar Active (Purple-ish bg)
+          border-left: 4px solid #E31E24 !important; // Acumen Primary (Red)
+          color: #FFFFFF !important;
         }
       `}</style>
 
@@ -90,10 +69,17 @@ export default function DashboardSidebar() {
       <div
         style={{
           padding: "0 10px 32px",
-          borderBottom: "1px solid rgba(255,255,255,.08)",
+          borderBottom: "1px solid #2A3A5C",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", padding: "8px 0", marginLeft: "-10px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "8px 0",
+            marginLeft: "-10px",
+          }}
+        >
           <img
             src="/acumen-logo.svg"
             alt="Acumen Teams"
@@ -118,19 +104,14 @@ export default function DashboardSidebar() {
               className={`sidebar-item ${active ? "sidebar-active" : ""}`}
               style={{
                 padding: "14px 16px",
-                borderRadius: 12,
+                borderRadius: "0 12px 12px 0", // Flat left for border, rounded right
                 textDecoration: "none",
                 fontWeight: active ? 600 : 500,
                 fontSize: 15,
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
-                color: active ? "#fff" : "rgba(255,255,255,.65)",
-                background: active
-                  ? "linear-gradient(135deg,#6366f1,#818cf8)"
-                  : "transparent",
-                boxShadow: active ? "0 8px 24px rgba(99,102,241,0.35)" : "none",
-                position: "relative",
+                color: active ? "#FFFFFF" : "#B7C0D8", // Acumen Text Secondary
               }}
             >
               <div style={{ position: "relative", display: "flex" }}>
@@ -143,32 +124,6 @@ export default function DashboardSidebar() {
             </Link>
           );
         })}
-      </div>
-
-      {/* Logout */}
-      <div style={{ marginTop: "auto", paddingTop: 20 }}>
-        <button
-          onClick={handleLogout}
-          className="sidebar-logout"
-          style={{
-            width: "100%",
-            border: "none",
-            cursor: "pointer",
-            background: "#ef4444",
-            color: "#fff",
-            padding: "14px",
-            borderRadius: 12,
-            fontWeight: 600,
-            fontSize: 15,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <LogOut size={18} />
-          Logout
-        </button> 
       </div>
     </aside>
   );

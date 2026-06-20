@@ -122,6 +122,7 @@ export default function SignupPage() {
         localStorage.setItem("refresh", data.refresh);
         localStorage.setItem("username", data.username);
         if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+        if (data.workspace_id) localStorage.setItem("workspace_id", String(data.workspace_id));
         router.push("/dashboard");
       } else {
         setError(data.detail || Object.values(data).flat().join(" ") || "Signup failed.");

@@ -1,7 +1,7 @@
+// app/dashboard/settings/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   User,
   Shield,
@@ -12,12 +12,26 @@ import {
   Moon,
   LogOut,
 } from "lucide-react";
-import DashboardSidebar from "@/components/DashboardSidebar";
 import { logout } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
+
+// ── Design Tokens ─────────────────────────────────────────────────────
+const tk = {
+  bg: "#020617",
+  surface: "rgba(15,23,42,0.8)",
+  surfaceHover: "rgba(30,41,59,0.8)",
+  border: "rgba(255,255,255,0.06)",
+  borderHover: "rgba(255,255,255,0.14)",
+  text: "#f1f5f9",
+  textSecondary: "#94a3b8",
+  textTer: "#64748b",
+  accent: "#3b82f6",
+  success: "#10b981",
+  danger: "#ef4444",
+  warning: "#f59e0b",
+};
 
 export default function SettingsPage() {
-  const router = useRouter();
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
@@ -29,17 +43,8 @@ export default function SettingsPage() {
   const [darkMode, setDarkMode] = useState(true);
   const [twoFA, setTwoFA] = useState(false);
 
-  // Fetch logged-in user data on mount
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
-
-    fetch("http://127.0.0.1:8000/api/accounts/me/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch("/api/accounts/me/")
       .then((r) => r.json())
       .then((data) => {
         setName(data.full_name || data.username || "");
@@ -48,262 +53,326 @@ export default function SettingsPage() {
         setLoading(false);
       })
       .catch(() => {
-        // fallback: read from localStorage
         setName(localStorage.getItem("username") || "");
         setLoading(false);
       });
-  }, [router]);
+  }, []);
 
   const handleSave = async () => {
-    const token = localStorage.getItem("token");
     setSaving(true);
     try {
-      await fetch("http://127.0.0.1:8000/api/accounts/me/update/", {
+      await apiFetch("/api/accounts/me/update/", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ full_name: name, email, company_name: company }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch {
-      // silent fail for now
+    } catch (e) {
+      console.error("Failed to save", e);
     }
     setSaving(false);
   };
 
-  const card: React.CSSProperties = {
-    background: "rgba(255,255,255,.025)",
-    border: "1px solid rgba(255,255,255,.05)",
-    borderRadius: 22,
-    padding: 22,
-  };
-
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    height: 48,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,.06)",
-    background: "rgba(255,255,255,.03)",
-    color: "#fff",
-    padding: "0 14px",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    border: `1px solid ${tk.border}`,
+    background: tk.bg,
+    color: tk.text,
     outline: "none",
-    marginBottom: 14,
-    fontSize: 15,
+    fontSize: "14px",
     boxSizing: "border-box",
+    marginBottom: "12px",
   };
 
   const secondaryBtn: React.CSSProperties = {
     width: "100%",
-    height: 46,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,.06)",
-    background: "rgba(255,255,255,.03)",
-    color: "#fff",
+    padding: "12px",
+    borderRadius: "8px",
+    border: `1px solid ${tk.border}`,
+    background: "transparent",
+    color: tk.textSecondary,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginBottom: 12,
+    gap: "8px",
+    marginBottom: "8px",
     cursor: "pointer",
-    fontSize: 14,
+    fontSize: "14px",
+    fontWeight: "500",
   };
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
-        display: "flex",
-        background: "linear-gradient(180deg,#020617,#020b22)",
-        color: "#fff",
-        fontFamily: "Inter, sans-serif",
+        background: tk.bg,
+        color: tk.text,
+        fontFamily: "'Inter', sans-serif",
+        padding: "32px 40px",
       }}
     >
-      {/* SHARED SIDEBAR */}
-      <DashboardSidebar />
+      {/* HEADER */}
+      <div style={{ marginBottom: "32px" }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "28px",
+            fontWeight: 700,
+            letterSpacing: "-0.5px",
+          }}
+        >
+          Settings
+        </h1>
+        <p
+          style={{
+            margin: "8px 0 0",
+            color: tk.textSecondary,
+            fontSize: "15px",
+          }}
+        >
+          Manage workspace preferences, profile and security.
+        </p>
+      </div>
 
-      {/* Main — same UI as before */}
-      <main style={{ flex: 1, padding: 28 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 46, fontWeight: 800 }}>Settings</h1>
-          <p style={{ color: "rgba(255,255,255,.65)", marginTop: 8 }}>
-            Manage workspace preferences, profile and security
-          </p>
+      {loading ? (
+        <div style={{ color: tk.textTer, fontSize: "14px" }}>
+          Loading your profile...
         </div>
-
-        {loading ? (
-          <p style={{ marginTop: 40, color: "rgba(255,255,255,.4)" }}>
-            Loading your profile...
-          </p>
-        ) : (
-          <>
-            <div
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "20px",
+            maxWidth: "900px",
+          }}
+        >
+          {/* Profile */}
+          <div
+            style={{
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+            }}
+          >
+            <h3
               style={{
-                marginTop: 28,
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 22,
+                marginTop: 0,
+                marginBottom: "20px",
+                fontSize: "16px",
+                fontWeight: 700,
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
               }}
             >
-              {/* Profile */}
-              <div style={card}>
-                <h3
-                  style={{
-                    marginTop: 0,
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <User size={18} /> Profile Settings
-                </h3>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Full Name"
-                />
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Email"
-                  type="email"
-                />
-                <input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  style={inputStyle}
-                  placeholder="Company Name"
-                />
-              </div>
+              <User size={18} color={tk.accent} /> Profile Settings
+            </h3>
+            <label
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: tk.textTer,
+                textTransform: "uppercase",
+              }}
+            >
+              Full Name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={inputStyle}
+            />
+            <label
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: tk.textTer,
+                textTransform: "uppercase",
+              }}
+            >
+              Email
+            </label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+              type="email"
+            />
+            <label
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: tk.textTer,
+                textTransform: "uppercase",
+              }}
+            >
+              Company Name
+            </label>
+            <input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
 
-              {/* Security */}
-              <div style={card}>
-                <h3
-                  style={{
-                    marginTop: 0,
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <Shield size={18} /> Security
-                </h3>
-                <ToggleRow
-                  label="Two Factor Authentication"
-                  enabled={twoFA}
-                  onClick={() => setTwoFA(!twoFA)}
-                />
-                <button style={secondaryBtn}>
-                  <KeyRound size={16} /> Change Password
-                </button>
-                <button style={secondaryBtn}>View Login Devices</button>
-              </div>
+          {/* Security */}
+          <div
+            style={{
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: "20px",
+                fontSize: "16px",
+                fontWeight: 700,
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <Shield size={18} color={tk.success} /> Security
+            </h3>
+            <ToggleRow
+              label="Two Factor Authentication"
+              enabled={twoFA}
+              onClick={() => setTwoFA(!twoFA)}
+            />
+            <button style={secondaryBtn}>
+              <KeyRound size={16} /> Change Password
+            </button>
+            <button style={secondaryBtn}>View Login Devices</button>
+          </div>
 
-              {/* Notifications */}
-              <div style={card}>
-                <h3
-                  style={{
-                    marginTop: 0,
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <Bell size={18} /> Notifications
-                </h3>
-                <ToggleRow
-                  label="Email Notifications"
-                  enabled={notifications}
-                  onClick={() => setNotifications(!notifications)}
-                />
-                <ToggleRow
-                  label="Push Notifications"
-                  enabled={true}
-                  onClick={() => {}}
-                />
-              </div>
+          {/* Notifications */}
+          <div
+            style={{
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: "20px",
+                fontSize: "16px",
+                fontWeight: 700,
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <Bell size={18} color={tk.warning} /> Notifications
+            </h3>
+            <ToggleRow
+              label="Email Notifications"
+              enabled={notifications}
+              onClick={() => setNotifications(!notifications)}
+            />
+            <ToggleRow
+              label="Push Notifications"
+              enabled={true}
+              onClick={() => {}}
+            />
+          </div>
 
-              {/* Preferences */}
-              <div style={card}>
-                <h3
-                  style={{
-                    marginTop: 0,
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <Globe size={18} /> Preferences
-                </h3>
-                <ToggleRow
-                  label="Dark Mode"
-                  enabled={darkMode}
-                  onClick={() => setDarkMode(!darkMode)}
-                />
-                <button style={secondaryBtn}>
-                  <Moon size={16} /> Theme Options
-                </button>
-                <button style={secondaryBtn}>Language: English</button>
-              </div>
-            </div>
+          {/* Preferences */}
+          <div
+            style={{
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
+              padding: "24px",
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: "20px",
+                fontSize: "16px",
+                fontWeight: 700,
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <Globe size={18} color={tk.textSecondary} /> Preferences
+            </h3>
+            <ToggleRow
+              label="Dark Mode"
+              enabled={darkMode}
+              onClick={() => setDarkMode(!darkMode)}
+            />
+            <button style={secondaryBtn}>
+              <Moon size={16} /> Theme Options
+            </button>
+            <button style={secondaryBtn}>Language: English</button>
+          </div>
 
-            <div style={{ marginTop: 26, display: "flex", gap: 16 }}>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  height: 48,
-                  padding: "0 22px",
-                  borderRadius: 14,
-                  border: "none",
-                  background: saved
-                    ? "#10b981"
-                    : "linear-gradient(135deg,#3b82f6,#4f46e5)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  cursor: "pointer",
-                  fontSize: 15,
-                  transition: "background .3s",
-                }}
-              >
-                <Save size={18} />
-                {saving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
-              </button>
-
-              <button
-                onClick={() => logout()}
-                style={{
-                  height: 48,
-                  padding: "0 22px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "#ef4444",
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 15,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                }}
-              >
-                <LogOut size={18} />
-                Logout
-              </button>
-            </div>
-          </>
-        )}
-      </main>
-    </div>
+          {/* Actions */}
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              gap: "12px",
+              marginTop: "8px",
+            }}
+          >
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                height: "40px",
+                padding: "0 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: saved ? tk.success : tk.accent,
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              <Save size={16} />{" "}
+              {saving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
+            </button>
+            <button
+              onClick={() => logout()}
+              style={{
+                height: "40px",
+                padding: "0 20px",
+                borderRadius: "8px",
+                border: `1px solid rgba(239,68,68,0.3)`,
+                background: "transparent",
+                color: tk.danger,
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <LogOut size={16} /> Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
 
@@ -319,35 +388,37 @@ function ToggleRow({
   return (
     <div
       style={{
-        marginBottom: 16,
+        marginBottom: "16px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        padding: "8px 0",
       }}
     >
-      <span>{label}</span>
+      <span style={{ fontSize: "14px", color: "#f1f5f9" }}>{label}</span>
       <button
         onClick={onClick}
         style={{
-          width: 54,
-          height: 30,
-          borderRadius: 999,
+          width: "40px",
+          height: "22px",
+          borderRadius: "11px",
           border: "none",
-          background: enabled ? "#3b82f6" : "rgba(255,255,255,.1)",
+          background: enabled ? tk.accent : tk.border,
           position: "relative",
           cursor: "pointer",
+          transition: "background 0.2s",
         }}
       >
         <span
           style={{
             position: "absolute",
-            top: 4,
-            left: enabled ? 28 : 4,
-            width: 22,
-            height: 22,
-            borderRadius: 999,
+            top: "3px",
+            left: enabled ? "21px" : "3px",
+            width: "16px",
+            height: "16px",
+            borderRadius: "50%",
             background: "#fff",
-            transition: ".2s",
+            transition: "left 0.2s",
           }}
         />
       </button>

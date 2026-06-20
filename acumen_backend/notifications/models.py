@@ -68,18 +68,16 @@ class NotificationPreference(models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="notification_preferences"
     )
-    NOTIFICATION_TYPE_CHOICES = [
-        ("chat_created", "Chat Created"),
-        ("channel_joined", "Channel Joined"),
-        ("message_received", "Message Received"),
-        ("mention", "Mention"),
-        ("task_assigned", "Task Assigned"),
-        ("announcement", "Announcement"),
-        ("workspace_event", "Workspace Event"),
-        ("dm_request", "DM Request"),
-        ("dm_request_accepted", "DM Request Accepted"),
-        ("channel_invite", "Channel Invite"),
-    ]
+    chat_created_enabled = models.BooleanField(default=True)
+    channel_joined_enabled = models.BooleanField(default=True)
+    message_received_enabled = models.BooleanField(default=True)
+    mentions_enabled = models.BooleanField(default=True)
+    task_assignments_enabled = models.BooleanField(default=True)
+    announcements_enabled = models.BooleanField(default=True)
+    workspace_events_enabled = models.BooleanField(default=True)
+    dm_requests_enabled = models.BooleanField(default=True)
+    channel_invites_enabled = models.BooleanField(default=True)
+    all_notifications_muted = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

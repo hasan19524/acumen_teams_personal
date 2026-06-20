@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useChatStore } from "../store/chatStore";
 import { Message, UserMini } from "../types/message";
+import { getWorkspaceId } from "@/lib/auth";
 
 // ── Frontend Validation (Matches backend file_service.py exactly) ────────────
 
@@ -187,8 +188,9 @@ export function useFileUpload(channelId: number | null) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const wsId = getWorkspaceId();
 
-      xhr.open("POST", `${apiUrl}/api/chat/upload/`);
+      xhr.open("POST", `${apiUrl}/api/chat/${wsId}/upload/`);
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       xhr.send(formData);
     },

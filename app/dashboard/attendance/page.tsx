@@ -1,9 +1,11 @@
+// app/dashboard/attendance/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, LogIn, LogOut as LogOutIcon, Calendar } from "lucide-react";
-import DashboardSidebar from "@/components/DashboardSidebar";
+import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 
 type AttendanceItem = {
   date: string;
@@ -13,6 +15,22 @@ type AttendanceItem = {
   is_today: boolean;
 };
 
+// ── Design Tokens ─────────────────────────────────────────────────────
+const tk = {
+  bg: "#020617",
+  surface: "rgba(15,23,42,0.8)",
+  surfaceHover: "rgba(30,41,59,0.8)",
+  border: "rgba(255,255,255,0.06)",
+  borderHover: "rgba(255,255,255,0.14)",
+  text: "#f1f5f9",
+  textSecondary: "#94a3b8",
+  textTer: "#64748b",
+  accent: "#3b82f6",
+  success: "#10b981",
+  danger: "#ef4444",
+  warning: "#f59e0b",
+};
+
 export default function AttendancePage() {
   const router = useRouter();
   const [history, setHistory] = useState<AttendanceItem[]>([]);
@@ -20,8 +38,15 @@ export default function AttendancePage() {
   const [todayIn, setTodayIn] = useState<string | null>(null);
   const [timer, setTimer] = useState("0h 0m");
   const [todayDuration, setTodayDuration] = useState<number | null>(null);
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000); // Auto-hide after 3 seconds
+  };
 
   const formatDuration = (hours: number | null) => {
     if (hours == null) return "--";
@@ -36,7 +61,7 @@ export default function AttendancePage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      router.push("/");
+      router.push("/login");
       return;
     }
     fetchHistory();
@@ -54,11 +79,9 @@ export default function AttendancePage() {
   }, [todayIn]);
 
   const fetchHistory = async () => {
-    const token = localStorage.getItem("token");
+    const wsId = getWorkspaceId();
     try {
-      const res = await fetch(`${apiUrl}/api/attendance/me/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch(`/api/attendance/${wsId}/me/`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setHistory(data);
@@ -80,34 +103,34 @@ export default function AttendancePage() {
   };
 
   const handleCheckIn = async () => {
-    const token = localStorage.getItem("token");
+    const wsId = getWorkspaceId();
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/attendance/checkin/`, {
+      const res = await apiFetch(`/api/attendance/${wsId}/checkin/`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      alert(data.message || data.error);
+      if (!res.ok) showToast(data.error || "Failed to check in", "error");
+      else showToast(data.message);
     } catch {
-      alert("Network error");
+      showToast("Network error", "error");
     }
     setLoading(false);
     fetchHistory();
   };
 
   const handleCheckOut = async () => {
-    const token = localStorage.getItem("token");
+    const wsId = getWorkspaceId();
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/attendance/checkout/`, {
+      const res = await apiFetch(`/api/attendance/${wsId}/checkout/`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      alert(data.message || data.error);
+      if (!res.ok) showToast(data.error || "Failed to check out", "error");
+      else showToast(data.message);
     } catch {
-      alert("Network error");
+      showToast("Network error", "error");
     }
     setLoading(false);
     setTodayIn(null);
@@ -121,201 +144,329 @@ export default function AttendancePage() {
     <main
       style={{
         minHeight: "100vh",
-        display: "flex",
-        backgroundColor: "#0b0e14",
-        color: "#fff",
+        background: tk.bg,
+        color: tk.text,
+        fontFamily: "'Inter', sans-serif",
+        padding: "32px 40px",
       }}
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap');
-        .sora { font-family: 'Sora', sans-serif; }
-        .att-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; }
-      `}</style>
-
-      <DashboardSidebar />
-
-      <section style={{ flex: 1, padding: "40px 48px", overflowY: "auto" }}>
-        <h1 className="sora" style={{ fontSize: 32, marginBottom: 32 }}>
-          Attendance
-        </h1>
-
-        <div
+      {/* HEADER */}
+      <div style={{ marginBottom: "32px" }}>
+        <h1
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 20,
-            marginBottom: 32,
+            margin: 0,
+            fontSize: "28px",
+            fontWeight: 700,
+            letterSpacing: "-0.5px",
           }}
         >
-          <div className="att-card">
-            <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 8 }}>
-              Today Status
-            </p>
-            <h2
-              className="sora"
-              style={{
-                color: todayIn
-                  ? "#22c55e"
-                  : checkedOutToday
-                    ? "#6366f1"
-                    : "#fff",
-                margin: 0,
-              }}
+          Attendance
+        </h1>
+        <p
+          style={{
+            margin: "8px 0 0",
+            color: tk.textSecondary,
+            fontSize: "15px",
+          }}
+        >
+          Track your work hours and daily activity.
+        </p>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "16px",
+          marginBottom: "32px",
+        }}
+      >
+        <div
+          style={{
+            background: tk.surface,
+            border: `1px solid ${tk.border}`,
+            borderRadius: "16px",
+            padding: "24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <span
+              style={{ color: tk.textTer, fontSize: "13px", fontWeight: 500 }}
             >
-              {todayIn ? "Present" : checkedOutToday ? "Completed" : "Not In"}
-            </h2>
+              Today Status
+            </span>
           </div>
-          <div className="att-card">
-            <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: "24px",
+              fontWeight: 700,
+              color: todayIn
+                ? tk.success
+                : checkedOutToday
+                  ? tk.accent
+                  : tk.text,
+            }}
+          >
+            {todayIn ? "Present" : checkedOutToday ? "Completed" : "Not In"}
+          </div>
+        </div>
+        <div
+          style={{
+            background: tk.surface,
+            border: `1px solid ${tk.border}`,
+            borderRadius: "16px",
+            padding: "24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <span
+              style={{ color: tk.textTer, fontSize: "13px", fontWeight: 500 }}
+            >
               Check In
-            </p>
-            <h2 className="sora" style={{ margin: 0 }}>
-              {todayIn
-                ? new Date(todayIn).toLocaleTimeString([], {
+            </span>
+            <Clock size={18} style={{ color: tk.accent, opacity: 0.8 }} />
+          </div>
+          <div style={{ fontSize: "24px", fontWeight: 700 }}>
+            {todayIn
+              ? new Date(todayIn).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : checkedOutToday && history.find((r) => r.is_today)?.check_in
+                ? new Date(
+                    history.find((r) => r.is_today)!.check_in!,
+                  ).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })
-                : checkedOutToday
-                  ? history.find((r) => r.is_today)?.check_in
-                    ? new Date(
-                        history.find((r) => r.is_today)!.check_in!,
-                      ).toLocaleTimeString([], {
+                : "--:--"}
+          </div>
+        </div>
+        <div
+          style={{
+            background: tk.surface,
+            border: `1px solid ${tk.border}`,
+            borderRadius: "16px",
+            padding: "24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <span
+              style={{ color: tk.textTer, fontSize: "13px", fontWeight: 500 }}
+            >
+              Active Hours
+            </span>
+            <Clock size={18} style={{ color: tk.success, opacity: 0.8 }} />
+          </div>
+          <div style={{ fontSize: "24px", fontWeight: 700 }}>
+            {todayIn
+              ? timer
+              : todayDuration != null
+                ? formatDuration(todayDuration)
+                : "0h 0m"}
+          </div>
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "40px" }}>
+        <button
+          disabled={loading || !!todayIn || checkedOutToday}
+          onClick={handleCheckIn}
+          style={{
+            height: "40px",
+            padding: "0 18px",
+            borderRadius: "8px",
+            border: "none",
+            background: "#fff",
+            color: "#000",
+            fontWeight: 600,
+            fontSize: "14px",
+            cursor:
+              loading || !!todayIn || checkedOutToday
+                ? "not-allowed"
+                : "pointer",
+            opacity: loading || !!todayIn || checkedOutToday ? 0.5 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <LogIn size={16} /> Clock In
+        </button>
+        <button
+          disabled={loading || !todayIn}
+          onClick={handleCheckOut}
+          style={{
+            height: "40px",
+            padding: "0 18px",
+            borderRadius: "8px",
+            border: `1px solid ${tk.borderHover}`,
+            background: "transparent",
+            color: tk.text,
+            fontWeight: 600,
+            fontSize: "14px",
+            cursor: loading || !todayIn ? "not-allowed" : "pointer",
+            opacity: loading || !todayIn ? 0.5 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <LogOutIcon size={16} /> Clock Out
+        </button>
+      </div>
+
+      {/* HISTORY */}
+      <div
+        style={{
+          background: tk.surface,
+          border: `1px solid ${tk.border}`,
+          borderRadius: "16px",
+          padding: "24px",
+        }}
+      >
+        <h3 style={{ margin: "0 0 20px", fontSize: "16px", fontWeight: 700 }}>
+          Recent History
+        </h3>
+        <div style={{ display: "grid", gap: "8px" }}>
+          {Array.isArray(history) && history.length > 0 ? (
+            history.map((item, i) => (
+              <div
+                key={item.date ?? `item-${i}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                  padding: "16px",
+                  background: tk.bg,
+                  borderRadius: "12px",
+                  border: `1px solid ${tk.border}`,
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: tk.textSecondary,
+                    fontSize: "14px",
+                  }}
+                >
+                  <Calendar size={16} />{" "}
+                  {new Date(item.date).toLocaleDateString()}
+                </span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: tk.textSecondary,
+                    fontSize: "14px",
+                  }}
+                >
+                  <LogIn size={16} color={tk.textTer} />{" "}
+                  {item.check_in
+                    ? new Date(item.check_in).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })
-                    : "--:--"
-                  : "--:--"}
-            </h2>
-          </div>
-          <div className="att-card">
-            <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 8 }}>
-              Active Hours
-            </p>
-            <h2 className="sora" style={{ margin: 0 }}>
-              {todayIn
-                ? timer
-                : todayDuration != null
-                  ? formatDuration(todayDuration)
-                  : "0h 0m"}
-            </h2>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 16, marginBottom: 40 }}>
-          <button
-            disabled={loading || !!todayIn || checkedOutToday}
-            onClick={handleCheckIn}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "#fff",
-              color: "#000",
-              border: "none",
-              padding: "12px 24px",
-              borderRadius: 12,
-              fontWeight: 600,
-              cursor:
-                loading || !!todayIn || checkedOutToday
-                  ? "not-allowed"
-                  : "pointer",
-              opacity: loading || !!todayIn || checkedOutToday ? 0.5 : 1,
-            }}
-          >
-            <LogIn size={18} /> Clock In
-          </button>
-          <button
-            disabled={loading || !todayIn}
-            onClick={handleCheckOut}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "rgba(255,255,255,0.1)",
-              color: "#fff",
-              border: "none",
-              padding: "12px 24px",
-              borderRadius: 12,
-              fontWeight: 600,
-              cursor: loading || !todayIn ? "not-allowed" : "pointer",
-              opacity: loading || !todayIn ? 0.5 : 1,
-            }}
-          >
-            <LogOutIcon size={18} /> Clock Out
-          </button>
-        </div>
-
-        <div className="att-card">
-          <h2 className="sora" style={{ marginBottom: 20, fontSize: 18 }}>
-            Recent History
-          </h2>
-          <div style={{ display: "grid", gap: 12 }}>
-            {Array.isArray(history) && history.length > 0 ? (
-              history.map((item, i) => (
-                <div
-                  key={item.date ?? `item-${i}`}
+                    : "--"}
+                </span>
+                <span
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                    padding: "16px",
-                    background: "rgba(255,255,255,0.02)",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.03)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: tk.textSecondary,
+                    fontSize: "14px",
                   }}
                 >
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      color: "#94a3b8",
-                    }}
-                  >
-                    <Calendar size={16} />{" "}
-                    {new Date(item.date).toLocaleDateString()}
-                  </span>
-                  <span
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <Clock size={16} color="#94a3b8" /> In:{" "}
-                    {item.check_in
-                      ? new Date(item.check_in).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "--"}
-                  </span>
-                  <span
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <Clock size={16} color="#94a3b8" /> Out:{" "}
-                    {item.check_out
-                      ? new Date(item.check_out).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "--"}
-                  </span>
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      color:
-                        item.duration_hours != null ? "#818cf8" : "#94a3b8",
-                      fontWeight: item.duration_hours != null ? 600 : 400,
-                    }}
-                  >
-                    {formatDuration(item.duration_hours)}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p style={{ color: "#64748B" }}>No records found.</p>
-            )}
-          </div>
+                  <LogOutIcon size={16} color={tk.textTer} />{" "}
+                  {item.check_out
+                    ? new Date(item.check_out).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "--"}
+                </span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: item.duration_hours != null ? tk.accent : tk.textTer,
+                    fontWeight: item.duration_hours != null ? 600 : 400,
+                    fontSize: "14px",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  {formatDuration(item.duration_hours)}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: tk.textTer,
+              }}
+            >
+              No records found.
+            </div>
+          )}
         </div>
-      </section>
+      </div>
+      {/* TOAST NOTIFICATION */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "32px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background:
+              toast.type === "error"
+                ? "rgba(239,68,68,0.15)"
+                : "rgba(16,185,129,0.15)",
+            border: `1px solid ${toast.type === "error" ? "rgba(239,68,68,0.3)" : "rgba(16,185,129,0.3)"}`,
+            color: toast.type === "error" ? "#ef4444" : "#10b981",
+            padding: "12px 24px",
+            borderRadius: "12px",
+            fontWeight: 600,
+            fontSize: "14px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+            zIndex: 1000,
+            animation: "fadeInUp 0.3s ease-out",
+          }}
+        >
+          <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
+          {toast.msg}
+        </div>
+      )}
     </main>
   );
 }

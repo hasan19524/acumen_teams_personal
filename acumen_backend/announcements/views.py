@@ -1,18 +1,17 @@
+# acumen_backend/announcements/views.py
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status
-from django.db.models import Q
-from .models import Announcement
-from notifications.services import NotificationService, AnnouncementEvent
-from workspaces.models import WorkspaceMembership, Team, TeamMembership
+from django.shortcuts import get_object_or_404
+from django.db.models import Q, Exists, OuterRef
+
+from .models import Announcement, AnnouncementRead
+from .services import AnnouncementService
+from workspaces.models import Workspace, WorkspaceMembership, TeamMembership
 from workspaces.permissions import is_team_leader
-import logging
-
-logger = logging.getLogger(__name__)
 
 
-def ann_data(a):
+def ann_data(a, user):
     return {
         "id": a.id,
         "title": a.title,
@@ -25,121 +24,118 @@ def ann_data(a):
         "team_id": a.team_id,
         "team_name": a.team.name if a.team else None,
         "scope": "team" if a.team else "workspace",
+        "is_read": a.reads.filter(user=user).exists(),
     }
+
+
+from rest_framework.pagination import PageNumberPagination
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def announcement_list(request):
-    try:
-        membership = request.user.memberships.filter(is_active=True).first()
-        workspace = membership.workspace if membership else None
-        
-        # Show workspace-wide announcements + announcements for user's teams
-        user_team_ids = TeamMembership.objects.filter(
-            user=request.user, is_active=True
-        ).values_list("team_id", flat=True)
-        
-        items = Announcement.objects.filter(workspace=workspace).filter(
-            Q(team_id__in=user_team_ids) | Q(team=None)
-        )
-    except:
-        items = Announcement.objects.filter(created_by=request.user)
-    return Response([ann_data(a) for a in items])
+def announcement_list(request, workspace_id):
+    workspace = get_object_or_404(Workspace, id=workspace_id)
 
+    user_team_ids = TeamMembership.objects.filter(
+        user=request.user, team__workspace=workspace, is_active=True
+    ).values_list("team_id", flat=True)
+
+    # OPTIMIZATION: Annotate is_read to kill N+1 queries in the loop
+    is_read_sq = AnnouncementRead.objects.filter(
+        announcement=OuterRef("pk"), user=request.user
+    )
+
+    items = (
+        Announcement.objects.filter(workspace=workspace, is_deleted=False)
+        .filter(Q(team_id__in=user_team_ids) | Q(team=None))
+        .select_related("created_by", "team")
+        .annotate(is_read=Exists(is_read_sq))
+        .order_by("-pinned", "-created_at")
+    )
+
+    # Paginate at DB level
+    paginator = PageNumberPagination()
+    page = paginator.paginate_queryset(items, request, view=request)
+
+    # Pass the annotated `is_read` boolean to the dict builder
+    return paginator.get_paginated_response(
+        [
+            {
+                **ann_data(a, request.user),
+                "is_read": a.is_read,  # Use the annotated value directly
+            }
+            for a in page
+        ]
+    )
+
+
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.exceptions import Throttled
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def announcement_create(request):
-    membership = request.user.memberships.filter(is_active=True).first()
-    if not membership:
-        return Response({"error": "No workspace found"}, status=400)
+def announcement_create(request, workspace_id):
+    # Add throttle instance for creation
+    throttle = ScopedRateThrottle()
+    throttle.scope = 'create'
+    if not throttle.allow_request(request, view=request):
+        raise Throttled(detail="Too many announcements created. Please slow down.")
+    workspace = get_object_or_404(Workspace, id=workspace_id)
 
-    workspace = membership.workspace
+    membership = get_object_or_404(
+        WorkspaceMembership, user=request.user, workspace=workspace, is_active=True
+    )
     is_admin = membership.role in ("owner", "admin")
     team_id = request.data.get("team_id")
-    team = None
 
-    # Resolve team if provided
     if team_id:
-        try:
-            team = Team.objects.get(id=team_id, workspace=workspace)
-        except Team.DoesNotExist:
-            return Response({"error": "Team not found"}, status=404)
-
-    # Permission checks per locked rules:
-    # - Admins can post workspace + team announcements
-    # - Team leaders can post team announcements ONLY
-    # - Employees/guests cannot post
-    if team:
-        # Team announcement: admin OR leader of this team
-        if not is_admin and not is_team_leader(request.user, team.id):
+        if not is_admin and not is_team_leader(request.user, team_id):
             return Response(
                 {"error": "Only admins or team leaders can post team announcements"},
                 status=403,
             )
     else:
-        # Workspace announcement: admin only
         if not is_admin:
             return Response(
                 {"error": "Only admins can post workspace announcements"},
                 status=403,
             )
 
-    title = (request.data.get("title") or "").strip()
-    content = (request.data.get("content") or "").strip()
-    if not title or not content:
-        return Response({"error": "Title and content required"}, status=400)
-
-    ann = Announcement.objects.create(
-        title=title,
-        content=content,
-        tag=request.data.get("tag", "General"),
-        priority=request.data.get("priority", "Normal"),
-        pinned=request.data.get("pinned", False),
-        created_by=request.user,
-        workspace=workspace,
-        team=team,
-    )
-
-    # Route notifications to correct recipients
     try:
-        if team:
-            # Notify team members only
-            member_ids = list(
-                TeamMembership.objects.filter(
-                    team=team, is_active=True
-                ).values_list("user_id", flat=True)
-            )
-        else:
-            # Notify all workspace members
-            member_ids = list(
-                WorkspaceMembership.objects.filter(
-                    workspace=workspace, is_active=True
-                ).values_list("user_id", flat=True)
-            )
-        
-        NotificationService.create_and_emit(
-            AnnouncementEvent(
-                actor_id=request.user.id,
-                workspace_id=workspace.id,
-                announcement_id=ann.id,
-                announcement_title=title,
-                recipient_ids=member_ids,
-            )
+        ann = AnnouncementService.create_announcement(
+            workspace, request.user, request.data
         )
-    except Exception as e:
-        logger.warning(f"Failed to emit AnnouncementEvent: {e}")
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception:
+        return Response({"error": "Team not found"}, status=404)
 
-    return Response(ann_data(ann), status=201)
+    return Response(ann_data(ann, request.user), status=201)
 
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
-def announcement_delete(request, pk):
-    try:
-        ann = Announcement.objects.get(pk=pk, created_by=request.user)
-        ann.delete()
-    except Announcement.DoesNotExist:
-        return Response({"error": "Not found"}, status=404)
+def announcement_delete(request, workspace_id, pk):
+    ann = get_object_or_404(
+        Announcement, pk=pk, workspace_id=workspace_id, is_deleted=False
+    )
+
+    if ann.created_by != request.user:
+        membership = WorkspaceMembership.objects.filter(
+            user=request.user, workspace_id=workspace_id, is_active=True
+        ).first()
+        if not membership or membership.role not in ("owner", "admin"):
+            return Response({"error": "Not authorized"}, status=403)
+
+    AnnouncementService.delete_announcement(ann)
     return Response({"deleted": True})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def announcement_mark_read(request, workspace_id, pk):
+    ann = get_object_or_404(
+        Announcement, pk=pk, workspace_id=workspace_id, is_deleted=False
+    )
+    AnnouncementService.mark_as_read(ann, request.user)
+    return Response({"read": True})

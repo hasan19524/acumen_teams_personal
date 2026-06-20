@@ -1,6 +1,7 @@
 // features/chat/services/dmRequestService.ts
 
 import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 import {
   DMRequest,
   CreateDMRequestPayload,
@@ -17,7 +18,8 @@ export async function loadDMRequests(): Promise<{
   received: DMRequest[];
   sent: DMRequest[];
 }> {
-  const res = await apiFetch(`/api/chat/dm-requests/`);
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/dm-requests/`);
   if (!res.ok) throw new Error("Failed to load DM requests");
   return await res.json();
 }
@@ -29,7 +31,8 @@ export async function loadDMRequests(): Promise<{
 export async function createDMRequest(
   payload: CreateDMRequestPayload,
 ): Promise<DMRequestCreateResponse> {
-  const res = await apiFetch(`/api/chat/dm-requests/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/dm-requests/`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -46,7 +49,8 @@ export async function respondDMRequest(
   requestId: number,
   payload: RespondDMRequestPayload,
 ): Promise<DMRequestRespondResponse> {
-  const res = await apiFetch(`/api/chat/dm-requests/${requestId}/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/dm-requests/${requestId}/`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
@@ -62,9 +66,13 @@ export async function respondDMRequest(
 export async function undoDMRequestRejection(
   requestId: number,
 ): Promise<DMRequestUndoResponse> {
-  const res = await apiFetch(`/api/chat/dm-requests/${requestId}/undo/`, {
-    method: "POST",
-  });
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(
+    `/api/chat/${wsId}/dm-requests/${requestId}/undo/`,
+    {
+      method: "POST",
+    },
+  );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to undo rejection");
   return data;

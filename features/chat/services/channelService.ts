@@ -1,6 +1,7 @@
 // features/chat/services/channelService.ts
 
 import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 import { Channel, CreateChannelPayload } from "../types/channel";
 import { Message } from "../types/message";
 
@@ -54,23 +55,22 @@ export function enrichReplyTo(messages: Message[]): Message[] {
 
 // ── Channel APIs ────────────────────────────────────────────────────────
 
-/**
- * Loads all channels for the current user.
- * Returns full Channel objects with channel_type, team_name, etc.
- */
 export async function loadChannels(): Promise<Channel[]> {
-  const res = await apiFetch(`/api/chat/channels/`);
+  const wsId = getWorkspaceId();
+  if (!wsId) return [];
+  const res = await apiFetch(`/api/chat/${wsId}/channels/`);
+  if (!res.ok) return [];
   const data = await res.json();
-  return data.map((item: any) => parseRawChannel(item));
+  return Array.isArray(data)
+    ? data.map((item: any) => parseRawChannel(item))
+    : [];
 }
 
-/**
- * Creates a new channel (official, private group, or general).
- */
 export async function createChannel(
   payload: CreateChannelPayload,
 ): Promise<Channel> {
-  const res = await apiFetch(`/api/chat/channels/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/channels/`, {
     method: "POST",
     body: JSON.stringify({
       name: payload.name,
@@ -82,10 +82,6 @@ export async function createChannel(
   return parseRawChannel(data);
 }
 
-/**
- * Parses raw backend channel response into typed Channel object.
- * Handles both old and new response shapes gracefully.
- */
 function parseRawChannel(raw: any): Channel {
   return {
     id: raw.id,
@@ -108,14 +104,15 @@ function parseRawChannel(raw: any): Channel {
     is_member_active:
       raw.is_member_active !== undefined ? raw.is_member_active : true,
     is_pending: raw.is_pending || false,
+    // NEW: Map the sidebar fields from the backend
+    last_message: raw.last_message || null,
+    last_message_time: raw.last_message_time || null,
+    unread_count: raw.unread_count || 0,
   };
 }
 
 // ── Message APIs ────────────────────────────────────────────────────────
 
-/**
- * Loads the most recent messages for a channel (initial load).
- */
 export async function loadMessages(
   channelId: number,
   limit = 30,
@@ -123,15 +120,16 @@ export async function loadMessages(
   messages: Message[];
   pagination: { nextOffset: number; hasOlder: boolean };
 }> {
+  const wsId = getWorkspaceId();
   const countRes = await apiFetch(
-    `/api/chat/messages/${channelId}/?limit=1&offset=0`,
+    `/api/chat/${wsId}/messages/${channelId}/?limit=1&offset=0`,
   );
   const countData = await countRes.json();
   const total = countData.total || 0;
   const initialOffset = Math.max(0, total - limit);
 
   const res = await apiFetch(
-    `/api/chat/messages/${channelId}/?limit=${limit}&offset=${initialOffset}`,
+    `/api/chat/${wsId}/messages/${channelId}/?limit=${limit}&offset=${initialOffset}`,
   );
   const data = await res.json();
   const rawMessages = Array.isArray(data.results) ? data.results : [];
@@ -147,9 +145,6 @@ export async function loadMessages(
   };
 }
 
-/**
- * Loads older messages for pagination (scroll up).
- */
 export async function loadOlderMessages(
   channelId: number,
   offset: number,
@@ -159,8 +154,9 @@ export async function loadOlderMessages(
   messages: Message[];
   pagination: { nextOffset: number; hasOlder: boolean };
 }> {
+  const wsId = getWorkspaceId();
   const res = await apiFetch(
-    `/api/chat/messages/${channelId}/?limit=${limit}&offset=${offset}`,
+    `/api/chat/${wsId}/messages/${channelId}/?limit=${limit}&offset=${offset}`,
   );
   const data = await res.json();
   const rawMessages = Array.isArray(data.results) ? data.results : [];
@@ -203,31 +199,29 @@ export async function loadOlderMessages(
   };
 }
 
-/**
- * Deletes a message for everyone.
- */
 export async function deleteMessageForEveryone(
   messageId: number,
 ): Promise<void> {
-  await apiFetch(`/api/chat/messages/${messageId}/delete/`, {
+  const wsId = getWorkspaceId();
+  await apiFetch(`/api/chat/${wsId}/messages/${messageId}/delete/`, {
     method: "DELETE",
   });
 }
 
-/**
- * Edits a message.
- */
 export async function editMessage(
   messageId: number,
   content: string,
 ): Promise<void> {
-  await apiFetch(`/api/chat/messages/${messageId}/edit/`, {
+  const wsId = getWorkspaceId();
+  await apiFetch(`/api/chat/${wsId}/messages/${messageId}/edit/`, {
     method: "PATCH",
     body: JSON.stringify({ content }),
   });
 }
+
 export async function toggleReaction(messageId: number, emoji: string) {
-  const res = await apiFetch(`/api/chat/messages/${messageId}/react/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/messages/${messageId}/react/`, {
     method: "POST",
     body: JSON.stringify({ emoji }),
   });
@@ -236,22 +230,33 @@ export async function toggleReaction(messageId: number, emoji: string) {
 }
 
 export async function markMessageRead(messageId: number) {
-  const res = await apiFetch(`/api/chat/messages/${messageId}/read/`, {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/messages/${messageId}/read/`, {
     method: "POST",
   });
-  if (!res.ok) return null; // Non-critical, fail silently
+  if (!res.ok) return null;
   return res.json();
 }
 
 // ── DM APIs ────────────────────────────────────────────────────────────
 
-/**
- * Loads all DM channels for the current user.
- * This is separate from loadChannels() because the backend
- * serves DMs from /api/chat/dms/ and channels from /api/chat/channels/.
- */
 export async function loadDMs(): Promise<Channel[]> {
-  const res = await apiFetch(`/api/chat/dms/`);
+  const wsId = getWorkspaceId();
+  if (!wsId) return [];
+  const res = await apiFetch(`/api/chat/${wsId}/dms/`);
+  if (!res.ok) return [];
   const data = await res.json();
-  return data.map((item: any) => parseRawChannel(item));
+  return Array.isArray(data)
+    ? data.map((item: any) => parseRawChannel(item))
+    : [];
+}
+// ── Workspace Users API ────────────────────────────────────────────────
+
+export async function getWorkspaceUsers(): Promise<
+  { id: number; username: string; full_name: string }[]
+> {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/users/`);
+  if (!res.ok) throw new Error("Failed to fetch workspace users");
+  return res.json();
 }

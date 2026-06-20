@@ -1,3 +1,4 @@
+// hooks/usePublicRoute.ts
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -6,7 +7,10 @@ export function usePublicRoute() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
+    const workspaceId = localStorage.getItem("workspace_id");
+
+    // Only redirect to dashboard if BOTH token and workspace_id exist
+    if (token && workspaceId) {
       router.replace("/dashboard");
     }
   }, [router]);

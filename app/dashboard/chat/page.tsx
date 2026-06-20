@@ -1,13 +1,14 @@
 // app/dashboard/chat/page.tsx
 
 "use client";
-import DashboardSidebar from "@/components/DashboardSidebar";
+
 import { useChatPage } from "@/features/chat/hooks/useChatPage";
 import { ChatSidebar } from "@/features/chat/components/ChatSidebar";
 import { ChatHeader } from "@/features/chat/components/ChatHeader";
 import { ChatInput } from "@/features/chat/components/ChatInput";
 import { MessageList } from "@/features/chat/components/MessageList";
 import { ChatModals } from "@/features/chat/components/ChatModals";
+import { ThreadPanel } from "@/features/chat/components/ThreadPanel";
 import { T } from "@/features/chat/design/tokens";
 
 export default function ChatPage() {
@@ -18,7 +19,7 @@ export default function ChatPage() {
   return (
     <main
       style={{
-        minHeight: "100vh",
+        height: "100vh",
         display: "flex",
         background: T.bgApp,
         color: T.textPrimary,
@@ -44,8 +45,6 @@ export default function ChatPage() {
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
       `}</style>
-
-      <DashboardSidebar />
 
       <ChatSidebar
         search={chat.search}
@@ -84,7 +83,7 @@ export default function ChatPage() {
         }}
       >
         <ChatHeader
-          selectedChatName={chat.selectedChannel?.name}
+          selectedChannel={chat.selectedChannel}
           wsState={chat.wsState}
           isSelectMode={chat.isSelectMode}
           selectedCount={chat.selectedMsgIds.size}
@@ -129,6 +128,9 @@ export default function ChatPage() {
           }}
           onToggleReaction={chat.handleToggleReaction}
           onMarkRead={chat.handleMarkRead}
+          typingUsers={
+            chat.selectedChannel ? chat.typingUsers[chat.selectedChannel.id] : []
+          }
         />
 
         <ChatInput
@@ -150,8 +152,24 @@ export default function ChatPage() {
           setShowEmojiPicker={chat.setShowEmojiPicker}
           handleEmojiClick={chat.handleEmojiClick}
           onTyping={chat.handleTyping}
+          isDMPending={chat.selectedChannel?.is_pending}
+          isDMReceiver={chat.selectedChannel?.channel_type === "dm" && (chat.selectedChannel as any)?.created_by !== chat.myUserId}
+          onAcceptDM={chat.handleAcceptDM}
+          onBlockDM={chat.handleBlockDM}
         />
       </section>
+
+      {chat.activeThread && (
+        <ThreadPanel
+          parentMessage={chat.activeThread}
+          messages={chat.messages[chat.selectedChannel?.id || 0] || []}
+          myUserId={chat.myUserId}
+          onClose={() => chat.setActiveThread(null)}
+          onSend={(content) => {
+            chat.handleSendThread(content);
+          }}
+        />
+      )}
 
       <ChatModals
         editingMessageId={chat.editingMessageId}

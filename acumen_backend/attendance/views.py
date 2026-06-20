@@ -1,16 +1,17 @@
 from datetime import timedelta
 from django.utils import timezone
-from rest_framework.decorators import api_view
+from django.contrib.auth.models import User
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import permission_classes
+from rest_framework.request import Request
 from .models import Attendance
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def checkin(request):
-    user = request.user
+def checkin(request: Request, workspace_id: int) -> Response:
+    user: User = request.user
     today = timezone.localdate()
 
     # Auto-checkout any previous active sessions (forgot to check out)
@@ -21,13 +22,13 @@ def checkin(request):
     ).exclude(date=today)
 
     for session in previous_active:
-        session.check_out = session.check_in + timedelta(hours=8)
-        session.duration = timedelta(hours=8)
-        session.save()
+        if session.check_in:
+            session.check_out = session.check_in + timedelta(hours=8)
+            session.duration = timedelta(hours=8)
+            session.save()
 
     record, created = Attendance.objects.get_or_create(
-        user=user,
-        date=today,
+        user=user, workspace_id=workspace_id, date=today
     )
 
     if record.check_in:
@@ -46,12 +47,14 @@ def checkin(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def checkout(request):
-    user = request.user
+def checkout(request: Request, workspace_id: int) -> Response:
+    user: User = request.user
     today = timezone.localdate()
 
     try:
-        record = Attendance.objects.get(user=user, date=today)
+        record = Attendance.objects.get(
+            user=user, workspace_id=workspace_id, date=today
+        )
     except Attendance.DoesNotExist:
         return Response({"error": "Check in first"}, status=400)
 
@@ -66,7 +69,7 @@ def checkout(request):
     record.duration = now - record.check_in
     record.save()
 
-    hours = record.duration.total_seconds() / 3600
+    hours = record.duration.total_seconds() / 3600 if record.duration else 0.0
     return Response(
         {
             "message": "Checked out successfully",
@@ -78,11 +81,35 @@ def checkout(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def my_attendance(request):
-    user = request.user
+def my_attendance(request: Request, workspace_id: int) -> Response:
+    user: User = request.user
     today = timezone.localdate()
 
-    records = Attendance.objects.filter(user=user).order_by("-date")[:7]
+    # Calculate working days in the current month up to today
+    first_day_of_month = today.replace(day=1)
+    days_in_month = (today - first_day_of_month).days + 1
+    working_days = 0
+    for i in range(days_in_month):
+        current_day = first_day_of_month + timedelta(days=i)
+        if current_day.weekday() < 5:  # 0-4 are Mon-Fri
+            working_days += 1
+
+    # Count days checked in this month
+    checked_in_days = Attendance.objects.filter(
+        user=user,
+        workspace_id=workspace_id,
+        date__year=today.year,
+        date__month=today.month,
+        check_in__isnull=False,
+    ).count()
+
+    percentage: float = (
+        (checked_in_days / working_days * 100) if working_days > 0 else 0.0
+    )
+
+    records = Attendance.objects.filter(user=user, workspace_id=workspace_id).order_by(
+        "-date"
+    )[:7]
 
     data = []
     for r in records:
@@ -91,8 +118,7 @@ def my_attendance(request):
             duration_hours = round(r.duration.total_seconds() / 3600, 2)
         elif r.check_in and not r.check_out:
             elapsed = (timezone.now() - r.check_in).total_seconds()
-            # Cap at 24 hours to prevent extremely wrong values
-            elapsed = min(elapsed, 86400)
+            elapsed = min(elapsed, 86400)  # Cap at 24h
             duration_hours = round(elapsed / 3600, 2)
 
         data.append(
@@ -105,4 +131,4 @@ def my_attendance(request):
             }
         )
 
-    return Response(data)
+    return Response({"attendance_percentage": round(percentage, 1), "records": data})

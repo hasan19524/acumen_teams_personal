@@ -1,4 +1,6 @@
+// features/notification/services/notificationApi.ts
 import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
 import { PersistedNotification } from "../types/notification";
 
 interface NotificationListResponse {
@@ -16,27 +18,34 @@ interface BulkReadResponse {
 
 export const notificationApi = {
   getNotifications: async (): Promise<NotificationListResponse> => {
-    const res = await apiFetch("/api/notifications/");
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/notifications/${wsId}/`);
     if (!res.ok) throw new Error("Failed to fetch notifications");
     return res.json();
   },
 
   getUnreadCount: async (): Promise<number> => {
-    const res = await apiFetch("/api/notifications/unread-count/");
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/notifications/${wsId}/unread-count/`);
     if (!res.ok) throw new Error("Failed to fetch unread count");
     const data: UnreadCountResponse = await res.json();
     return data.unread_count || 0;
   },
 
   markRead: async (notificationId: number): Promise<void> => {
-    const res = await apiFetch(`/api/notifications/${notificationId}/read/`, {
-      method: "POST",
-    });
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(
+      `/api/notifications/${wsId}/${notificationId}/`,
+      {
+        method: "POST",
+      },
+    );
     if (!res.ok) throw new Error("Failed to mark as read");
   },
 
   markBulkRead: async (ids: number[]): Promise<number> => {
-    const res = await apiFetch("/api/notifications/mark-read/", {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/notifications/${wsId}/bulk-mark-read/`, {
       method: "POST",
       body: JSON.stringify({ notification_ids: ids }),
     });
@@ -46,7 +55,8 @@ export const notificationApi = {
   },
 
   getPreferences: async () => {
-    const res = await apiFetch("/api/notifications/preferences/");
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/notifications/${wsId}/preferences/`);
     if (!res.ok) throw new Error("Failed to fetch preferences");
     return res.json();
   },

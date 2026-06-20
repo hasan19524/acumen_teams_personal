@@ -1,66 +1,71 @@
 // features/chat/design/tokens.ts
 
 export const T = {
+  // Background Layers
+  bgApp: "#081325", // Main App Background
+  bgSidebar: "#0D1B3D", // Sidebar Background
+  bgSecondary: "#101D35", // Secondary Background (Topbar/Sections)
+
   // Surfaces
-  bgApp: "#0a0b10",
-  bgSidebar: "#10111a",
-  bgHeader: "#0f1019",
-  bgInput: "#0f1019",
-  bgBubbleMine: "#2e3a52",
-  bgBubbleOther: "#161825",
-  bgHover: "rgba(255,255,255,0.03)",
-  bgHoverStrong: "rgba(255,255,255,0.06)",
-  bgMenu: "#1a1c2a",
-  bgModal: "#161825",
-  bgInputField: "#1a1c2a",
-  bgOverlay: "rgba(0,0,0,0.55)",
+  surface: "#172440", // Cards, Modals, Inputs
+  surfaceHover: "#20304E", // Hover states, Dropdowns
 
-  // Accent
-  accent: "#6366f1",
-  accentHover: "#818cf8",
-  accentMuted: "rgba(99,102,241,0.12)",
-  accentSubtle: "rgba(99,102,241,0.06)",
-  danger: "#ef4444",
-  dangerHover: "rgba(239,68,68,0.1)",
-  success: "#22c55e",
+  // Brand Colors
+  primary: "#E31E24", // Red (Actions, Badges, Active borders)
+  accent: "#4B1587", // Purple (Primary buttons, Own bubbles)
+  accentHover: "#3a1070", // Darker Purple
+  accentMuted: "rgba(75, 21, 135, 0.15)", // Muted Purple background
+  accentSubtle: "rgba(75, 21, 135, 0.1)",
 
-  // Text
-  textPrimary: "#e4e5eb",
-  textSecondary: "#8b8d9a",
-  textMuted: "#5c5e6e",
-  textFaint: "#7c8296",
-  textMeta: "rgba(255,255,255,0.32)",
+  info: "#5DADE2", // Blue (Links, Focus rings)
+  success: "#1FA463", // Green (Online, Success badges)
+  warning: "#F5B041", // Warning, Unread
+  danger: "#E31E24", // Danger (Delete)
+  dangerHover: "#C7151A",
+
+  // Text System
+  textPrimary: "#E8ECF6",
+  textSecondary: "#B7C0D8",
+  textMuted: "#7A86A7",
+  textFaint: "#475569",
 
   // Borders
-  border: "rgba(255,255,255,0.06)",
-  borderSubtle: "rgba(255,255,255,0.04)",
-  borderHover: "rgba(255,255,255,0.1)",
-  borderFocus: "rgba(99,102,241,0.5)",
+  border: "#2A3A5C",
+  borderHover: "#3A4d72",
+  borderFocus: "#4B1587",
 
-  // Spacing
-  gapXs: 4,
-  gapSm: 8,
-  gapMd: 12,
-  gapLg: 16,
-  gapXl: 20,
+  // Chat Specific
+  bgBubbleMine: "#4B1587", // Purple for own messages
+  bgBubbleOther: "#172440", // Surface for other messages
+  bgHover: "#20304E",
+  bgHoverStrong: "#20304E",
+  bgInputField: "#101D35",
+  bgModal: "#172440",
+  bgOverlay: "rgba(8, 19, 37, 0.8)",
+  bgMenu: "#172440",
 
-  // Radii
-  radiusXs: 4,
-  radiusSm: 6,
-  radiusMd: 10,
-  radiusLg: 14,
-  radiusXl: 18,
+  // Radius (12px for buttons/inputs, 16px for cards)
+  radiusXs: "6px",
+  radiusSm: "12px",
+  radiusMd: "12px",
+  radiusLg: "16px",
+
+  // Spacing (8px grid)
+  gapXs: "4px",
+  gapSm: "8px",
+  gapMd: "16px",
+  gapLg: "24px",
 
   // Typography
-  fontSizeXs: 10,
-  fontSizeSm: 12,
-  fontSizeBase: 14,
-  fontSizeMd: 15,
+  fontSizeXs: "11px",
+  fontSizeSm: "13px",
+  fontSizeBase: "14px",
+  fontSizeLg: "16px",
 
-  // Layout
-  chatMaxWidth: 860,
-  bubbleMaxWidth: 440,
-  mediaGridMax: 280,
-  imageHeight: 110,
-  sidebarWidth: 280,
-} as const;
+  // Layout constraints
+  chatMaxWidth: "800px",
+  sidebarWidth: "320px",
+  bubbleMaxWidth: "70%",
+  mediaGridMax: "400px",
+  imageHeight: "200px",
+};

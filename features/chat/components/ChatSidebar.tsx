@@ -2,6 +2,7 @@
 
 "use client";
 
+import { useState } from "react";
 import { Search, Users, Building2, Folder } from "lucide-react";
 import { T } from "../design/tokens";
 import { Channel } from "../types/channel";
@@ -31,8 +32,6 @@ interface ChatSidebarProps {
   onCreateChannel: () => void;
 }
 
-// ── Channel Icon by Type ──────────────────────────────────────────────
-
 function ChannelIcon({ chat }: { chat: Channel }) {
   const baseStyle: React.CSSProperties = {
     width: 38,
@@ -48,25 +47,45 @@ function ChannelIcon({ chat }: { chat: Channel }) {
   switch (chat.channel_type) {
     case "official":
       return (
-        <div style={{ ...baseStyle, borderRadius: T.radiusSm, background: "#4f46e5" }}>
+        <div
+          style={{
+            ...baseStyle,
+            borderRadius: T.radiusSm,
+            background: "#4f46e5",
+          }}
+        >
           <Building2 size={18} />
         </div>
       );
     case "team":
       return (
-        <div style={{ ...baseStyle, borderRadius: T.radiusSm, background: "#7c3aed" }}>
+        <div
+          style={{
+            ...baseStyle,
+            borderRadius: T.radiusSm,
+            background: "#7c3aed",
+          }}
+        >
           <Users size={18} />
         </div>
       );
     case "private_group":
       return (
-        <div style={{ ...baseStyle, borderRadius: T.radiusSm, background: "#0891b2" }}>
+        <div
+          style={{
+            ...baseStyle,
+            borderRadius: T.radiusSm,
+            background: "#0891b2",
+          }}
+        >
           <Folder size={18} />
         </div>
       );
     case "dm":
       return (
-        <div style={{ ...baseStyle, borderRadius: "50%", background: "#0d9488" }}>
+        <div
+          style={{ ...baseStyle, borderRadius: "50%", background: "#0d9488" }}
+        >
           {chat.dm_partner?.full_name?.charAt(0).toUpperCase() ||
             chat.dm_partner?.username?.charAt(0).toUpperCase() ||
             "?"}
@@ -74,14 +93,18 @@ function ChannelIcon({ chat }: { chat: Channel }) {
       );
     default:
       return (
-        <div style={{ ...baseStyle, borderRadius: T.radiusSm, background: "#4f46e5" }}>
+        <div
+          style={{
+            ...baseStyle,
+            borderRadius: T.radiusSm,
+            background: "#4f46e5",
+          }}
+        >
           <Users size={18} />
         </div>
       );
   }
 }
-
-// ── Chat List Item ────────────────────────────────────────────────────
 
 function ChatItem({
   chat,
@@ -92,12 +115,7 @@ function ChatItem({
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  const subtypeLabel: Record<string, string> = {
-    official: "Official Channel",
-    team: chat.team_name ? `Team: ${chat.team_name}` : "Team Chat",
-    private_group: "Private Group",
-    dm: "Direct Message",
-  };
+  const unread = chat.unread_count || 0;
 
   return (
     <div
@@ -124,27 +142,78 @@ function ChatItem({
       <div style={{ flex: 1, overflow: "hidden" }}>
         <div
           style={{
-            fontSize: T.fontSizeSm,
-            fontWeight: 600,
-            color: T.textPrimary,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {chat.name}
+          <span
+            style={{
+              fontSize: T.fontSizeSm,
+              fontWeight: unread > 0 ? 700 : 600,
+              color: T.textPrimary,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {chat.name}
+          </span>
+          {chat.last_message_time && (
+            <span
+              style={{
+                fontSize: 10,
+                color: unread > 0 ? T.accentHover : T.textMuted,
+                marginLeft: 8,
+                flexShrink: 0,
+                fontWeight: unread > 0 ? 600 : 400,
+              }}
+            >
+              {chat.last_message_time}
+            </span>
+          )}
         </div>
         <div
           style={{
-            fontSize: T.fontSizeXs + 1,
-            color: T.textMuted,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             marginTop: 2,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
           }}
         >
-          {subtypeLabel[chat.channel_type] || "Channel"}
+          <span
+            style={{
+              fontSize: 12,
+              color: unread > 0 ? T.textSecondary : T.textMuted,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              fontWeight: unread > 0 ? 500 : 400,
+            }}
+          >
+            {chat.last_message || "No messages yet"}
+          </span>
+          {unread > 0 && (
+            <span
+              style={{
+                background: T.accent,
+                color: "#fff",
+                borderRadius: "50%",
+                minWidth: 18,
+                height: 18,
+                fontSize: 10,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: 8,
+                flexShrink: 0,
+                padding: "0 4px",
+              }}
+            >
+              {unread}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -175,15 +244,32 @@ export function ChatSidebar({
   userTeams,
   onCreateChannel,
 }: ChatSidebarProps) {
+  const [activeTab, setActiveTab] = useState("all");
+
+  const tabs = [
+    { key: "all", label: "All" },
+    { key: "official", label: "Workspace" },
+    { key: "team", label: "Teams" },
+    { key: "private_group", label: "Groups" },
+    { key: "dm", label: "DMs" },
+  ];
+
+  const tabFilteredChats =
+    activeTab === "all"
+      ? filteredChats
+      : filteredChats.filter((c) => c.channel_type === activeTab);
+
   return (
     <section
       style={{
         width: T.sidebarWidth,
+        height: "100%",
         background: T.bgSidebar,
         borderRight: `1px solid ${T.border}`,
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
+        overflow: "hidden",
       }}
     >
       <div style={{ padding: T.gapLg }}>
@@ -266,61 +352,69 @@ export function ChatSidebar({
           />
         </div>
       </div>
+
+      {/* Filter Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 4,
+          padding: "0 10px 8px",
+          borderBottom: `1px solid ${T.border}`,
+          marginBottom: 8,
+        }}
+      >
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              flex: 1,
+              padding: "6px 4px",
+              borderRadius: T.radiusSm,
+              border: "none",
+              background: activeTab === tab.key ? T.accentMuted : "transparent",
+              color: activeTab === tab.key ? T.accentHover : T.textMuted,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s",
+              textAlign: "center",
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== tab.key)
+                e.currentTarget.style.color = T.textSecondary;
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== tab.key)
+                e.currentTarget.style.color = T.textMuted;
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto", padding: `0 ${T.gapSm}` }}>
-        {/* Official Channels */}
-        {filteredChats.filter((c) => c.channel_type === "official").length > 0 && (
-          <>
-            <div style={{ padding: "8px 12px 4px", fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Official
-            </div>
-            {filteredChats
-              .filter((c) => c.channel_type === "official")
-              .map((chat) => (
-                <ChatItem key={chat.id} chat={chat} isSelected={selectedChannel?.id === chat.id} onSelect={() => selectChannel(chat.id)} />
-              ))}
-          </>
-        )}
-
-        {/* Team Channels */}
-        {filteredChats.filter((c) => c.channel_type === "team").length > 0 && (
-          <>
-            <div style={{ padding: "8px 12px 4px", fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Teams
-            </div>
-            {filteredChats
-              .filter((c) => c.channel_type === "team")
-              .map((chat) => (
-                <ChatItem key={chat.id} chat={chat} isSelected={selectedChannel?.id === chat.id} onSelect={() => selectChannel(chat.id)} />
-              ))}
-          </>
-        )}
-
-        {/* Private Groups */}
-        {filteredChats.filter((c) => c.channel_type === "private_group").length > 0 && (
-          <>
-            <div style={{ padding: "8px 12px 4px", fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Groups
-            </div>
-            {filteredChats
-              .filter((c) => c.channel_type === "private_group")
-              .map((chat) => (
-                <ChatItem key={chat.id} chat={chat} isSelected={selectedChannel?.id === chat.id} onSelect={() => selectChannel(chat.id)} />
-              ))}
-          </>
-        )}
-
-        {/* DMs */}
-        {filteredChats.filter((c) => c.channel_type === "dm").length > 0 && (
-          <>
-            <div style={{ padding: "8px 12px 4px", fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Direct Messages
-            </div>
-            {filteredChats
-              .filter((c) => c.channel_type === "dm")
-              .map((chat) => (
-                <ChatItem key={chat.id} chat={chat} isSelected={selectedChannel?.id === chat.id} onSelect={() => selectChannel(chat.id)} />
-              ))}
-          </>
+        {tabFilteredChats.length === 0 ? (
+          <div
+            style={{
+              padding: "24px 12px",
+              textAlign: "center",
+              color: T.textMuted,
+              fontSize: 13,
+            }}
+          >
+            No conversations found.
+          </div>
+        ) : (
+          tabFilteredChats.map((chat) => (
+            <ChatItem
+              key={chat.id}
+              chat={chat}
+              isSelected={selectedChannel?.id === chat.id}
+              onSelect={() => selectChannel(chat.id)}
+            />
+          ))
         )}
       </div>
 
@@ -376,8 +470,6 @@ export function ChatSidebar({
               </label>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[
-                  { value: "official", label: "Official", icon: "🏢" },
-                  { value: "team", label: "Team", icon: "👥" },
                   { value: "private_group", label: "Group", icon: "🔒" },
                   { value: "dm", label: "DM", icon: "💬" },
                 ].map((opt) => (
@@ -393,9 +485,13 @@ export function ChatSidebar({
                         newChannelType === opt.value ? T.accent : T.border
                       }`,
                       background:
-                        newChannelType === opt.value ? T.accentMuted : "transparent",
+                        newChannelType === opt.value
+                          ? T.accentMuted
+                          : "transparent",
                       color:
-                        newChannelType === opt.value ? T.accentHover : T.textSecondary,
+                        newChannelType === opt.value
+                          ? T.accentHover
+                          : T.textSecondary,
                       cursor: "pointer",
                       fontWeight: newChannelType === opt.value ? 600 : 500,
                       fontSize: 12,
@@ -410,63 +506,6 @@ export function ChatSidebar({
               </div>
             </div>
 
-            {/* OFFICIAL: Name only */}
-            {newChannelType === "official" && (
-              <>
-                <input
-                  value={newChannelName}
-                  onChange={(e) => setNewChannelName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
-                  placeholder="Official channel name"
-                  autoFocus
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
-                  }}
-                />
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
-                  Workspace-wide channel. Only admins/managers can create.
-                </div>
-              </>
-            )}
-
-            {/* TEAM: Name + Team selector */}
-            {newChannelType === "team" && (
-              <>
-                <input
-                  value={newChannelName}
-                  onChange={(e) => setNewChannelName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
-                  placeholder="Team channel name"
-                  autoFocus
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
-                    marginBottom: 10,
-                  }}
-                />
-                <select
-                  value={newChannelTeamId}
-                  onChange={(e) => setNewChannelTeamId(e.target.value)}
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
-                  }}
-                >
-                  <option value="">Select team...</option>
-                  {userTeams.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
-                  Linked to a team. Members auto-join.
-                </div>
-              </>
-            )}
-
             {/* PRIVATE GROUP: Name + Member selector */}
             {newChannelType === "private_group" && (
               <>
@@ -477,20 +516,53 @@ export function ChatSidebar({
                   placeholder="Group name"
                   autoFocus
                   style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`,
+                    background: T.bgInputField,
+                    color: T.textPrimary,
+                    outline: "none",
+                    fontSize: T.fontSizeBase,
+                    boxSizing: "border-box",
                     marginBottom: 10,
                   }}
                 />
-                <div style={{ maxHeight: 140, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: "6px 10px" }}>
+                <div
+                  style={{
+                    maxHeight: 140,
+                    overflowY: "auto",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: T.radiusMd,
+                    padding: "6px 10px",
+                  }}
+                >
                   {workspaceUsers.length === 0 && (
-                    <div style={{ fontSize: 12, color: T.textMuted, padding: "4px 0" }}>No users available</div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: T.textMuted,
+                        padding: "4px 0",
+                      }}
+                    >
+                      No users available
+                    </div>
                   )}
                   {workspaceUsers.map((u) => {
                     const checked = newChannelMemberIds.includes(u.id);
                     return (
-                      <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", color: T.textPrimary, fontSize: T.fontSizeSm }}>
+                      <label
+                        key={u.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "4px 0",
+                          cursor: "pointer",
+                          color: T.textPrimary,
+                          fontSize: T.fontSizeSm,
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={checked}
@@ -498,7 +570,7 @@ export function ChatSidebar({
                             setNewChannelMemberIds(
                               checked
                                 ? newChannelMemberIds.filter((x) => x !== u.id)
-                                : [...newChannelMemberIds, u.id]
+                                : [...newChannelMemberIds, u.id],
                             );
                           }}
                         />
@@ -520,15 +592,23 @@ export function ChatSidebar({
                   value={newChannelDMUserId}
                   onChange={(e) => setNewChannelDMUserId(e.target.value)}
                   style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`,
+                    background: T.bgInputField,
+                    color: T.textPrimary,
+                    outline: "none",
+                    fontSize: T.fontSizeBase,
+                    boxSizing: "border-box",
                     marginBottom: 10,
                   }}
                 >
                   <option value="">Select user...</option>
                   {workspaceUsers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name || u.username}</option>
+                    <option key={u.id} value={u.id}>
+                      {u.full_name || u.username}
+                    </option>
                   ))}
                 </select>
                 <input
@@ -537,13 +617,20 @@ export function ChatSidebar({
                   onKeyDown={(e) => e.key === "Enter" && onCreateChannel()}
                   placeholder="Initial message..."
                   style={{
-                    width: "100%", padding: "10px 14px", borderRadius: T.radiusMd,
-                    border: `1px solid ${T.border}`, background: T.bgInputField,
-                    color: T.textPrimary, outline: "none", fontSize: T.fontSizeBase, boxSizing: "border-box",
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: T.radiusMd,
+                    border: `1px solid ${T.border}`,
+                    background: T.bgInputField,
+                    color: T.textPrimary,
+                    outline: "none",
+                    fontSize: T.fontSizeBase,
+                    boxSizing: "border-box",
                   }}
                 />
                 <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
-                  Sends a DM request. The other user must accept before chatting.
+                  Sends a DM request. The other user must accept before
+                  chatting.
                 </div>
               </>
             )}
@@ -594,25 +681,43 @@ export function ChatSidebar({
                   padding: 10,
                   borderRadius: T.radiusMd,
                   border: "none",
-                  background:
-                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
-                      ? T.accent : T.border,
-                  color:
-                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
-                      ? "#fff" : T.textMuted,
-                  cursor:
-                    (newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim())
-                      ? "pointer" : "not-allowed",
+                  background: (
+                    newChannelType === "dm"
+                      ? !!newChannelDMUserId
+                      : newChannelName.trim()
+                  )
+                    ? T.accent
+                    : T.border,
+                  color: (
+                    newChannelType === "dm"
+                      ? !!newChannelDMUserId
+                      : newChannelName.trim()
+                  )
+                    ? "#fff"
+                    : T.textMuted,
+                  cursor: (
+                    newChannelType === "dm"
+                      ? !!newChannelDMUserId
+                      : newChannelName.trim()
+                  )
+                    ? "pointer"
+                    : "not-allowed",
                   fontWeight: 600,
                   fontSize: T.fontSizeSm,
                   transition: "background 0.1s",
                 }}
                 onMouseEnter={(e) => {
-                  const ok = newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim();
+                  const ok =
+                    newChannelType === "dm"
+                      ? !!newChannelDMUserId
+                      : newChannelName.trim();
                   if (ok) e.currentTarget.style.background = T.accentHover;
                 }}
                 onMouseLeave={(e) => {
-                  const ok = newChannelType === "dm" ? !!newChannelDMUserId : newChannelName.trim();
+                  const ok =
+                    newChannelType === "dm"
+                      ? !!newChannelDMUserId
+                      : newChannelName.trim();
                   if (ok) e.currentTarget.style.background = T.accent;
                 }}
               >

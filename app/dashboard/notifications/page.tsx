@@ -1,9 +1,26 @@
+// app/dashboard/notifications/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import DashboardSidebar from "@/components/DashboardSidebar";
-import { Bell, Check, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, Check, CheckCheck } from "lucide-react";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
+
+// ── Design Tokens ─────────────────────────────────────────────────────
+const tk = {
+  bg: "#020617",
+  surface: "rgba(15,23,42,0.8)",
+  surfaceHover: "rgba(30,41,59,0.8)",
+  border: "rgba(255,255,255,0.06)",
+  borderHover: "rgba(255,255,255,0.14)",
+  text: "#f1f5f9",
+  textSecondary: "#94a3b8",
+  textTer: "#64748b",
+  accent: "#3b82f6",
+  success: "#10b981",
+  danger: "#ef4444",
+  warning: "#f59e0b",
+  purple: "#a855f7",
+};
 
 export default function NotificationsPage() {
   const {
@@ -50,139 +67,123 @@ export default function NotificationsPage() {
     <main
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg,#020617 0%, #020b22 100%)",
-        color: "#fff",
-        display: "flex",
-        fontFamily: "Inter, sans-serif",
+        background: tk.bg,
+        color: tk.text,
+        fontFamily: "'Inter', sans-serif",
+        padding: "32px 40px",
       }}
     >
-      <DashboardSidebar />
-
-      <div style={{ flex: 1, padding: 32 }}>
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 28,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: "rgba(99,102,241,.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Bell size={24} style={{ color: "#818cf8" }} />
-            </div>
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 32,
-                  fontWeight: 800,
-                  letterSpacing: -0.5,
-                }}
-              >
-                Notifications
-              </h1>
-              <p
-                style={{
-                  marginTop: 4,
-                  color: "rgba(255,255,255,.5)",
-                  fontSize: 14,
-                }}
-              >
-                {unreadCount > 0
-                  ? `You have ${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`
-                  : "You're all caught up"}
-              </p>
-            </div>
-          </div>
-
-          {unreadCount > 0 && (
-            <button
-              onClick={() => markAllAsRead()}
-              style={{
-                padding: "10px 20px",
-                borderRadius: 12,
-                border: "1px solid rgba(99,102,241,.3)",
-                background: "rgba(99,102,241,.1)",
-                color: "#a5b4fc",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <CheckCheck size={16} />
-              Mark all as read
-            </button>
-          )}
+      {/* HEADER */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          marginBottom: "32px",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "28px",
+              fontWeight: 700,
+              letterSpacing: "-0.5px",
+            }}
+          >
+            Notifications
+          </h1>
+          <p
+            style={{
+              margin: "8px 0 0",
+              color: tk.textSecondary,
+              fontSize: "15px",
+            }}
+          >
+            {unreadCount > 0
+              ? `You have ${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`
+              : "You're all caught up"}
+          </p>
         </div>
+        {unreadCount > 0 && (
+          <button
+            onClick={() => markAllAsRead()}
+            style={{
+              height: "40px",
+              padding: "0 18px",
+              borderRadius: "8px",
+              border: `1px solid ${tk.borderHover}`,
+              background: "transparent",
+              color: tk.accent,
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "background 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "rgba(59,130,246,0.1)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            <CheckCheck size={16} /> Mark all as read
+          </button>
+        )}
+      </div>
 
-        {/* Loading */}
+      {/* CONTENT */}
+      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
         {isLoading && (
           <div
             style={{
+              padding: "40px",
               textAlign: "center",
-              padding: 60,
-              color: "rgba(255,255,255,.4)",
+              color: tk.textTer,
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
             }}
           >
             Loading notifications...
           </div>
         )}
 
-        {/* Empty */}
         {!isLoading && persistentNotifications.length === 0 && (
           <div
             style={{
+              padding: "60px 40px",
               textAlign: "center",
-              padding: 80,
-              background: "rgba(255,255,255,.02)",
-              border: "1px solid rgba(255,255,255,.05)",
-              borderRadius: 20,
+              color: tk.textTer,
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "16px",
             }}
           >
-            <Bell
-              size={48}
-              style={{ color: "rgba(255,255,255,.15)", marginBottom: 16 }}
-            />
-            <p
+            <Bell size={40} style={{ marginBottom: "16px", opacity: 0.3 }} />
+            <div
               style={{
-                color: "rgba(255,255,255,.4)",
-                fontSize: 16,
-                fontWeight: 500,
+                fontWeight: 600,
+                marginBottom: "8px",
+                color: tk.textSecondary,
               }}
             >
-              No notifications yet
-            </p>
-            <p
-              style={{
-                color: "rgba(255,255,255,.25)",
-                fontSize: 13,
-                marginTop: 8,
-              }}
-            >
-              When you receive invites, messages, or updates, they'll appear
+              No Notifications Yet
+            </div>
+            <div style={{ fontSize: "14px" }}>
+              When you receive invites, messages, or updates, they will appear
               here.
-            </p>
+            </div>
           </div>
         )}
 
-        {/* Notification List */}
         {!isLoading && persistentNotifications.length > 0 && (
-          <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: "12px" }}>
             {persistentNotifications.map((n) => (
               <div
                 key={n.id}
@@ -190,34 +191,41 @@ export default function NotificationsPage() {
                   if (n.status === "unread") markAsRead(n.id);
                 }}
                 style={{
+                  background: tk.surface,
+                  border: `1px solid ${tk.border}`,
+                  borderLeft: `3px solid ${n.status === "unread" ? tk.accent : tk.border}`,
+                  borderRadius: "12px",
                   padding: "16px 20px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,.06)",
-                  background:
-                    n.status === "unread"
-                      ? "rgba(99,102,241,.06)"
-                      : "rgba(255,255,255,.02)",
-                  cursor: n.status === "unread" ? "pointer" : "default",
                   display: "flex",
-                  gap: 14,
+                  gap: "16px",
                   alignItems: "flex-start",
-                  transition: "background 0.15s",
+                  transition: "all 0.2s",
+                  cursor: n.status === "unread" ? "pointer" : "default",
+                  opacity: n.status === "unread" ? 1 : 0.7,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = tk.borderHover;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = tk.border;
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
                 {/* Icon */}
                 <div
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 12,
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
                     background:
                       n.status === "unread"
-                        ? "rgba(99,102,241,.15)"
-                        : "rgba(255,255,255,.05)",
+                        ? "rgba(59,130,246,0.15)"
+                        : "rgba(255,255,255,0.05)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 18,
+                    fontSize: "16px",
                     flexShrink: 0,
                   }}
                 >
@@ -227,58 +235,85 @@ export default function NotificationsPage() {
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "4px",
+                    }}
                   >
                     <span
                       style={{
-                        fontSize: 14,
+                        fontSize: "14px",
                         fontWeight: n.status === "unread" ? 700 : 500,
-                        color:
-                          n.status === "unread"
-                            ? "#fff"
-                            : "rgba(255,255,255,.7)",
+                        color: tk.text,
                       }}
                     >
                       {n.title || n.notification_type.replace(/_/g, " ")}
                     </span>
-                    {n.status === "unread" && (
-                      <div
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: "#818cf8",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: tk.textTer,
+                        flexShrink: 0,
+                        marginLeft: "12px",
+                      }}
+                    >
+                      {formatTime(n.created_at)}
+                    </span>
                   </div>
+
                   {n.description && (
                     <p
                       style={{
-                        margin: "4px 0 0",
-                        fontSize: 13,
-                        color: "rgba(255,255,255,.5)",
-                        lineHeight: 1.4,
+                        margin: "0 0 8px",
+                        fontSize: "13px",
+                        color: tk.textSecondary,
+                        lineHeight: 1.5,
                       }}
                     >
                       {n.description}
                     </p>
                   )}
+
                   <div
                     style={{
-                      marginTop: 6,
-                      fontSize: 12,
-                      color: "rgba(255,255,255,.3)",
-                      fontWeight: 500,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
-                    {formatTime(n.created_at)}
-                    {n.workspace_name && ` · ${n.workspace_name}`}
+                    {n.workspace_name && (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          padding: "2px 6px",
+                          background: "rgba(255,255,255,0.05)",
+                          borderRadius: "4px",
+                          color: tk.textTer,
+                        }}
+                      >
+                        {n.workspace_name}
+                      </span>
+                    )}
+                    {n.status === "unread" && (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          padding: "2px 6px",
+                          background: "rgba(59,130,246,0.15)",
+                          borderRadius: "4px",
+                          color: tk.accent,
+                          fontWeight: 600,
+                        }}
+                      >
+                        New
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Read toggle */}
+                {/* Action Button */}
                 {n.status === "unread" && (
                   <button
                     onClick={(e) => {
@@ -286,17 +321,23 @@ export default function NotificationsPage() {
                       markAsRead(n.id);
                     }}
                     style={{
-                      background: "rgba(99,102,241,.1)",
+                      background: "transparent",
                       border: "none",
-                      borderRadius: 8,
-                      padding: "6px 8px",
+                      color: tk.textTer,
                       cursor: "pointer",
-                      color: "#818cf8",
-                      flexShrink: 0,
+                      padding: "4px",
+                      borderRadius: "4px",
+                      transition: "color 0.2s",
                     }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.color = tk.accent)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.color = tk.textTer)
+                    }
                     title="Mark as read"
                   >
-                    <Check size={14} />
+                    <Check size={16} />
                   </button>
                 )}
               </div>
