@@ -8,10 +8,28 @@ import { T } from "../design/tokens";
  * Pure function — no React state dependencies.
  */
 export function renderMessageContent(text: string, isMine: boolean) {
-  const urlRegex = /(https?:\/\/[^\s<]+)/g;
-  const parts = text.split(urlRegex);
+  const combinedRegex = /(https?:\/\/[^\s<]+|@\w+)/g;
+  const parts = text.split(combinedRegex);
+  
   return parts.map((part, i) => {
-    if (urlRegex.test(part)) {
+    if (part.startsWith("@")) {
+      return (
+        <span
+          key={i}
+          style={{
+            color: T.accentHover,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          {part}
+        </span>
+      );
+    }
+    if (/^https?:\/\//.test(part)) {
       return (
         <a
           key={i}
@@ -19,7 +37,7 @@ export function renderMessageContent(text: string, isMine: boolean) {
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: isMine ? "#93c5fd" : T.accentHover,
+            color: isMine ? "#93c5fd" : T.info,
             textDecoration: "none",
             wordBreak: "break-all",
           }}

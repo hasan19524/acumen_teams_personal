@@ -9,11 +9,19 @@ class Notification(models.Model):
         ("message_received", "Message Received"),
         ("mention", "Mention"),
         ("task_assigned", "Task Assigned"),
+        ("task_completed", "Task Completed"),
+        ("task_commented", "Task Commented"),
         ("announcement", "Announcement"),
         ("workspace_event", "Workspace Event"),
         ("dm_request", "DM Request"),
         ("dm_request_accepted", "DM Request Accepted"),
+        ("dm_request_rejected", "DM Request Rejected"),
         ("channel_invite", "Channel Invite"),
+        ("team_invite", "Team Invite"),
+        ("workspace_invite", "Workspace Invite"),
+        ("attendance_approval", "Attendance Approval"),
+        ("role_changed", "Role Changed"),
+        ("member_removed", "Member Removed"),
     ]
 
     STATUS_CHOICES = [

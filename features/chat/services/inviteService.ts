@@ -6,7 +6,6 @@ export type InviteCounts = {
   workspace: number;
   teams: number;
   private_groups: number;
-  dm_requests: number;
 };
 
 export type WorkspaceInviteItem = {
@@ -21,19 +20,14 @@ export type WorkspaceInviteItem = {
   is_valid: boolean;
 };
 
-export type DMRequestItem = {
-  id: number;
-  sender_id: number;
-  sender_name: string;
-  initial_message: string;
-  expires_at: string | null;
-  created_at: string;
-};
-
 export async function loadInviteCounts(): Promise<InviteCounts> {
   const wsId = getWorkspaceId();
+  if (!wsId) return { workspace: 0, teams: 0, private_groups: 0 };
   const res = await apiFetch(`/api/workspaces/${wsId}/invites/counts/`);
-  if (!res.ok) throw new Error("Failed to load invite counts");
+  if (!res.ok) {
+    console.warn("Failed to load invite counts");
+    return { workspace: 0, teams: 0, private_groups: 0 };
+  }
   return await res.json();
 }
 
@@ -52,6 +46,7 @@ export type TeamInviteItem = {
   team_name: string;
   inviter_id: number;
   inviter_name: string;
+  status: string;
   expires_at: string | null;
   created_at: string;
 };
@@ -71,6 +66,7 @@ export type PrivateGroupInviteItem = {
   channel_name: string;
   inviter_id: number;
   inviter_name: string;
+  status: string;
   expires_at: string | null;
   created_at: string;
 };

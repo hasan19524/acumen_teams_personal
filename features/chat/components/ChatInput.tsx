@@ -1,7 +1,7 @@
 // features/chat/components/ChatInput.tsx
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { Paperclip, Smile, Send, X, FileText, WifiOff } from "lucide-react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { T } from "../design/tokens";
@@ -30,6 +30,7 @@ interface ChatInputProps {
   isDMReceiver?: boolean;
   onAcceptDM?: () => void;
   onBlockDM?: () => void;
+    workspaceUsers?: Array<{ id: number; username: string; full_name: string }>;
 }
 
 export function ChatInput({
@@ -52,9 +53,58 @@ export function ChatInput({
   isDMReceiver = false,
   onAcceptDM,
   onBlockDM,
+  workspaceUsers = [],
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    if (!showMentions) return [];
+    return workspaceUsers
+      .filter(u => u.username.toLowerCase().includes(mentionQuery.toLowerCase()) || u.full_name.toLowerCase().includes(mentionQuery.toLowerCase()))
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .slice(0, 5);
+  }, [showMentions, mentionQuery, workspaceUsers]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setMessageInput(val);
+    onTyping();
+
+    const cursorPos = e.target.selectionStart ?? 0; // Fallback to 0 if null
+    const textBeforeCursor = val.substring(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (atMatch) {
+      setShowMentions(true);
+      setMentionQuery(atMatch[1]);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const insertMention = (user: { username: string }) => {
+    const cursorPos = inputRef.current?.selectionStart || messageInput.length;
+    const textBeforeCursor = messageInput.substring(0, cursorPos);
+    const textAfterCursor = messageInput.substring(cursorPos);
+    
+    const mentionStartIndex = textBeforeCursor.lastIndexOf("@");
+    const newVal = textBeforeCursor.substring(0, mentionStartIndex) + `@${user.username} ` + textAfterCursor;
+    
+    setMessageInput(newVal);
+    setShowMentions(false);
+    
+    setTimeout(() => {
+      if (inputRef.current) {
+        const newPos = mentionStartIndex + user.username.length + 2;
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -488,11 +538,9 @@ export function ChatInput({
             <Smile size={16} />
           </button>
           <input
+            ref={inputRef}
             value={messageInput}
-            onChange={(e) => {
-              setMessageInput(e.target.value);
-              onTyping();
-            }}
+            onChange={handleInputChange}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 onSend();
@@ -522,8 +570,67 @@ export function ChatInput({
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = T.border;
+              setTimeout(() => setShowMentions(false), 150);
             }}
           />
+
+          {showMentions && filteredUsers.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "60px",
+                left: "80px",
+                width: 260,
+                background: T.bgMenu,
+                border: `1px solid ${T.borderHover}`,
+                borderRadius: T.radiusMd,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                zIndex: 100,
+                overflow: "hidden",
+                padding: "4px 0",
+              }}
+            >
+              <div style={{ padding: "4px 12px", fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>
+                Members
+              </div>
+              {filteredUsers.map((user) => (
+                <button
+                  key={user.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    insertMention(user);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "8px 12px",
+                    background: "transparent",
+                    border: "none",
+                    color: T.textPrimary,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "background 0.1s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = T.bgHoverStrong)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: T.accent, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600 }}>
+                    {user.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {user.full_name || user.username}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textMuted }}>
+                      @{user.username}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
           <button
             disabled={sending || (!isReady() && pendingFiles.length === 0)}
             onClick={onSend}

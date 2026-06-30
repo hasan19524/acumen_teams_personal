@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { LeaveWorkspace } from "@/components/LeaveWorkspace";
+import { useAuth } from "@/hooks/useAuth";
 
 // ── Design Tokens ─────────────────────────────────────────────────────
 const tk = {
@@ -32,6 +34,7 @@ const tk = {
 };
 
 export default function SettingsPage() {
+  const { isIndependent } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
@@ -370,6 +373,13 @@ export default function SettingsPage() {
               <LogOut size={16} /> Logout
             </button>
           </div>
+
+          {/* Danger Zone - Leave Workspace (Only show if in a workspace) */}
+          {!isIndependent && (
+            <div style={{ gridColumn: "1 / -1", marginTop: "20px" }}>
+              <LeaveWorkspace />
+            </div>
+          )}
         </div>
       )}
     </main>

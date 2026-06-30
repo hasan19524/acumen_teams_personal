@@ -9,12 +9,40 @@ import { ChatInput } from "@/features/chat/components/ChatInput";
 import { MessageList } from "@/features/chat/components/MessageList";
 import { ChatModals } from "@/features/chat/components/ChatModals";
 import { ThreadPanel } from "@/features/chat/components/ThreadPanel";
+import { RightPanel } from "@/features/chat/components/RightPanel";
 import { T } from "@/features/chat/design/tokens";
 
 export default function ChatPage() {
   const chat = useChatPage();
 
-  if (!chat.authChecked) return null;
+  if (!chat.authChecked || chat.isInitialLoading) {
+    return (
+      <main style={{ height: "100vh", display: "flex", background: T.bgApp, color: T.textPrimary, overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+        <aside style={{ width: T.sidebarWidth, background: T.bgSidebar, borderRight: `1px solid ${T.border}`, padding: T.gapLg, display: "flex", flexDirection: "column", gap: T.gapMd }}>
+          <div className="shimmer" style={{ height: 30, borderRadius: T.radiusSm, background: T.surfaceHover }} />
+          <div className="shimmer" style={{ height: 40, borderRadius: T.radiusMd, background: T.surfaceHover }} />
+          <div style={{ marginTop: T.gapLg, display: "flex", flexDirection: "column", gap: T.gapSm }}>
+            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
+            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
+            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
+          </div>
+        </aside>
+        <section style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+          <style>{`
+            .shimmer { position: relative; overflow: hidden; }
+            .shimmer::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); animation: shimmer 1.5s infinite; }
+            @keyframes shimmer { 0% { left: -100%; } 100% { left: 100%; } }
+          `}</style>
+          <div style={{ display: "flex", gap: 4, alignItems: "center", color: T.textMuted }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, animation: "bounce 1s infinite" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, animation: "bounce 1s infinite 0.2s" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, animation: "bounce 1s infinite 0.4s" }} />
+            <style>{`@keyframes bounce { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-4px); opacity: 1; } }`}</style>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main
@@ -95,6 +123,7 @@ export default function ChatPage() {
               ? chat.typingUsers[chat.selectedChannel.id]
               : []
           }
+          onTogglePanel={() => chat.setShowRightPanel(!chat.showRightPanel)}
         />
 
         <MessageList
@@ -156,6 +185,7 @@ export default function ChatPage() {
           isDMReceiver={chat.selectedChannel?.channel_type === "dm" && (chat.selectedChannel as any)?.created_by !== chat.myUserId}
           onAcceptDM={chat.handleAcceptDM}
           onBlockDM={chat.handleBlockDM}
+          workspaceUsers={chat.workspaceUsers}
         />
       </section>
 
@@ -167,6 +197,22 @@ export default function ChatPage() {
           onClose={() => chat.setActiveThread(null)}
           onSend={(content) => {
             chat.handleSendThread(content);
+          }}
+        />
+      )}
+
+      {chat.showRightPanel && (
+        <RightPanel
+          channel={chat.selectedChannel}
+          members={chat.channelMembers}
+          onlineUsers={chat.onlineUsers}
+          messages={chat.messages[chat.selectedChannel?.id || 0] || []}
+          activeTab={chat.rightPanelTab}
+          setActiveTab={chat.setRightPanelTab}
+          onClose={() => chat.setShowRightPanel(false)}
+          onGalleryOpen={(items, index) => {
+            chat.setGalleryItems(items);
+            chat.setGalleryIndex(index);
           }}
         />
       )}

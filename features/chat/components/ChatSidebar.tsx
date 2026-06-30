@@ -2,10 +2,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Users, Building2, Folder } from "lucide-react";
 import { T } from "../design/tokens";
 import { Channel } from "../types/channel";
+import { useChatStore } from "../store/chatStore";
+import { loadChannels, loadDMs } from "../services/channelService";
+import { loadDMRequests, respondDMRequest } from "../services/dmRequestService";
 
 interface ChatSidebarProps {
   search: string;
@@ -245,6 +248,41 @@ export function ChatSidebar({
   onCreateChannel,
 }: ChatSidebarProps) {
   const [activeTab, setActiveTab] = useState("all");
+  const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
+  
+  const setChannels = useChatStore((s) => s.setChannels);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const data = await loadDMRequests();
+        setReceivedRequests(data.received || []);
+      } catch (e) {}
+    };
+    fetchRequests();
+  }, []);
+
+  const handleAcceptDm = async (reqId: number) => {
+    try {
+      await respondDMRequest(reqId, { status: "accepted" });
+      setReceivedRequests(prev => prev.filter(r => r.id !== reqId));
+      // Reload channels to fetch the newly created DM channel instantly
+      const [loadedChannels, loadedDms] = await Promise.all([loadChannels(), loadDMs()]);
+      const all = [...loadedChannels, ...loadedDms];
+      setChannels(all);
+    } catch (e) {
+      alert("Failed to accept request");
+    }
+  };
+
+  const handleDeclineDm = async (reqId: number) => {
+    try {
+      await respondDMRequest(reqId, { status: "rejected" });
+      setReceivedRequests(prev => prev.filter(r => r.id !== reqId));
+    } catch (e) {
+      alert("Failed to decline request");
+    }
+  };
 
   const tabs = [
     { key: "all", label: "All" },
@@ -395,6 +433,28 @@ export function ChatSidebar({
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: `0 ${T.gapSm}` }}>
+        {receivedRequests.length > 0 && (
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${T.border}`, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Message Requests</div>
+            {receivedRequests.map(req => (
+              <div key={req.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 600 }}>
+                    {req.sender_name?.charAt(0) || "?"}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>{req.sender_name}</div>
+                    <div style={{ fontSize: 11, color: T.textMuted, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.initial_message}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => handleAcceptDm(req.id)} style={{ background: T.accent, border: "none", color: "#fff", borderRadius: T.radiusSm, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Accept</button>
+                  <button onClick={() => handleDeclineDm(req.id)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.textSecondary, borderRadius: T.radiusSm, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Decline</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {tabFilteredChats.length === 0 ? (
           <div
             style={{

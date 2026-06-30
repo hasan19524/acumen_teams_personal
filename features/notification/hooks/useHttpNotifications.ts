@@ -12,15 +12,15 @@ export const useHttpNotifications = () => {
   useEffect(() => {
     if (!authChecked) return;
 
-    const wsId = getWorkspaceId();
-    if (!wsId) return; // Prevent fetch if workspace_id is missing
-
     const poll = async () => {
       try {
+        const wsId = getWorkspaceId();
+        if (!wsId) return; // Prevent fetch if workspace_id is missing
+
         await fetchUnreadCount();
         await fetchNotifications();
       } catch (error) {
-        console.warn("Notification poll failed:", error);
+        // Silently fail - the store already handles errors gracefully
       }
     };
 

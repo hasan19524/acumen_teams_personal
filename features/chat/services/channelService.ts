@@ -252,6 +252,13 @@ export async function loadDMs(): Promise<Channel[]> {
 }
 // ── Workspace Users API ────────────────────────────────────────────────
 
+export async function getChannelMembers(channelId: number): Promise<any[]> {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/channels/${channelId}/members/`);
+  if (!res.ok) throw new Error("Failed to fetch channel members");
+  return res.json();
+}
+
 export async function getWorkspaceUsers(): Promise<
   { id: number; username: string; full_name: string }[]
 > {

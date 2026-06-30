@@ -4,7 +4,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.contrib.auth.models import User
 
 from django.utils import timezone
 from datetime import timedelta
@@ -101,6 +103,9 @@ def my_team(request, workspace_id):
     )
 
 
+from django.db.models import Q
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def all_teams(request, workspace_id):
@@ -110,25 +115,52 @@ def all_teams(request, workspace_id):
     if not membership:
         return Response({"error": "Not authorized"}, status=403)
 
-    # FIX: Only return STANDARD teams to the admin UI.
-    # System teams (General, Management, Unassigned) are infrastructure and should be hidden.
-    teams = Team.objects.filter(workspace_id=workspace_id, team_type=TeamType.STANDARD)
+    # Exclude "Unassigned" and "General". "Management" is allowed.
+    base_qs = Team.objects.filter(workspace_id=workspace_id).exclude(
+        Q(name__iexact="Unassigned") | Q(name__iexact="General")
+    )
+
+    # RBAC FIX: Admins/Owners see all. Members see teams they are active members of OR lead.
+    if membership.role in ("owner", "admin"):
+        teams = base_qs
+    else:
+        user_team_ids = TeamMembership.objects.filter(
+            user=request.user, is_active=True
+        ).values_list("team_id", flat=True)
+        teams = base_qs.filter(id__in=user_team_ids)
+
+    # Get all active workspace user IDs to ensure we don't count "ghost" members 
+    # (users who were removed from the workspace but still have team records)
+    active_workspace_user_ids = WorkspaceMembership.objects.filter(
+        workspace_id=workspace_id, is_active=True
+    ).values_list("user_id", flat=True)
+
     response_data = []
     for t in teams:
-        leaders = list(
-            TeamMembership.objects.filter(
-                team=t, is_active=True, is_leader=True
-            ).values_list("user__username", flat=True)
+        # Only consider memberships where the user is an active member of the workspace
+        valid_memberships = TeamMembership.objects.filter(
+            team=t, is_active=True, user_id__in=active_workspace_user_ids
         )
+        
+        leaders = list(
+            valid_memberships.filter(is_leader=True).values_list("user__username", flat=True)
+        )
+
+        # MANAGEMENT FIX: Never show Leader: None for Management team
+        if t.team_type == TeamType.MANAGEMENT and not leaders:
+            workspace = Workspace.objects.get(id=workspace_id)
+            leaders = [workspace.owner.username]
 
         response_data.append(
             {
                 "id": t.id,
                 "name": t.name,
-                "team_type": t.team_type,
-                "member_count": TeamMembership.objects.filter(
-                    team=t, is_active=True
-                ).count(),
+                "description": t.description,
+                "is_private": t.is_private,
+                "color": t.color,
+                "icon": t.icon,
+                "team_type": getattr(t, "team_type", "standard"),
+                "member_count": valid_memberships.count(),
                 "leaders": leaders,
                 "created_at": t.created_at.isoformat(),
             }
@@ -158,17 +190,14 @@ def workspace_members(request, workspace_id):
         elif role == "manager":
             role = "admin"
 
-        # Fetch ONLY standard team membership for the UI
-        team_name = (
-            TeamMembership.objects.filter(
-                user=m.user,
-                team__workspace_id=workspace_id,
-                is_active=True,
-                team__team_type=TeamType.STANDARD,
-            )
-            .values_list("team__name", flat=True)
-            .first()
-        )
+        # Fetch ALL active team memberships (excluding System Teams) for this user
+        user_teams_qs = TeamMembership.objects.filter(
+            user=m.user,
+            team__workspace_id=workspace_id,
+            is_active=True,
+        ).exclude(team__team_type__in=[TeamType.UNASSIGNED, TeamType.GENERAL]).select_related("team")
+
+        teams_list = [{"id": tm.team.id, "name": tm.team.name, "is_leader": tm.is_leader} for tm in user_teams_qs]
 
         response_data.append(
             {
@@ -177,7 +206,8 @@ def workspace_members(request, workspace_id):
                 "full_name": f"{m.user.first_name} {m.user.last_name}".strip()
                 or m.user.username,
                 "role": role,
-                "team": team_name or "Unassigned",
+                "teams": teams_list,  # NEW: Array of teams
+                "team": teams_list[0]["name"] if teams_list else "Unassigned", # Keep for backward compat
                 "joined_at": m.joined_at.isoformat(),
             }
         )
@@ -192,17 +222,70 @@ def dashboard_stats(request, workspace_id):
         user=request.user, workspace_id=workspace_id, is_active=True
     ).first()
     if not membership:
-        return Response({"total_members": 0, "total_teams": 0, "role": "member"})
+        return Response({"total_members": 0, "total_teams": 0, "total_leaders": 0, "role": "member"})
+
+    # Count distinct users for KPIs to avoid counting multiple assignments
+    total_members = WorkspaceMembership.objects.filter(
+        workspace_id=workspace_id, is_active=True
+    ).values("user_id").distinct().count()
+
+    total_leaders = TeamMembership.objects.filter(
+        team__workspace_id=workspace_id,
+        is_active=True,
+        is_leader=True
+    ).values("user_id").distinct().count()
 
     return Response(
         {
-            "total_members": WorkspaceMembership.objects.filter(
-                workspace_id=workspace_id, is_active=True
-            ).count(),
+            "total_members": total_members,
             "total_teams": Team.objects.filter(workspace_id=workspace_id).count(),
+            "total_leaders": total_leaders,
             "role": membership.role,
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workspace_presence(request, workspace_id):
+    # Ensure user is part of this workspace
+    if not WorkspaceMembership.objects.filter(
+        user_id=request.user.id, workspace_id=workspace_id, is_active=True
+    ).exists():
+        return Response({"error": "Unauthorized"}, status=403)
+
+    try:
+        from django_redis import get_redis_connection
+
+        redis_conn = get_redis_connection("default")
+
+        # Get all active members of the workspace
+        memberships = WorkspaceMembership.objects.filter(
+            workspace_id=workspace_id, is_active=True
+        ).select_related("user")
+
+        online_users = []
+        for m in memberships:
+            presence_key = f"presence:user:{m.user_id}"
+            # Check if the key exists in Redis (set by NotificationConsumer)
+            if redis_conn.exists(presence_key):
+                online_users.append(
+                    {
+                        "id": m.user_id,
+                        "username": m.user.username,
+                        "full_name": m.user.get_full_name() or m.user.username,
+                        "role": m.role,
+                    }
+                )
+
+        return Response(
+            {"online_users": online_users, "online_count": len(online_users)}
+        )
+    except Exception as e:
+        # Fallback if Redis is down or not installed
+        return Response(
+            {"online_users": [], "online_count": 0, "error": str(e)}, status=200
+        )
 
 
 class CreateTeamView(WorkspaceBaseView):
@@ -228,17 +311,50 @@ class CreateTeamView(WorkspaceBaseView):
                 return Response({"error": "Leader not found in workspace"}, status=404)
             leader = leader_membership.user
 
-        team = TeamService.create_team(
-            workspace=workspace, name=name, creator=request.user
+        # Create team directly to attach new fields
+        team = Team.objects.create(
+            workspace=workspace,
+            name=name,
+            description=request.data.get("description", ""),
+            is_private=request.data.get("is_private", False),
+            color=request.data.get("color", "#4B1587"),
+            icon=request.data.get("icon", ""),
+            team_type=TeamType.STANDARD
         )
+        
+        # Sync Chat Channel using centralized service
+        from chat.services.chat_service import ChatService
+        ChatService.create_channel(
+            workspace=workspace,
+            creator=request.user,
+            name=team.name,
+            channel_type="team",
+            team=team
+        )
+
         if leader:
             TeamService.add_member(team, leader)
             TeamService.promote_leader(team, leader)
+
+        # PHASE 8: Directly add selected members during creation
+        member_ids = request.data.get("member_ids", [])
+        if member_ids:
+            for mid in member_ids:
+                try:
+                    user_to_add = User.objects.get(id=mid)
+                    if user_to_add != leader:
+                        TeamService.add_member(team, user_to_add)
+                except User.DoesNotExist:
+                    pass
 
         return Response(
             {
                 "id": team.id,
                 "name": team.name,
+                "description": team.description,
+                "is_private": team.is_private,
+                "color": team.color,
+                "icon": team.icon,
                 "leader": leader.username if leader else None,
             },
             status=201,
@@ -261,11 +377,20 @@ class TeamDetailView(WorkspaceBaseView):
 
         name = request.data.get("name")
         description = request.data.get("description")
+        is_private = request.data.get("is_private")
+        color = request.data.get("color")
+        icon = request.data.get("icon")
 
         if name:
             team.name = name
         if description is not None:
             team.description = description
+        if is_private is not None:
+            team.is_private = is_private
+        if color:
+            team.color = color
+        if icon is not None:
+            team.icon = icon
 
         team.save()
         return Response(
@@ -273,6 +398,9 @@ class TeamDetailView(WorkspaceBaseView):
                 "id": team.id,
                 "name": team.name,
                 "description": team.description,
+                "is_private": team.is_private,
+                "color": team.color,
+                "icon": team.icon,
                 "detail": "Team updated successfully",
             }
         )
@@ -297,14 +425,13 @@ class InviteMemberView(WorkspaceBaseView):
     required_permission = "invite_members"
 
     def post(self, request, workspace_id):
-        from django.contrib.auth.models import User
-
         workspace = self.get_workspace()
 
         username = (request.data.get("username") or "").strip()
         email = (request.data.get("email") or "").strip()
         role = request.data.get("role", "member")
-        team_id = request.data.get("team_id")
+        # team_id is ignored here to enforce separation of concerns. 
+        # Team assignment must happen via Team Invitations.
 
         if role not in ("member", "admin", "guest"):
             return Response(
@@ -325,34 +452,36 @@ class InviteMemberView(WorkspaceBaseView):
         else:
             return Response({"error": "username or email required"}, status=400)
 
+        # FIX: Only block if they are already an active member of THIS SPECIFIC workspace.
+        # Allow inviting users who are in OTHER workspaces.
         if WorkspaceMembership.objects.filter(
             user=target_user, workspace=workspace, is_active=True
         ).exists():
             return Response({"error": "User is already in this workspace"}, status=400)
 
-        WorkspaceService.join_workspace(
-            workspace, target_user, role=role, invited_by=request.user
+        # Check for existing pending invite to THIS workspace
+        if WorkspaceInvite.objects.filter(
+            invitee=target_user, workspace=workspace, status="pending"
+        ).exists():
+            return Response({"error": "User already has a pending invitation to this workspace"}, status=400)
+
+        expires_at = timezone.now() + timedelta(days=4)
+        invite = WorkspaceInvite.objects.create(
+            workspace=workspace,
+            created_by=request.user,
+            invitee=target_user,
+            role_to_assign=role,
+            status="pending",
+            expires_at=expires_at
         )
 
-        if team_id:
-            try:
-                team = Team.objects.get(id=team_id, workspace=workspace)
-                TeamService.add_member(team, target_user)
-            except Team.DoesNotExist:
-                pass
-
         try:
-            member_ids = list(
-                WorkspaceMembership.objects.filter(
-                    workspace=workspace, is_active=True
-                ).values_list("user_id", flat=True)
-            )
             NotificationService.create_and_emit(
                 WorkspaceEvent(
                     actor_id=request.user.id,
                     workspace_id=workspace.id,
-                    event_description=f"{target_user.username} joined the workspace",
-                    member_ids=member_ids,
+                    event_description=f"You have been invited to join {workspace.name}",
+                    member_ids=[target_user.id],
                 )
             )
         except Exception as e:
@@ -360,10 +489,10 @@ class InviteMemberView(WorkspaceBaseView):
 
         return Response(
             {
-                "detail": "Member added successfully",
-                "user_id": target_user.id,
-                "username": target_user.username,
-                "role": role,
+                "detail": "Invitation sent successfully",
+                "invite_id": invite.id,
+                "invitee_id": target_user.id,
+                "status": invite.status,
             },
             status=201,
         )
@@ -410,6 +539,25 @@ class MemberDetailView(WorkspaceBaseView):
             target.save()
 
         if team_id != "NOT_SET":
+            # Permission check: Admins/Owners can move anyone anywhere.
+            # Leaders can ONLY add users to teams they lead.
+            if membership.role not in ("owner", "admin"):
+                if team_id is not None:
+                    try:
+                        target_team = Team.objects.get(id=team_id, workspace=workspace)
+                        if not is_team_leader(request.user, target_team.id):
+                            return Response(
+                                {"error": "Leaders can only add members to teams they lead"}, status=403
+                            )
+                    except Team.DoesNotExist:
+                        return Response({"error": "Team not found"}, status=404)
+                else:
+                    # If team_id is None, it means moving to "Unassigned". 
+                    # For MVP safety, only Admins/Owners can move to Unassigned.
+                    return Response(
+                        {"error": "Only admins can move members to unassigned"}, status=403
+                    )
+
             # Remove from all current standard teams
             current_teams = TeamMembership.objects.filter(
                 user=target.user,
@@ -554,6 +702,7 @@ class JoinWorkspaceView(APIView):
         return Response(
             {
                 "message": f"Successfully joined {invite.workspace.name}!",
+                "workspace_id": invite.workspace.id,
                 "workspace": invite.workspace.name,
                 "role": invite.role_to_assign,
             }
@@ -695,26 +844,16 @@ class InviteCenterCountsView(WorkspaceBaseView):
             expires_at__lte=now,
         ).update(status="expired")
 
-        workspace_count = 0
-        membership = WorkspaceMembership.objects.get(
-            user=request.user, workspace=workspace, is_active=True
-        )
-        if membership.role in ("owner", "admin"):
-            workspace_count = WorkspaceInvite.objects.filter(
-                workspace=workspace, status="active"
-            ).count()
-
+        # Workspace invites are handled by MyWorkspaceInvitesView for independent users.
+        # This endpoint now strictly returns counts for workspace-scoped invitations (Teams/Groups).
         return Response(
             {
-                "workspace": workspace_count,
+                "workspace": 0, # Kept for frontend compatibility, always 0 here.
                 "teams": TeamInvite.objects.filter(
                     invitee=request.user, workspace=workspace, status="pending"
                 ).count(),
                 "private_groups": PrivateGroupInvite.objects.filter(
                     invitee=request.user, workspace=workspace, status="pending"
-                ).count(),
-                "dm_requests": DMRequest.objects.filter(
-                    receiver=request.user, workspace=workspace, status="pending"
                 ).count(),
             }
         )
@@ -725,39 +864,8 @@ class InviteCenterTabView(WorkspaceBaseView):
         workspace = self.get_workspace()
         tab = request.query_params.get("tab", "")
 
-        if tab == "workspace":
-            membership = WorkspaceMembership.objects.get(
-                user=request.user, workspace=workspace, is_active=True
-            )
-            if membership.role not in ("owner", "admin"):
-                return Response({"items": []})
-            invites = (
-                WorkspaceInvite.objects.filter(workspace=workspace, status="active")
-                .select_related("created_by")
-                .order_by("-created_at")
-            )
-            return Response(
-                {
-                    "items": [
-                        {
-                            "id": inv.id,
-                            "token": str(inv.token),
-                            "role_to_assign": inv.role_to_assign,
-                            "max_uses": inv.max_uses,
-                            "use_count": inv.use_count,
-                            "expires_at": (
-                                inv.expires_at.isoformat() if inv.expires_at else None
-                            ),
-                            "created_by": inv.created_by.username,
-                            "created_at": inv.created_at.isoformat(),
-                            "is_valid": inv.is_valid(),
-                        }
-                        for inv in invites
-                    ]
-                }
-            )
-
-        elif tab == "teams":
+        # Workspace invites are no longer handled here to prevent architectural confusion.
+        if tab == "teams":
             TeamInvite.objects.filter(
                 invitee=request.user,
                 workspace=workspace,
@@ -825,41 +933,6 @@ class InviteCenterTabView(WorkspaceBaseView):
                 }
             )
 
-        elif tab == "dm_requests":
-            from chat.models import DMRequest
-
-            now = timezone.now()
-            DMRequest.objects.filter(
-                receiver=request.user,
-                workspace=workspace,
-                status="pending",
-                expires_at__lte=now,
-            ).update(status="expired")
-            requests = (
-                DMRequest.objects.filter(
-                    receiver=request.user, workspace=workspace, status="pending"
-                )
-                .select_related("sender")
-                .order_by("-created_at")
-            )
-            return Response(
-                {
-                    "items": [
-                        {
-                            "id": req.id,
-                            "sender_id": req.sender.id,
-                            "sender_name": req.sender.get_full_name()
-                            or req.sender.username,
-                            "initial_message": req.initial_message,
-                            "expires_at": (
-                                req.expires_at.isoformat() if req.expires_at else None
-                            ),
-                            "created_at": req.created_at.isoformat(),
-                        }
-                        for req in requests
-                    ]
-                }
-            )
         else:
             return Response({"error": "Invalid tab"}, status=400)
 
@@ -1199,3 +1272,164 @@ class LeaveWorkspaceView(WorkspaceBaseView):
             pass
 
         return Response({"message": f"You have left {workspace.name}."})
+
+class CreateWorkspaceView(APIView):
+    """General endpoint to create a workspace. Validates permissions."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if WorkspaceMembership.objects.filter(user=request.user, is_active=True).exists():
+            return Response(
+                {"error": "You are already an active member of a workspace. Please leave it first."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        name = request.data.get("name", "").strip()
+        if not name:
+            return Response({"error": "Workspace name is required."}, status=400)
+
+        workspace = WorkspaceService.create_workspace(name=name, owner=request.user)
+        return Response(
+            {"workspace_id": workspace.id, "message": "Workspace created successfully!"},
+            status=status.HTTP_201_CREATED
+        )
+        
+class MyWorkspaceInvitesView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        WorkspaceInvite.objects.filter(
+            invitee=request.user, status="pending", expires_at__lte=timezone.now()
+        ).update(status="expired")
+
+        invites = WorkspaceInvite.objects.filter(
+            invitee=request.user, status="pending"
+        ).select_related("workspace", "created_by")
+
+        return Response({
+            "items": [
+                {
+                    "id": inv.id,
+                    "workspace_id": inv.workspace.id,
+                    "workspace_name": inv.workspace.name,
+                    "inviter_id": inv.created_by.id,
+                    "inviter_name": inv.created_by.get_full_name() or inv.created_by.username,
+                    "role": inv.role_to_assign,
+                    "expires_at": inv.expires_at.isoformat() if inv.expires_at else None,
+                    "created_at": inv.created_at.isoformat(),
+                }
+                for inv in invites
+            ]
+        })
+
+
+class WorkspaceInviteRespondView(APIView):
+    """Endpoint for Independent users to Accept or Reject a workspace invitation."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        invite = get_object_or_404(WorkspaceInvite, id=pk, invitee=request.user)
+        
+        if invite.status != "pending":
+            return Response({"error": f"Invite is already {invite.status}"}, status=400)
+            
+        if invite.expires_at and timezone.now() > invite.expires_at:
+            invite.status = "expired"
+            invite.save()
+            return Response({"error": "Invite has expired"}, status=400)
+
+        new_status = request.data.get("status")
+        if new_status not in ("accepted", "rejected"):
+            return Response({"error": "status must be 'accepted' or 'rejected'"}, status=400)
+
+        if new_status == "accepted":
+            # Use existing service to join workspace properly
+            WorkspaceService.join_workspace(
+                invite.workspace, request.user, role=invite.role_to_assign, invited_by=invite.created_by
+            )
+            invite.status = "accepted"
+        else:
+            invite.status = "rejected"
+            
+        invite.save()
+        
+        return Response({
+            "id": invite.id,
+            "workspace_id": invite.workspace.id,
+            "status": invite.status
+        })
+
+class TransferOwnershipView(WorkspaceBaseView):
+    """Allows the current owner to transfer ownership to another active member."""
+    required_permission = "delete_workspace"
+
+    def post(self, request, workspace_id):
+        workspace = self.get_workspace()
+        new_owner_id = request.data.get("new_owner_id")
+        
+        if not new_owner_id:
+            return Response({"error": "new_owner_id required"}, status=400)
+            
+        new_owner_membership = WorkspaceMembership.objects.filter(
+            user_id=new_owner_id, workspace=workspace, is_active=True
+        ).first()
+        
+        if not new_owner_membership:
+            return Response({"error": "New owner not found in workspace"}, status=404)
+            
+        if new_owner_membership.user == request.user:
+            return Response({"error": "You cannot transfer ownership to yourself"}, status=400)
+            
+        with transaction.atomic():
+            # Demote current owner to admin
+            current_membership = WorkspaceMembership.objects.get(
+                user=request.user, workspace=workspace, is_active=True
+            )
+            current_membership.role = "admin"
+            current_membership.save()
+            
+            # Promote new owner
+            new_owner_membership.role = "owner"
+            new_owner_membership.save()
+            
+            # Update workspace owner field
+            workspace.owner = new_owner_membership.user
+            workspace.save()
+            
+        return Response({"detail": "Ownership transferred successfully"})
+    
+class PromoteTeamLeaderView(WorkspaceBaseView):
+
+    def post(self, request, workspace_id, team_id, user_id):
+        workspace = self.get_workspace()
+        try:
+            team = Team.objects.get(id=team_id, workspace=workspace)
+        except Team.DoesNotExist:
+            return Response({"error": "Team not found"}, status=404)
+
+        # Only Owners/Admins or the current Team Leader can promote
+        membership = WorkspaceMembership.objects.filter(
+            user=request.user, workspace=workspace, is_active=True
+        ).first()
+        if not membership:
+            return Response({"error": "Not authorized"}, status=403)
+
+        is_admin = membership.role in ("owner", "admin")
+        is_current_leader = is_team_leader(request.user, team.id)
+        
+        if not (is_admin or is_current_leader):
+            return Response({"error": "Only admins or team leaders can promote others"}, status=403)
+
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        try:
+            TeamService.promote_leader(team, target_user)
+        except Exception as e:
+            logger.error(f"Failed to promote leader: {e}")
+            return Response({"error": "A server error occurred while promoting the leader."}, status=500)
+
+        return Response({"detail": f"{target_user.username} promoted to leader of {team.name}"})

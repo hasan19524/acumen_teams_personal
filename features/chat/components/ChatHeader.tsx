@@ -27,6 +27,7 @@ interface ChatHeaderProps {
   onCopySelected: () => void;
   onBulkDelete: () => void;
   typingUsers?: { id: number; username: string }[];
+  onTogglePanel?: () => void;
 }
 
 export function ChatHeader({
@@ -38,6 +39,7 @@ export function ChatHeader({
   onCopySelected,
   onBulkDelete,
   typingUsers,
+  onTogglePanel,
 }: ChatHeaderProps) {
   const isDM = selectedChannel?.channel_type === "dm";
   const dmPartner = selectedChannel?.dm_partner;
@@ -242,7 +244,7 @@ export function ChatHeader({
             }}
           >
             <HeaderIcon icon={<Search size={16} />} />
-            <HeaderIcon icon={<Users size={16} />} />
+            <HeaderIcon icon={<Users size={16} />} onClick={onTogglePanel} />
             <HeaderIcon icon={<Phone size={16} />} />
             <HeaderIcon icon={<Video size={16} />} />
             <HeaderIcon icon={<MoreHorizontal size={16} />} />
@@ -253,9 +255,10 @@ export function ChatHeader({
   );
 }
 
-function HeaderIcon({ icon }: { icon: React.ReactNode }) {
+function HeaderIcon({ icon, onClick }: { icon: React.ReactNode; onClick?: () => void }) {
   return (
     <button
+      onClick={onClick}
       style={{
         width: 34,
         height: 34,

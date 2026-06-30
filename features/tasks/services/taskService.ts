@@ -9,6 +9,40 @@ import {
   TaskAnalytics,
 } from "@/features/tasks/types/task";
 
+// ── Rate Limit Handler ──────────────────────────────────────────────────
+let isRateLimited = false;
+
+async function fetchWithRateLimit(
+  fetchFn: () => Promise<Response>,
+  retryCount = 0,
+): Promise<Response> {
+  if (isRateLimited) {
+    return new Response(null, { status: 429 });
+  }
+
+  const res = await fetchFn();
+  
+  if (res.status === 429) {
+    isRateLimited = true;
+    const { useNotificationStore } = await import("@/features/notification/store/notificationStore");
+    useNotificationStore.getState().addNotification({
+      notification_type: "rate_limit",
+      notification_id: String(Date.now()),
+      timestamp: new Date().toISOString(),
+      data: {
+        title: "⏳ Too Many Requests",
+        message: "Please wait 10 seconds while we process your request...",
+        avatar_url: null,
+      },
+    } as any);
+    
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    isRateLimited = false;
+  }
+  
+  return res;
+}
+
 export type TaskFilter =
   | "all"
   | "todo"
@@ -20,17 +54,24 @@ export type TaskFilter =
 export const taskService = {
   getTasks: async (
     filter?: TaskFilter,
+    archived: boolean = false
   ): Promise<{ results: Task[]; next: string | null }> => {
     const wsId = getWorkspaceId();
+    if (!wsId) return { results: [], next: null };
     const params = new URLSearchParams();
     if (filter && filter !== "all") {
       params.append("filter", filter);
     }
+    if (archived) {
+      params.append("archived", "true");
+    }
     const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await apiFetch(`/api/tasks/${wsId}/${query}`);
-    if (!res.ok) throw new Error("Failed to fetch tasks");
+    const res = await fetchWithRateLimit(() => apiFetch(`/api/tasks/${wsId}/${query}`));
+    if (!res.ok) {
+      console.warn(`getTasks rate limited or failed`);
+      return { results: [], next: null };
+    }
     const data = await res.json();
-    // Handle paginated response
     return {
       results: data.results || data,
       next: data.next || null,
@@ -94,8 +135,12 @@ export const taskService = {
 
   getWorkspaceMembers: async (): Promise<WorkspaceMember[]> => {
     const wsId = getWorkspaceId();
-    const res = await apiFetch(`/api/tasks/${wsId}/workspace-members/`);
-    if (!res.ok) throw new Error("Failed to fetch members");
+    if (!wsId) return [];
+    const res = await fetchWithRateLimit(() => apiFetch(`/api/tasks/${wsId}/workspace-members/`));
+    if (!res.ok) {
+      console.warn(`getWorkspaceMembers rate limited or failed`);
+      return [];
+    }
     return res.json();
   },
 
@@ -200,8 +245,12 @@ export const taskService = {
 
   fetchAnalytics: async (): Promise<TaskAnalytics> => {
     const wsId = getWorkspaceId();
-    const res = await apiFetch(`/api/tasks/${wsId}/analytics/`);
-    if (!res.ok) throw new Error("Failed to fetch analytics");
+    if (!wsId) throw new Error("No workspace ID found");
+    const res = await fetchWithRateLimit(() => apiFetch(`/api/tasks/${wsId}/analytics/`));
+    if (!res.ok) {
+      console.warn(`fetchAnalytics rate limited or failed`);
+      return {} as TaskAnalytics;
+    }
     return res.json();
   },
 };

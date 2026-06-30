@@ -52,21 +52,25 @@ export default function LandingPage() {
               </p>
 
               <div className="mt-10 flex items-center gap-4">
-                <Button 
-                  size="lg" 
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-6 text-lg rounded-full transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(37,99,235,0.4)] group"
-                >
-                  Start Free Trial
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                <Link href="/signup">
+                  <Button 
+                    size="lg" 
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-6 text-lg rounded-full transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(37,99,235,0.4)] group"
+                  >
+                    Start Free Trial
+                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
                 
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="border-slate-300 text-slate-700 hover:bg-slate-100 px-8 py-6 text-lg rounded-full backdrop-blur-sm"
-                >
-                  Watch Demo
-                </Button>
+                <Link href="#features">
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-100 px-8 py-6 text-lg rounded-full backdrop-blur-sm"
+                  >
+                    Watch Demo
+                  </Button>
+                </Link>
               </div>
 
               <div className="mt-12 flex items-center gap-6 text-slate-500 text-sm">
@@ -214,17 +218,19 @@ export default function LandingPage() {
                     ))}
                   </ul>
                   
-                  <Button 
-                    className={`
-                      w-full rounded-xl py-3 font-semibold transition-all hover:scale-[1.02]
-                      ${i === 2 
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
-                        : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
-                      }
-                    `}
-                  >
-                    Get Started
-                  </Button>
+                  <Link href="/signup" className="w-full">
+                    <Button 
+                      className={`
+                        w-full rounded-xl py-3 font-semibold transition-all hover:scale-[1.02]
+                        ${i === 2 
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]' 
+                          : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                        }
+                      `}
+                    >
+                      Get Started
+                    </Button>
+                  </Link>
                 </div>
               </ScrollReveal>
             ))}

@@ -29,6 +29,16 @@ class ChatService:
     @staticmethod
     @transaction.atomic
     def create_channel(workspace, creator, name, channel_type, team=None):
+        # Prevent duplicate Official channels in the same workspace
+        if channel_type == "official":
+            existing = Channel.objects.filter(
+                workspace=workspace, 
+                name__iexact=name, 
+                channel_type="official"
+            ).first()
+            if existing:
+                return existing
+
         slug = slugify(name)
         if Channel.objects.filter(slug=slug).exists():
             slug = f"{slug}-{uuid4().hex[:6]}"

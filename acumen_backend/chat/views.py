@@ -153,7 +153,35 @@ class ChannelListCreateView(APIView):
 class ChannelMemberManageView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request, workspace_id, channel_id):
+        workspace = get_object_or_404(Workspace, id=workspace_id)
+        auth = ChatAuthService(request.user, workspace=workspace)
+        membership = auth.require_workspace_membership()
+
+        channel = get_object_or_404(
+            Channel, id=channel_id, workspace=membership.workspace
+        )
+        auth.require_channel_access(channel_id)
+
+        members = (
+            ChannelMember.objects.filter(channel=channel, is_active=True)
+            .select_related("user")
+            .values("id", "user_id", "user__username", "user__first_name", "user__last_name", "role", "joined_at")
+        )
+        data = [
+            {
+                "id": m["id"],
+                "user_id": m["user_id"],
+                "username": m["user__username"],
+                "full_name": f"{m['user__first_name']} {m['user__last_name']}".strip(),
+                "role": m["role"],
+            }
+            for m in members
+        ]
+        return Response(data)
+
     def post(self, request, workspace_id, channel_id):
+        # ... rest of the code
         workspace = get_object_or_404(Workspace, id=workspace_id)
         auth = ChatAuthService(request.user, workspace=workspace)
         membership = auth.require_workspace_membership()
@@ -412,7 +440,7 @@ class DMRequestListCreateView(APIView):
 
         received_requests = (
             DMRequest.objects.filter(
-                receiver=request.user, workspace=membership.workspace
+                receiver=request.user, workspace=membership.workspace, status="pending"
             )
             .select_related("sender", "dm_channel")
             .order_by("-created_at")

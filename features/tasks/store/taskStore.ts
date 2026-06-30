@@ -17,7 +17,7 @@ interface TaskStore {
   userRole: string;
   availableTeams: { id: number; name: string }[];
 
-  fetchTasks: (filter?: TaskFilter) => Promise<void>;
+  fetchTasks: (filter?: TaskFilter, archived?: boolean) => Promise<void>;
   fetchMoreTasks: () => Promise<void>;
   nextTaskPageUrl: string | null;
   fetchTaskDetail: (taskId: number) => Promise<Task | null>;
@@ -44,6 +44,7 @@ interface TaskStore {
   getPersonalTasks(userId: number): Task[];
   getAssignedToMeTasks(userId: number): Task[];
   getAssignedByMeTasks(userId: number): Task[];
+  resetWorkspaceState: () => void;
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -56,14 +57,19 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   analytics: null,
   nextTaskPageUrl: null, // FIX: Initialize the pagination state
 
-  fetchTasks: async (filter?: TaskFilter) => {
-    set({ isLoading: true });
+  fetchTasks: async (filter?: TaskFilter, archived: boolean = false) => {
+    // Cache-First: Only show loading skeleton if we have NO cached data
+    if (get().tasks.length === 0) {
+      set({ isLoading: true });
+    }
     try {
       const currentFilter = filter || get().activeFilter;
-      const { results, next } = await taskService.getTasks(currentFilter);
+      const { results, next } = await taskService.getTasks(currentFilter, archived);
+      // Update state with fresh data
       set({ tasks: results, nextTaskPageUrl: next, isLoading: false, activeFilter: currentFilter });
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
+      // Silent fail: Keep old data, just turn off loading
       set({ isLoading: false });
     }
   },
@@ -143,7 +149,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   fetchWorkspaceMembers: async () => {
     try {
       const members = await taskService.getWorkspaceMembers();
-      set({ workspaceMembers: members });
+      // Only update if we got valid data back
+      if (members && Array.isArray(members)) {
+        set({ workspaceMembers: members });
+      }
     } catch (error) {
       console.error("Failed to fetch members:", error);
     }
@@ -249,7 +258,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   fetchAnalytics: async () => {
     try {
       const data = await taskService.fetchAnalytics();
-      set({ analytics: data });
+      // Only update if we got valid data back
+      if (data) {
+        set({ analytics: data });
+      }
     } catch (error) {
       console.error("Failed to fetch analytics:", error);
     }
@@ -274,5 +286,18 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         t.created_by === userId &&
         t.assigned_to !== userId,
     );
+  },
+
+  resetWorkspaceState: () => {
+    set({
+      tasks: [],
+      workspaceMembers: [],
+      isLoading: false,
+      activeFilter: "all",
+      userRole: "member",
+      availableTeams: [],
+      analytics: null,
+      nextTaskPageUrl: null,
+    });
   },
 }));

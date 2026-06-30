@@ -240,6 +240,198 @@ class DMRequestEvent(NotificationEvent):
             **kwargs,
         )
 
+class TaskCompletedEvent(NotificationEvent):
+    """A task was marked as completed."""
+
+    event_type = "task_completed"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        task_id: int,
+        task_title: str,
+        assignee_ids: List[int],
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            task_id=task_id,
+            task_title=task_title,
+            assignee_ids=assignee_ids,
+            **kwargs,
+        )
+
+
+class TaskCommentedEvent(NotificationEvent):
+    """A comment was added to a task."""
+
+    event_type = "task_commented"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        task_id: int,
+        task_title: str,
+        comment_preview: str,
+        assignee_ids: List[int],
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            task_id=task_id,
+            task_title=task_title,
+            comment_preview=comment_preview,
+            assignee_ids=assignee_ids,
+            **kwargs,
+        )
+
+
+class TeamInviteEvent(NotificationEvent):
+    """A user was invited to a team."""
+
+    event_type = "team_invite"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        team_id: int,
+        team_name: str,
+        invited_user_ids: List[int],
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            team_id=team_id,
+            team_name=team_name,
+            invited_user_ids=invited_user_ids,
+            **kwargs,
+        )
+
+
+class WorkspaceInviteEvent(NotificationEvent):
+    """A user was invited to the workspace."""
+
+    event_type = "workspace_invite"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        invited_user_ids: List[int],
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            invited_user_ids=invited_user_ids,
+            **kwargs,
+        )
+
+
+class AttendanceApprovalEvent(NotificationEvent):
+    """Attendance needs approval from manager."""
+
+    event_type = "attendance_approval"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        attendance_id: int,
+        employee_name: str,
+        manager_ids: List[int],
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            attendance_id=attendance_id,
+            employee_name=employee_name,
+            manager_ids=manager_ids,
+            **kwargs,
+        )
+
+
+class RoleChangedEvent(NotificationEvent):
+    """A user's role was changed in workspace/team."""
+
+    event_type = "role_changed"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        user_id: int,
+        old_role: str,
+        new_role: str,
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            old_role=old_role,
+            new_role=new_role,
+            **kwargs,
+        )
+
+
+class MemberRemovedEvent(NotificationEvent):
+    """A member was removed from workspace/team."""
+
+    event_type = "member_removed"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        removed_user_id: int,
+        removed_user_name: str,
+        scope: str,
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            removed_user_id=removed_user_id,
+            removed_user_name=removed_user_name,
+            scope=scope,
+            **kwargs,
+        )
+
+
+class DMRequestRejectedEvent(NotificationEvent):
+    """DM request was rejected (for undo notification)."""
+
+    event_type = "dm_request_rejected"
+
+    def __init__(
+        self,
+        actor_id: int,
+        workspace_id: int,
+        receiver_id: int,
+        dm_request_id: int,
+        sender_name: str,
+        rejected_at: str,
+        **kwargs,
+    ):
+        super().__init__(
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            receiver_id=receiver_id,
+            dm_request_id=dm_request_id,
+            sender_name=sender_name,
+            rejected_at=rejected_at,
+            **kwargs,
+        )
+
+
 
 # ── Service ────────────────────────────────────────────────────────────────────
 
@@ -249,16 +441,23 @@ class NotificationService:
     Centralized service for creating, persisting, and emitting notifications.
     """
 
-    # Map of event_type -> data field that contains recipient user IDs
     _RECIPIENT_FIELD_MAP = {
         "chat_created": "member_ids",
-        "channel_joined": None,  # Special: all workspace members
+        "channel_joined": "member_ids",
         "message_received": "recipient_ids",
         "mention": "mentioned_user_ids",
         "task_assigned": "assignee_ids",
+        "task_completed": "assignee_ids",
+        "task_commented": "assignee_ids",
         "announcement": "recipient_ids",
         "workspace_event": "member_ids",
-        "dm_request": None,  # Special: receiver_id
+        "channel_invite": "member_ids",
+        "team_invite": "invited_user_ids",
+        "workspace_invite": "invited_user_ids",
+        "attendance_approval": "manager_ids",
+        "role_changed": "user_id",
+        "member_removed": "removed_user_id",
+        "dm_request_rejected": "receiver_id",
     }
 
     @staticmethod
@@ -272,22 +471,48 @@ class NotificationService:
             valid_recipients = []
 
             for recipient in recipients:
-                # Never notify the actor about their own action
-                if recipient.id == event.actor_id:
-                    continue
-
                 if not NotificationService._check_preferences(recipient, event):
                     continue
 
+                # FLOOD PROTECTION: For chat messages, aggregate instead of creating duplicates
+                if event.event_type in ["message_received", "mention"]:
+                    from django.utils import timezone
+                    from datetime import timedelta
+                    
+                    five_min_ago = timezone.now() - timedelta(minutes=5)
+                    recent = Notification.objects.filter(
+                        recipient=recipient,
+                        workspace=workspace,
+                        notification_type=event.event_type,
+                        status="unread",
+                        created_at__gte=five_min_ago,
+                    )
+                    
+                    # If same channel/conversation, update existing notification
+                    channel_id = event.data.get("channel_id")
+                    if channel_id and recent.exists():
+                        existing = recent.filter(
+                            metadata__channel_id=channel_id
+                        ).first()
+                        if existing:
+                            # Increment message count in metadata
+                            existing.metadata["message_count"] = existing.metadata.get("message_count", 1) + 1
+                            existing.metadata["latest_preview"] = event.data.get("message_preview", "")
+                            existing.save(update_fields=["metadata"])
+                            valid_recipients.append(recipient)
+                            continue
+                
+                # Create new notification if no recent aggregate found
                 notifications_to_create.append(
                     Notification(
                         recipient=recipient,
                         workspace=workspace,
                         notification_type=event.event_type,
                         actor=actor,
-                        related_object_id=NotificationService._get_related_object_id(event),
                         title=NotificationService._get_title(event, recipient),
                         description=NotificationService._get_description(event),
+                        status="unread",
+                        related_object_id=NotificationService._get_related_object_id(event),
                         metadata=event.data,
                     )
                 )
@@ -403,9 +628,17 @@ class NotificationService:
             "message_received": f"{actor_name} in #{event.data.get('channel_name', 'channel')}",
             "mention": f"{actor_name} mentioned you in #{event.data.get('channel_name', 'channel')}",
             "task_assigned": f"{actor_name} assigned you a task",
+            "task_completed": f"Task completed: {event.data.get('task_title', 'untitled')}",
+            "task_commented": f"{actor_name} commented on {event.data.get('task_title', 'a task')}",
             "announcement": f"{actor_name} posted an announcement",
             "workspace_event": event.data.get("event_description", "Workspace update"),
             "dm_request": f"{actor_name} sent you a DM request",
+            "dm_request_rejected": f"DM request rejected by {actor_name}",
+            "team_invite": f"{actor_name} invited you to #{event.data.get('team_name', 'team')}",
+            "workspace_invite": f"{actor_name} invited you to the workspace",
+            "attendance_approval": f"Attendance approval needed for {event.data.get('employee_name', 'employee')}",
+            "role_changed": f"Your role changed to {event.data.get('new_role', 'member')}",
+            "member_removed": f"{actor_name} removed {event.data.get('removed_user_name', 'a member')}",
         }
         return titles.get(event.event_type, f"Notification: {event.event_type}")
 
@@ -418,9 +651,17 @@ class NotificationService:
             "message_received": event.data.get("message_preview", ""),
             "mention": event.data.get("message_preview", "You were mentioned"),
             "task_assigned": event.data.get("task_title", "New task assigned"),
+            "task_completed": event.data.get("task_title", "Task has been completed"),
+            "task_commented": event.data.get("comment_preview", "New comment on your task"),
             "announcement": event.data.get("announcement_title", "New announcement"),
             "workspace_event": event.data.get("event_description", ""),
             "dm_request": "Tap to view and respond",
+            "dm_request_rejected": "Your DM request was declined",
+            "team_invite": f"Join the team #{event.data.get('team_name', 'team')}",
+            "workspace_invite": "You've been invited to join the workspace",
+            "attendance_approval": "Review and approve attendance record",
+            "role_changed": f"Your new role: {event.data.get('new_role', 'member')}",
+            "member_removed": f"Member was removed from {event.data.get('scope', 'workspace')}",
         }
         return descriptions.get(event.event_type, "")
 

@@ -9,6 +9,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from workspaces.services import WorkspaceService
 from workspaces.models import WorkspaceMembership
+from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from django.db.models.functions import TruncDate
+from datetime import timedelta
+
 
 
 @api_view(["POST"])
@@ -52,10 +56,15 @@ def register(request):
         last_name=last_name,
     )
 
-    # Use WorkspaceService to properly provision System Teams and Chats
-    workspace = WorkspaceService.create_workspace(
-        name=company_name or f"{username}'s Workspace", owner=user
-    )
+    # Determine onboarding mode. Backend is the source of truth.
+    onboarding_mode = data.get("onboarding_mode", "JOIN_COMPANY").upper()
+    ws_id = None
+    
+    if onboarding_mode == "START_COMPANY":
+        # Use WorkspaceService to properly provision System Teams and Chats
+        ws_name = company_name or data.get("workspace_name") or f"{username}'s Workspace"
+        workspace = WorkspaceService.create_workspace(name=ws_name, owner=user)
+        ws_id = workspace.id
 
     refresh = RefreshToken.for_user(user)
 
@@ -68,7 +77,7 @@ def register(request):
             "email": user.email,
             "full_name": f"{user.first_name} {user.last_name}".strip(),
             "user_id": user.id,
-            "workspace_id": workspace.id,  # CRITICAL: Provide workspace_id to frontend
+            "workspace_id": ws_id,  # Returns null for JOIN_COMPANY
         },
         status=status.HTTP_201_CREATED,
     )
@@ -196,3 +205,67 @@ def me_update(request):
             "email": user.email,
         }
     )
+
+from .models import ClockEntry
+from django.utils import timezone
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def clock_status(request):
+    today = timezone.now().date()
+    entries = ClockEntry.objects.filter(user=request.user, clock_in__date=today)
+    active_entry = entries.filter(clock_out__isnull=True).first()
+    
+    total_seconds = 0
+    for entry in entries:
+        end_time = entry.clock_out if entry.clock_out else timezone.now()
+        total_seconds += (end_time - entry.clock_in).total_seconds()
+
+    return Response({
+        "is_clocked_in": bool(active_entry),
+        "last_clock_in": entries.first().clock_in if entries.exists() else None,
+        "last_clock_out": entries.exclude(clock_out__isnull=True).first().clock_out if entries.exclude(clock_out__isnull=True).exists() else None,
+        "total_seconds_today": total_seconds
+    })
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def clock_in(request):
+    active = ClockEntry.objects.filter(user=request.user, clock_out__isnull=True).first()
+    if active:
+        return Response({"error": "Already clocked in"}, status=400)
+    entry = ClockEntry.objects.create(user=request.user)
+    return Response({"message": "Clocked in", "clock_in": entry.clock_in})
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def clock_out(request):
+    active = ClockEntry.objects.filter(user=request.user, clock_out__isnull=True).first()
+    if not active:
+        return Response({"error": "Not clocked in"}, status=400)
+    active.clock_out = timezone.now()
+    active.save()
+    return Response({"message": "Clocked out", "clock_out": active.clock_out})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def clock_history(request):
+    """Returns daily aggregated clock history for the personal dashboard."""
+    entries = ClockEntry.objects.filter(user=request.user).annotate(
+        date=TruncDate('clock_in')
+    ).values('date').annotate(
+        total_duration=Sum(
+            ExpressionWrapper(F('clock_out') - F('clock_in'), output_field=DurationField())
+        )
+    ).order_by('-date')
+    
+    data = []
+    for entry in entries:
+        total_seconds = entry['total_duration'].total_seconds() if entry['total_duration'] else 0
+        data.append({
+            "date": entry['date'].isoformat(),
+            "total_hours": round(total_seconds / 3600, 2),
+            "total_seconds": total_seconds
+        })
+    return Response(data)

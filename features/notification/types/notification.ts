@@ -8,10 +8,13 @@ export type NotificationType =
   | "task_assigned"
   | "announcement"
   | "workspace_event"
+  | "workspace_invite"
+  | "team_invite"
   | "dm_request"
   | "dm_request_accepted"
   | "dm_request_rejected"
   | "channel_invite"
+  | "rate_limit"
   | "system"
   | "error"
   | "connection_established";
@@ -67,6 +70,9 @@ export const notificationConfig: Record<
   dm_request_accepted: { accent: "oklch(0.7 0.15 160)", icon: "✅" },
   dm_request_rejected: { accent: "oklch(0.6 0.15 25)", icon: "✕" },
   channel_invite: { accent: "oklch(0.7 0.15 250)", icon: "#️⃣" },
+  workspace_invite: { accent: "oklch(0.7 0.15 250)", icon: "🏢" },
+  team_invite: { accent: "oklch(0.7 0.15 250)", icon: "👥" },
+  rate_limit: { accent: "oklch(0.7 0.15 80)", icon: "⏳" },
   system: { accent: "var(--muted-foreground)", icon: "⚙️" },
   error: { accent: "var(--destructive)", icon: "❌" },
   connection_established: { accent: "oklch(0.7 0.15 160)", icon: "🔌" },

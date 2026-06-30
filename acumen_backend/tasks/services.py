@@ -146,8 +146,14 @@ class TaskService:
         if is_assignee and not is_creator:
             if new_status and new_status in ["todo", "in_progress", "completed"]:
                 if new_status == "completed" and task.status != "completed":
-                    task.mark_completed(user)
-                    TaskService._log_activity(task, "completed", user, "Task completed")
+                    # ENFORCE APPROVAL: If approval is required, assignee can only submit for approval.
+                    if task.requires_approval and not task.is_approved:
+                        task.status = "pending_approval"
+                        task.save(update_fields=["status", "updated_at"])
+                        TaskService._log_activity(task, "status_changed", user, "Submitted for approval")
+                    else:
+                        task.mark_completed(user)
+                        TaskService._log_activity(task, "completed", user, "Task completed")
                 elif new_status != "completed" and task.status == "completed":
                     task.reopen()
                     TaskService._log_activity(task, "reopened", user, "Task reopened")
@@ -169,16 +175,10 @@ class TaskService:
                 "completed",
                 "pending_approval",
             ]:
-                if (
-                    new_status == "completed"
-                    and task.requires_approval
-                    and not task.is_approved
-                ):
-                    task.status = "pending_approval"
-                    task.save(update_fields=["status", "updated_at"])
-                    TaskService._log_activity(
-                        task, "status_changed", user, "Task submitted for approval"
-                    )
+                # Creators cannot manually mark as completed if approval is required.
+                # They must use the approval flow or it must be approved first.
+                if new_status == "completed" and task.requires_approval and not task.is_approved:
+                    raise ValidationError({"error": "Task requires approval before completion"})
                 elif new_status == "completed" and task.status != "completed":
                     task.mark_completed(user)
                     TaskService._log_activity(task, "completed", user, "Task completed")

@@ -7,8 +7,12 @@ import {
   useNotificationStore,
 } from "../store/notificationStore";
 import { notificationConfig } from "../types/notification";
-import { respondDMRequest, undoDMRequestRejection, isWithinUndoWindow } from "../../chat/services/dmRequestService";
-
+import {
+  respondDMRequest,
+  undoDMRequestRejection,
+  isWithinUndoWindow,
+} from "../../chat/services/dmRequestService";
+import { tk } from "@/lib/tokens";
 interface Props {
   notification: ActiveNotification;
 }
@@ -96,10 +100,20 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
     setTimeout(() => removeNotification(notification.notification_id), 200);
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     // DM request notifications should not redirect on click —
     // they have explicit action buttons instead
     if (isDMRequest) return;
+
+    // Auto-mark as read when user clicks notification
+    try {
+      await useNotificationStore
+        .getState()
+        .markAsRead(parseInt(notification.notification_id));
+    } catch (error) {
+      console.error("Failed to auto-mark notification as read:", error);
+    }
+
     if (notification.data.redirect_url) {
       window.location.href = notification.data.redirect_url;
     }
@@ -117,7 +131,6 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
       }
       exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      style={{ x, opacity, scale }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.1}
@@ -125,62 +138,152 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
       onMouseEnter={() => pauseNotification(notification.notification_id)}
       onMouseLeave={() => resumeNotification(notification.notification_id)}
       onClick={handleClick}
-      className="relative w-[380px] overflow-hidden rounded-xl shadow-2xl cursor-pointer border border-[var(--border)]"
       role="alert"
       aria-live="assertive"
+      className="relative w-[360px] overflow-hidden cursor-pointer"
+      style={{
+        x,
+        opacity,
+        scale,
+        borderRadius: "12px",
+        border: `1px solid ${tk.border}`,
+        background: tk.surface,
+        boxShadow:
+          "0 12px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1)",
+      }}
     >
-      {/* Background & Glassmorphism */}
-      <div className="backdrop-blur-xl bg-[var(--card)]/90 p-4 flex gap-3 items-start">
-        {/* Accent Left Border */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-1"
-          style={{ backgroundColor: config?.accent || "#6366f1" }}
-        />
+      {/* Accent Left Border */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: "4px",
+          backgroundColor: config?.accent || tk.brand,
+        }}
+      />
 
+      {/* Main Content */}
+      <div
+        style={{
+          padding: "16px",
+          paddingLeft: "16px",
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-start",
+        }}
+      >
         {/* Icon / Avatar */}
-        <div className="flex-shrink-0 relative">
+        <div style={{ position: "relative", flexShrink: 0 }}>
           {notification.data.avatar_url ? (
             <img
               src={notification.data.avatar_url}
-              className="w-10 h-10 rounded-full object-cover"
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "8px",
+                objectFit: "cover",
+                border: `1px solid ${tk.border}`,
+              }}
               alt=""
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-[var(--muted)] flex items-center justify-center text-lg">
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "8px",
+                background: tk.surfaceHover,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                border: `1px solid ${tk.border}`,
+              }}
+            >
               {config?.icon || "💬"}
             </div>
           )}
-          {/* Unread dot */}
-          <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[var(--destructive)] border-2 border-[var(--card)]" />
+          {/* Unread Indicator */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: "-2px",
+              right: "-2px",
+              width: "12px",
+              height: "12px",
+              borderRadius: "50%",
+              background: tk.primary,
+              border: `2px solid ${tk.surface}`,
+              boxShadow: `0 0 6px ${tk.primary}60`,
+            }}
+          />
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 pl-2">
-          <p
-            className="font-bold text-sm text-[var(--card-foreground)]"
-            style={{ color: config?.accent || "#6366f1" }}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: "14px",
+              marginBottom: "4px",
+              color: config?.accent || tk.brand,
+            }}
           >
             {notification.data.title ||
               notification.notification_type.replace("_", " ").toUpperCase()}
-          </p>
-          <p className="text-sm text-[var(--muted-foreground)] mt-0.5 truncate">
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              color: tk.textSecondary,
+              marginBottom: "8px",
+              lineHeight: 1.4,
+            }}
+          >
             {notification.data.message}
-          </p>
+          </div>
 
           {/* ── DM Request: Accept / Reject Buttons ──────────────── */}
           {isDMRequest && dmRequestId && (
-            <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{ display: "flex", gap: "8px", marginTop: "10px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 onClick={handleAcceptDM}
                 disabled={actionLoading !== null}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors disabled:opacity-50"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: "none",
+                  background: tk.success,
+                  color: "#fff",
+                  cursor: actionLoading ? "not-allowed" : "pointer",
+                  opacity: actionLoading ? 0.6 : 1,
+                  transition: "all 0.2s",
+                }}
               >
                 {actionLoading === "accept" ? "..." : "Accept"}
               </button>
               <button
                 onClick={handleRejectDM}
                 disabled={actionLoading !== null}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 transition-colors disabled:opacity-50"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: `1px solid ${tk.primary}40`,
+                  background: tk.primary + "15",
+                  color: tk.primary,
+                  cursor: actionLoading ? "not-allowed" : "pointer",
+                  opacity: actionLoading ? 0.6 : 1,
+                  transition: "all 0.2s",
+                }}
               >
                 {actionLoading === "reject" ? "..." : "Decline"}
               </button>
@@ -189,13 +292,27 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
 
           {/* ── DM Rejected: Undo Button (24h window) ────────────── */}
           {isDMRejected && dmRequestId && (
-            <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{ display: "flex", gap: "8px", marginTop: "10px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 onClick={handleUndoReject}
                 disabled={actionLoading !== null}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--muted)] hover:bg-[var(--accent)] text-[var(--card-foreground)] transition-colors disabled:opacity-50"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  border: `1px solid ${tk.border}`,
+                  background: tk.surfaceHover,
+                  color: tk.textSecondary,
+                  cursor: actionLoading ? "not-allowed" : "pointer",
+                  opacity: actionLoading ? 0.6 : 1,
+                  transition: "all 0.2s",
+                }}
               >
-                {actionLoading === "undo" ? "..." : "Undo Rejection"}
+                {actionLoading === "undo" ? "..." : "Undo"}
               </button>
             </div>
           )}
@@ -207,7 +324,20 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
             e.stopPropagation();
             handleClose();
           }}
-          className="text-[var(--muted-foreground)] hover:text-[var(--card-foreground)] transition-colors mt-0.5"
+          style={{
+            background: "none",
+            border: "none",
+            color: tk.textMuted,
+            cursor: "pointer",
+            padding: "4px",
+            display: "flex",
+            alignItems: "center",
+            fontSize: "16px",
+            transition: "color 0.2s",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = tk.textPrimary)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = tk.textMuted)}
           aria-label="Dismiss notification"
         >
           ✕
@@ -216,12 +346,21 @@ export const NotificationPopup = React.memo(({ notification }: Props) => {
 
       {/* Progress Timer Bar */}
       {!notification._isPaused && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-[var(--muted)]/30">
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "2px",
+            background: tk.border,
+          }}
+        >
           <motion.div
-            className="h-full"
             style={{
+              height: "100%",
+              backgroundColor: config?.accent || tk.brand,
               width: `${notification._progress}%`,
-              backgroundColor: config?.accent || "#6366f1",
             }}
             transition={{ duration: 0.05, ease: "linear" }}
           />

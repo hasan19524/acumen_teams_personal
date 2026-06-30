@@ -40,6 +40,9 @@ class Team(models.Model):
     )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, default="", help_text="Description of the team's purpose.")
+    is_private = models.BooleanField(default=False, help_text="If true, team is hidden from non-members.")
+    color = models.CharField(max_length=7, default="#4B1587", help_text="Hex color code for the team avatar/badge.")
+    icon = models.CharField(max_length=50, blank=True, default="", help_text="Lucide icon name, e.g., 'Users'.")
     created_at = models.DateTimeField(auto_now_add=True)
     team_type = models.CharField(
         max_length=20, choices=TeamType.choices, default=TeamType.STANDARD
@@ -51,9 +54,12 @@ class Team(models.Model):
 
 class WorkspaceInvite(models.Model):
     STATUS_CHOICES = [
-        ("active", "Active"),
+        ("active", "Active"),  # For token-based links
         ("expired", "Expired"),
         ("disabled", "Disabled"),
+        ("pending", "Pending"),  # For direct user invitations
+        ("accepted", "Accepted"),
+        ("rejected", "Rejected"),
     ]
     ROLE_CHOICES = [
         ("owner", "Owner"),
@@ -68,6 +74,10 @@ class WorkspaceInvite(models.Model):
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="created_invites"
+    )
+    invitee = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="received_workspace_invites",
+        null=True, blank=True, help_text="Specific user invited. Null for generic link invites."
     )
     role_to_assign = models.CharField(
         max_length=20, choices=ROLE_CHOICES, default="member"
@@ -264,6 +274,14 @@ ROLE_PERMISSIONS = {
         "view_analytics",
         "upload_files",
     },
-    "member": {"send_messages", "create_tasks", "mark_attendance", "upload_files"},
-    "guest": set(),
+    "member": {
+        "send_messages", 
+        "create_personal_tasks",
+        "mark_attendance", 
+        "upload_files",
+        "create_private_groups"
+    },
+    "guest": {
+        "send_messages"
+    },
 }

@@ -49,6 +49,7 @@ interface ChatStore {
   getDMs: () => Channel[];
 
   setMyUserId: (id: number | null) => void;
+  resetWorkspaceState: () => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -328,5 +329,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setMyUserId: (id) => {
     set({ myUserId: id });
+  },
+
+  resetWorkspaceState: () => {
+    set({
+      messages: {},
+      pagination: {},
+      selectedChannelId: null,
+      channels: [],
+      typingUsers: {},
+    });
   },
 }));

@@ -12,25 +12,43 @@ import {
   Users,
   Mail,
   Settings,
+  Home,
+  Clock,
+  Bell,
 } from "lucide-react";
 import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
 
-const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
-  { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
-  { name: "Attendance", href: "/dashboard/attendance", icon: Calendar },
-  { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
-  { name: "Team", href: "/dashboard/team", icon: Users },
-  { name: "Invites", href: "/dashboard/invites", icon: Mail },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+export const navItems = [
+  // Workspace
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, requiresWorkspace: true },
+  { name: "Chat", href: "/dashboard/chat", icon: MessageSquare, requiresWorkspace: true },
+  { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare, requiresWorkspace: true },
+  { name: "Attendance", href: "/dashboard/attendance", icon: Calendar, requiresWorkspace: true },
+  { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone, requiresWorkspace: true },
+  { name: "Team", href: "/dashboard/team", icon: Users, requiresWorkspace: true },
+  { name: "Invites", href: "/dashboard/invites", icon: Mail, requiresWorkspace: true },
+  // Independent
+  { name: "Home", href: "/dashboard", icon: Home, requiresWorkspace: false },
+  { name: "Invitations", href: "/dashboard/invites", icon: Mail, requiresWorkspace: false },
+  { name: "Clock", href: "/dashboard/clock", icon: Clock, requiresWorkspace: false },
+  // Shared (Accessible to everyone)
+  { name: "Settings", href: "/dashboard/settings", icon: Settings, requiresWorkspace: "both" as any },
 ];
 
-export default function DashboardSidebar() {
+export const ALLOWED_INDEPENDENT_ROUTES = navItems
+  .filter((item) => item.requiresWorkspace === false || item.requiresWorkspace === "both")
+  .map((item) => item.href);
+
+export default function DashboardSidebar({ hasWorkspace }: { hasWorkspace: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const markAllAsRead = useNotificationStore((s) => s.markAllAsRead);
+
+  const visibleItems = navItems.filter((item) => {
+    if (item.requiresWorkspace === "both") return true;
+    return hasWorkspace ? item.requiresWorkspace === true : item.requiresWorkspace === false;
+  });
 
   return (
     <aside
@@ -89,14 +107,15 @@ export default function DashboardSidebar() {
       </div>
 
       {/* Nav Items */}
-      <div style={{ marginTop: 28, display: "grid", gap: 6 }}>
-        {navItems.map((item) => {
+            <div style={{ marginTop: 28, display: "grid", gap: 6, flex: 1 }}>
+        {visibleItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
-          const showBadge = item.name === "Chat";
+          // Prevent 'Home' and 'Dashboard' from both being active on /dashboard
+          const active = pathname === item.href && (hasWorkspace ? item.requiresWorkspace : !item.requiresWorkspace);
+          const showBadge = item.name === "Chat" || item.name === "Notifications";
           return (
             <Link
-              key={item.name}
+              key={item.name + item.href}
               href={item.href}
               onClick={() => {
                 if (item.name === "Chat") markAllAsRead();
@@ -125,6 +144,8 @@ export default function DashboardSidebar() {
           );
         })}
       </div>
+
+      {/* Logout removed - exists in Settings */}
     </aside>
   );
 }

@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { getWorkspaceId, getCurrentUserId } from "@/lib/auth";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import { TaskUI } from "@/features/tasks/components/TaskUI";
+import ArchiveView from "@/components/tasks/ArchiveView";
 
 export default function TasksPage() {
   const [userId, setUserId] = useState(0);
@@ -60,7 +61,7 @@ export default function TasksPage() {
 
   // UI State
   const [viewMode, setViewMode] = useState<
-    "hub" | "personal" | "received" | "sent" | "team"
+    "hub" | "personal" | "received" | "sent" | "team" | "archive"
   >("hub");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -216,6 +217,10 @@ export default function TasksPage() {
   const deleteAttachment = (id: number) => {
     useTaskStore.getState().deleteAttachment(id);
   };
+
+    if (viewMode === "archive") {
+    return <ArchiveView onBack={() => setViewMode("hub")} />;
+  }
 
   return (
     <TaskUI

@@ -33,6 +33,8 @@ interface NotificationStore {
   fetchUnreadCount: () => Promise<void>;
   addPersistedFromWS: (payload: NotificationPayload) => void;
   setUnreadCount: (count: number) => void;
+  deleteNotification: (notificationId: number) => Promise<void>;
+  resetWorkspaceState: () => void;
 }
 
 function wsToPersisted(payload: NotificationPayload): PersistedNotification {
@@ -251,5 +253,28 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
   setUnreadCount: (count: number) => {
     set({ unreadCount: count });
+  },
+
+  deleteNotification: async (notificationId: number) => {
+    set((state) => ({
+      persistentNotifications: state.persistentNotifications.filter(
+        (n) => n.id !== notificationId,
+      ),
+    }));
+    try {
+      await notificationApi.deleteNotification(notificationId);
+    } catch (error) {
+      console.error("Failed to delete notification:", error);
+      get().fetchNotifications();
+    }
+  },
+
+  resetWorkspaceState: () => {
+    set({
+      notifications: [],
+      persistentNotifications: [],
+      unreadCount: 0,
+      isLoading: false,
+    });
   },
 }));

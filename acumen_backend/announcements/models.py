@@ -1,37 +1,35 @@
 # acumen_backend/announcements/models.py
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import timedelta
 
 
 class Announcement(models.Model):
     PRIORITY_CHOICES = [
-        ("Normal", "Normal"),
-        ("High", "High"),
-        ("Critical", "Critical"),
+        ("normal", "Normal"),
+        ("important", "Important"),
+        ("urgent", "Urgent"),
     ]
 
     workspace = models.ForeignKey(
-        "workspaces.Workspace",
-        on_delete=models.CASCADE,
-        related_name="announcements",
-        null=True,
-        blank=True,
+        "workspaces.Workspace", on_delete=models.CASCADE, related_name="announcements"
     )
-    team = models.ForeignKey(
-        "workspaces.Team",
-        on_delete=models.CASCADE,
-        related_name="announcements",
-        null=True,
-        blank=True,
-        help_text="Team this announcement targets. Null = workspace-wide announcement.",
+    teams = models.ManyToManyField(
+        "workspaces.Team", blank=True, related_name="announcements"
     )
+
     title = models.CharField(max_length=300)
     content = models.TextField()
-    tag = models.CharField(max_length=100, blank=True, default="General")
     priority = models.CharField(
-        max_length=20, choices=PRIORITY_CHOICES, default="Normal"
+        max_length=20, choices=PRIORITY_CHOICES, default="normal"
     )
     pinned = models.BooleanField(default=False)
+
+    is_archived = models.BooleanField(default=False)
+    expiry_date = models.DateTimeField(null=True, blank=True)
+    is_edited = models.BooleanField(default=False)
+
     created_by = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="announcements"
     )
@@ -48,8 +46,6 @@ class Announcement(models.Model):
 
 
 class AnnouncementRead(models.Model):
-    """Tracks which users have read/dismissed an announcement."""
-
     announcement = models.ForeignKey(
         Announcement, on_delete=models.CASCADE, related_name="reads"
     )
@@ -60,6 +56,13 @@ class AnnouncementRead(models.Model):
 
     class Meta:
         unique_together = ("announcement", "user")
-        indexes = [
-            models.Index(fields=["user"]),
-        ]
+
+
+class AnnouncementAttachment(models.Model):
+    announcement = models.ForeignKey(
+        Announcement, on_delete=models.CASCADE, related_name="attachments"
+    )
+    file = models.FileField(upload_to="announcements/")
+    file_name = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)

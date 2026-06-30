@@ -114,12 +114,12 @@ class Task(models.Model):
         return False
 
     def mark_completed(self, completed_by_user):
-        """Mark task as completed. Set archive_after to 7 days."""
+        """Mark task as completed. Set archive_after to 7 weeks."""
         from datetime import timedelta
         self.status = "completed"
         self.completed_at = timezone.now()
         self.completed_by = completed_by_user
-        self.archive_after = timezone.now() + timedelta(days=7)
+        self.archive_after = timezone.now() + timedelta(weeks=7)
         self.save(
             update_fields=[
                 "status",

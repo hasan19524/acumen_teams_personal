@@ -2,52 +2,49 @@
 import logging
 from django.db import transaction
 from django.utils import timezone
+from datetime import timedelta
 
-from announcements.models import Announcement
-from workspaces.models import TeamMembership, WorkspaceMembership
+from announcements.models import Announcement, AnnouncementRead
+from workspaces.models import TeamMembership, WorkspaceMembership, Team
 from notifications.services import NotificationService, AnnouncementEvent
 
 logger = logging.getLogger(__name__)
 
 
 class AnnouncementService:
-    """
-    Centralized service for all announcement state mutations.
-    """
-
     @staticmethod
     @transaction.atomic
     def create_announcement(workspace, creator, data):
         title = (data.get("title") or "").strip()
         content = (data.get("content") or "").strip()
-
         if not title or not content:
             raise ValueError("Title and content required")
 
-        team_id = data.get("team_id")
-        team = None
-        if team_id:
-            from workspaces.models import Team
+        team_ids = data.get("team_ids", [])
+        teams = Team.objects.filter(id__in=team_ids, workspace=workspace)
 
-            team = Team.objects.get(id=team_id, workspace=workspace)
+        expiry_days = data.get("expiry_days", 60)
+        expiry_date = None
+        if expiry_days and int(expiry_days) > 0:
+            expiry_date = timezone.now() + timedelta(days=int(expiry_days))
 
         ann = Announcement.objects.create(
             title=title,
             content=content,
-            tag=data.get("tag", "General"),
-            priority=data.get("priority", "Normal"),
+            priority=data.get("priority", "normal"),
             pinned=data.get("pinned", False),
             created_by=creator,
             workspace=workspace,
-            team=team,
+            expiry_date=expiry_date,
         )
+        if teams.exists():
+            ann.teams.add(*teams)
 
-        # Route notifications to correct recipients
         try:
-            if team:
+            if teams.exists():
                 member_ids = list(
                     TeamMembership.objects.filter(
-                        team=team, is_active=True
+                        team__in=teams, is_active=True
                     ).values_list("user_id", flat=True)
                 )
             else:
@@ -63,7 +60,7 @@ class AnnouncementService:
                     workspace_id=workspace.id,
                     announcement_id=ann.id,
                     announcement_title=title,
-                    recipient_ids=member_ids,
+                    recipient_ids=list(set(member_ids)),
                 )
             )
         except Exception as e:
@@ -81,9 +78,7 @@ class AnnouncementService:
 
     @staticmethod
     @transaction.atomic
-    def mark_as_read(announcement, user):
-        from announcements.models import AnnouncementRead
-
+    def mark_as_read(announcement: Announcement, user) -> AnnouncementRead:
         read, created = AnnouncementRead.objects.get_or_create(
             announcement=announcement, user=user
         )

@@ -1,3 +1,4 @@
+# acumen_backend/tasks/views.py
 from typing import Any, Dict
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -27,7 +28,6 @@ from .permissions import (
     can_assign_to_user,
     can_assign_to_team,
     can_view_task,
-    can_edit_task,
     can_archive_task,
     can_approve_task,
     get_workspace_role,
@@ -62,8 +62,11 @@ def task_list(request: Request, workspace_id: int) -> Response:
     if user_role in ("owner", "admin"):
         visibility_q |= Q(task_type__in=["assigned", "team"])
 
+    # Check if we are fetching archived tasks
+    is_archived_request = request.query_params.get("archived", "false").lower() == "true"
+
     tasks = (
-        Task.objects.filter(is_archived=False, is_deleted=False, workspace=workspace)
+        Task.objects.filter(is_archived=is_archived_request, is_deleted=False, workspace=workspace)
         .filter(visibility_q)
         .distinct()
     )
@@ -235,9 +238,10 @@ def task_update(request: Request, workspace_id: int, pk: int) -> Response:
     try:
         task = TaskService.update_task(task, request.user, request.data)
     except ValidationError as e:
+        # FIX: Use 400 Bad Request for validation errors, not 403 Forbidden
         return Response(
             e.message_dict if hasattr(e, "message_dict") else {"error": str(e)},
-            status=status.HTTP_403_FORBIDDEN,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     return Response(TaskSerializer(task).data)
@@ -338,13 +342,16 @@ def task_comments_list_create(
 def task_comment_update_delete(
     request: Request, workspace_id: int, pk: int
 ) -> Response:
+    workspace = get_workspace(request, workspace_id)
     comment = get_object_or_404(
         TaskComment, pk=pk, task__workspace_id=workspace_id, is_deleted=False
     )
 
-    if comment.author != request.user:
+    # FIX: Allow Admins/Owners to modify any comment
+    is_admin = get_workspace_role(request.user, workspace) in ("owner", "admin")
+    if comment.author != request.user and not is_admin:
         return Response(
-            {"error": "Only author can modify comment"},
+            {"error": "Only author or admin can modify comment"},
             status=status.HTTP_403_FORBIDDEN,
         )
 
@@ -397,13 +404,17 @@ def task_attachments_list_create(
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def task_attachment_delete(request: Request, workspace_id: int, pk: int) -> Response:
+    workspace = get_workspace(request, workspace_id)
     attachment = get_object_or_404(
         TaskAttachment, pk=pk, task__workspace_id=workspace_id, is_deleted=False
     )
 
+    # FIX: Allow Admins/Owners to delete any attachment
+    is_admin = get_workspace_role(request.user, workspace) in ("owner", "admin")
     if (
         attachment.uploaded_by != request.user
         and attachment.task.created_by != request.user
+        and not is_admin
     ):
         return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
 

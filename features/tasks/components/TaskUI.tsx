@@ -4,12 +4,27 @@
 import { useRef } from "react";
 import { Task, TaskPriority, TaskStatus, TaskAnalytics, WorkspaceMember } from "@/features/tasks/types/task";
 import { useTaskStore } from "@/features/tasks/store/taskStore";
+import { X, Archive } from "lucide-react";
 
-// ── Design Tokens ─────────────────────────────────────────────────────
+// ── Acumen Design System Tokens ───────────────────────────────────────
 const tk = {
-  bg: "#020617", surface: "rgba(15,23,42,0.85)", surfaceAlt: "rgba(15,23,42,0.5)", surfaceHover: "rgba(30,41,59,0.9)",
-  glass: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.07)", borderHover: "rgba(255,255,255,0.14)", borderFocus: "rgba(168,85,247,0.5)",
-  text: "#f1f5f9", textSec: "#94a3b8", textTer: "#475569", purple: "#a855f7", blue: "#3b82f6", amber: "#f59e0b", green: "#10b981", red: "#ef4444", pink: "#ec4899",
+  bg: "#081325", 
+  surface: "#172440", 
+  surfaceAlt: "#101D35", 
+  surfaceHover: "#20304E",
+  glass: "rgba(255,255,255,0.03)", 
+  border: "#2A3A5C", 
+  borderHover: "#3A4D72", 
+  borderFocus: "#5DADE2",
+  text: "#FFFFFF", 
+  textSec: "#B7C0D8", 
+  textTer: "#7A86A7", 
+  purple: "#4B1587", // Acumen Brand
+  blue: "#5DADE2",   // Acumen Info
+  amber: "#F5B041",  // Acumen Warning
+  green: "#1FA463",  // Acumen Success
+  red: "#E31E24",    // Acumen Primary/Danger
+  pink: "#E31E24",   // Mapped to Primary for consistency
 };
 
 const priorityConfig: Record<string, { color: string; bg: string; dot: string }> = {
@@ -47,7 +62,7 @@ interface TaskUIProps {
   tasks: Task[]; personal: Task[]; received: Task[]; sent: Task[]; teamTasks: Task[];
   analytics: TaskAnalytics | null; workspaceMembers: WorkspaceMember[]; filteredMembers: WorkspaceMember[];
   availableTeams: { id: number; name: string }[]; userId: number; isAdmin: boolean;
-  viewMode: "hub" | "personal" | "received" | "sent" | "team"; setViewMode: (v: any) => void;
+  viewMode: "hub" | "personal" | "received" | "sent" | "team" | "archive"; setViewMode: (v: any) => void;
   selectedTask: Task | null; setSelectedTask: (t: Task | null) => void;
   showCreate: boolean; setShowCreate: (v: boolean) => void;
   detailTab: "overview" | "activity" | "comments" | "attachments" | "approval"; setDetailTab: (v: any) => void;
@@ -127,7 +142,8 @@ export function TaskUI(props: TaskUIProps) {
     received: { title: "Assigned To Me", desc: "Tasks assigned to you by others." },
     sent: { title: "Sent Tasks", desc: "Tasks you have assigned to others.", cta: "+ Assign Work", ctaType: "assigned" },
     team: { title: "Team Tasks", desc: "Tasks assigned to teams and in progress.", cta: "+ Create Team Task", ctaType: "team" },
-  }[viewMode];
+    archive: { title: "Task Archive", desc: "View tasks completed more than 7 weeks ago." },
+  }[viewMode] || { title: "Tasks", desc: "" }; // Fallback safety
 
   return (
     <>
@@ -157,14 +173,21 @@ export function TaskUI(props: TaskUIProps) {
           {/* HEADER */}
           <header style={{ padding: "16px 28px", borderBottom: `1px solid ${tk.border}`, background: tk.surface, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {viewMode !== "hub" && <button className="ac-btn" onClick={() => setViewMode("hub")} style={{ background: tk.glass, border: `1px solid ${tk.border}`, color: tk.textSec, padding: "6px 12px", borderRadius: 7, fontSize: 12 }}>← Back</button>}
+              {viewMode !== "hub" && <button className="ac-btn" onClick={() => { setViewMode("hub"); setSelectedTask(null); }} style={{ background: tk.glass, border: `1px solid ${tk.border}`, color: tk.textSec, padding: "6px 12px", borderRadius: 7, fontSize: 12 }}>← Back</button>}
               <div>
                 <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{vc.title}</h1>
                 <p style={{ margin: "1px 0 0", color: tk.textTer, fontSize: 12 }}>{vc.desc}</p>
               </div>
             </div>
-            {props.isAdmin && viewMode !== "hub" && vc.cta && <button className="ac-btn" onClick={() => openCreate((vc as any).ctaType)} style={{ background: tk.purple, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 8, fontWeight: 600, fontSize: 13 }}>{vc.cta}</button>}
-            {props.isAdmin && viewMode === "hub" && <button className="ac-btn" onClick={() => openCreate()} style={{ background: tk.purple, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 8, fontWeight: 600, fontSize: 13 }}>+ Create Task</button>}
+            {viewMode !== "hub" && vc.cta && <button className="ac-btn" onClick={() => openCreate((vc as any).ctaType)} style={{ background: tk.purple, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 8, fontWeight: 600, fontSize: 13 }}>{vc.cta}</button>}
+            {viewMode === "hub" && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setViewMode("archive")} style={{ background: "transparent", color: tk.textSec, border: `1px solid ${tk.border}`, padding: "8px 16px", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Archive size={14} /> View Archive
+                </button>
+                <button className="ac-btn" onClick={() => openCreate()} style={{ background: tk.purple, color: "#fff", border: "none", padding: "8px 18px", borderRadius: 8, fontWeight: 600, fontSize: 13 }}>+ Create Task</button>
+              </div>
+            )}
           </header>
 
           {/* CONTENT */}
@@ -190,19 +213,31 @@ export function TaskUI(props: TaskUIProps) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 28 }}>
                   <div className="ac-card" onClick={() => setViewMode("personal")} style={{ background: tk.surface, border: `1px solid ${tk.border}`, borderLeft: `3px solid ${tk.purple}`, borderRadius: 14, padding: 20 }}>
                     <div style={{ fontSize: 26, marginBottom: 10 }}>📝</div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Personal Tasks</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: tk.purple }}>{props.personal.length}</div><div style={{ fontSize: 11, color: tk.textTer }}>Total Tasks</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: tk.purple }}>{props.personal.length}</div>
+                      <div style={{ fontSize: 11, color: tk.textTer }}>{props.personal.filter(t => t.is_overdue).length} Overdue</div>
+                    </div>
                   </div>
                   <div className="ac-card" onClick={() => setViewMode("received")} style={{ background: tk.surface, border: `1px solid ${tk.border}`, borderLeft: `3px solid ${tk.blue}`, borderRadius: 14, padding: 20 }}>
                     <div style={{ fontSize: 26, marginBottom: 10 }}>📥</div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Assigned To Me</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: tk.blue }}>{props.received.length}</div><div style={{ fontSize: 11, color: tk.textTer }}>Total Tasks</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: tk.blue }}>{props.received.length}</div>
+                      <div style={{ fontSize: 11, color: tk.textTer }}>{props.received.filter(t => t.status === "in_progress").length} In Progress</div>
+                    </div>
                   </div>
                   <div className="ac-card" onClick={() => setViewMode("sent")} style={{ background: tk.surface, border: `1px solid ${tk.border}`, borderLeft: `3px solid ${tk.green}`, borderRadius: 14, padding: 20 }}>
                     <div style={{ fontSize: 26, marginBottom: 10 }}>🚀</div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Assigned By Me</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: tk.green }}>{props.sent.length}</div><div style={{ fontSize: 11, color: tk.textTer }}>Total Tasks</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: tk.green }}>{props.sent.length}</div>
+                      <div style={{ fontSize: 11, color: tk.textTer }}>{props.sent.filter(t => t.status === "pending_approval").length} Pending</div>
+                    </div>
                   </div>
                   <div className="ac-card" onClick={() => setViewMode("team")} style={{ background: tk.surface, border: `1px solid ${tk.border}`, borderLeft: `3px solid ${tk.pink}`, borderRadius: 14, padding: 20 }}>
                     <div style={{ fontSize: 26, marginBottom: 10 }}>👥</div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Team Tasks</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: tk.pink }}>{props.teamTasks.length}</div><div style={{ fontSize: 11, color: tk.textTer }}>Total Tasks</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: tk.pink }}>{props.teamTasks.length}</div>
+                      <div style={{ fontSize: 11, color: tk.textTer }}>{props.teamTasks.filter(t => t.is_overdue).length} Overdue</div>
+                    </div>
                   </div>
                 </div>
 
@@ -219,14 +254,43 @@ export function TaskUI(props: TaskUIProps) {
                   <div style={{ background: tk.surface, border: `1px solid ${tk.border}`, borderRadius: 14, padding: 22 }}>
                     <h3 style={{ margin: "0 0 18px", fontSize: 14 }}>Task Overview</h3>
                     <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                      <svg width={120} height={120} viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
-                        <circle cx="60" cy="60" r="45" fill="none" stroke={tk.border} strokeWidth="12" />
-                        {tasks.map((t, i) => {
-                          // Simplified donut rendering for brevity
-                          return null; 
-                        })}
-                        <text x="60" y="60" textAnchor="middle" dominantBaseline="middle" style={{ fill: tk.text, fontSize: 20, fontWeight: 800, transform: "rotate(90deg)", transformOrigin: "60px 60px" }}>{tasks.length}</text>
-                      </svg>
+                      {(() => {
+                        const counts = {
+                          todo: tasks.filter(t => t.status === "todo").length,
+                          in_progress: tasks.filter(t => t.status === "in_progress").length,
+                          completed: tasks.filter(t => t.status === "completed").length,
+                          pending_approval: tasks.filter(t => t.status === "pending_approval").length,
+                        };
+                        const total = tasks.length || 1;
+                        const radius = 45;
+                        const circumference = 2 * Math.PI * radius;
+                        
+                        let offset = 0;
+                        const segments = Object.entries(counts).map(([status, count]) => {
+                          const percentage = count / total;
+                          const length = percentage * circumference;
+                          const seg = (
+                            <circle 
+                              key={status}
+                              cx="60" cy="60" r={radius} fill="none" 
+                              stroke={statusConfig[status]?.color || tk.textTer} 
+                              strokeWidth="12"
+                              strokeDasharray={`${length} ${circumference - length}`}
+                              strokeDashoffset={-offset}
+                            />
+                          );
+                          offset += length;
+                          return seg;
+                        });
+
+                        return (
+                          <svg width={120} height={120} viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
+                            <circle cx="60" cy="60" r={radius} fill="none" stroke={tk.border} strokeWidth="12" />
+                            {segments}
+                            <text x="60" y="60" textAnchor="middle" dominantBaseline="middle" style={{ fill: tk.text, fontSize: 20, fontWeight: 800, transform: "rotate(90deg)", transformOrigin: "60px 60px" }}>{tasks.length}</text>
+                          </svg>
+                        );
+                      })()}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {Object.values(statusConfig).map(s => (
                           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -308,13 +372,25 @@ export function TaskUI(props: TaskUIProps) {
 
           {/* DETAIL DRAWER */}
           {selectedTask && (
-            <div className="slide-right" style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 478, background: "#0b1628", borderLeft: `1px solid ${tk.border}`, display: "flex", flexDirection: "column", zIndex: 30, boxShadow: "-12px 0 48px rgba(0,0,0,0.45)" }}>
+            <>
+            <div onClick={() => setSelectedTask(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 20 }} />
+            <div className="slide-right" style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 478, background: tk.surface, borderLeft: `1px solid ${tk.border}`, display: "flex", flexDirection: "column", zIndex: 30, boxShadow: "-12px 0 48px rgba(0,0,0,0.45)" }}>
               <div style={{ padding: "14px 20px", borderBottom: `1px solid ${tk.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 5, background: (priorityConfig[selectedTask.priority] || priorityConfig.medium).bg, color: (priorityConfig[selectedTask.priority] || priorityConfig.medium).color, fontWeight: 700 }}>{selectedTask.priority}</span>
-                <select value={selectedTask.status} onChange={(e) => props.handleStatusChange(selectedTask, e.target.value as TaskStatus)} className="ac-input" style={{ width: "auto", fontSize: 12, padding: "4px 10px" }}>
-                  <option value="todo">To Do</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="pending_approval">Pending Approval</option>
-                </select>
-                <button onClick={() => setSelectedTask(null)} style={{ background: tk.glass, border: `1px solid ${tk.border}`, color: tk.textSec, width: 28, height: 28, borderRadius: 6, cursor: "pointer" }}>✕</button>
+                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 5, background: (priorityConfig[selectedTask.priority] || priorityConfig.medium).bg, color: (priorityConfig[selectedTask.priority] || priorityConfig.medium).color, fontWeight: 700, textTransform: "capitalize" }}>{selectedTask.priority}</span>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  {/* RBAC: Only assignee or admin can change status via dropdown */}
+                  {(props.userId === Number(selectedTask.assigned_to) || props.isAdmin) ? (
+                    <select value={selectedTask.status} onChange={(e) => props.handleStatusChange(selectedTask, e.target.value as TaskStatus)} className="ac-input" style={{ width: "auto", fontSize: 12, padding: "6px 10px", borderRadius: 6 }}>
+                      <option value="todo">To Do</option><option value="in_progress">In Progress</option><option value="completed">Completed</option>
+                      {props.isAdmin && <option value="pending_approval">Pending Approval</option>}
+                    </select>
+                  ) : (
+                    <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 5, background: statusConfig[selectedTask.status]?.bg, color: statusConfig[selectedTask.status]?.color, fontWeight: 600 }}>{statusConfig[selectedTask.status]?.label}</span>
+                  )}
+                  <button onClick={() => setSelectedTask(null)} style={{ background: "transparent", border: "none", color: tk.textSec, cursor: "pointer", padding: 4, display: "flex" }}>
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               
               <div style={{ display: "flex", gap: 2, padding: "8px 16px", borderBottom: `1px solid ${tk.border}` }}>
@@ -330,8 +406,28 @@ export function TaskUI(props: TaskUIProps) {
                 {props.detailTab === "overview" && (
                   <div>
                     <h2 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>{selectedTask.title}</h2>
-                    <p style={{ margin: 0, color: tk.textSec, fontSize: 13, lineHeight: 1.65 }}>{selectedTask.description || "No description provided."}</p>
+                    <p style={{ margin: "0 0 20px", color: tk.textSec, fontSize: 13, lineHeight: 1.65 }}>{selectedTask.description || "No description provided."}</p>
                     
+                    {/* Metadata Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20, padding: 14, background: tk.bg, borderRadius: 8, border: `1px solid ${tk.border}` }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: tk.textTer, textTransform: "uppercase", marginBottom: 4 }}>Created By</div>
+                        <div style={{ fontSize: 13, color: tk.text, fontWeight: 500 }}>{selectedTask.created_by_details?.full_name || "System"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: tk.textTer, textTransform: "uppercase", marginBottom: 4 }}>Assigned To</div>
+                        <div style={{ fontSize: 13, color: tk.text, fontWeight: 500 }}>{selectedTask.assigned_to_details?.full_name || "Unassigned"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: tk.textTer, textTransform: "uppercase", marginBottom: 4 }}>Due Date</div>
+                        <div style={{ fontSize: 13, color: selectedTask.is_overdue ? tk.red : tk.text, fontWeight: 500 }}>{selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : "None"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: tk.textTer, textTransform: "uppercase", marginBottom: 4 }}>Last Updated</div>
+                        <div style={{ fontSize: 13, color: tk.text, fontWeight: 500 }}>{timeAgo(selectedTask.updated_at)}</div>
+                      </div>
+                    </div>
+
                     {selectedTask.team_progress && (
                       <div style={{ marginTop: 24 }}>
                         <div style={{ fontSize: 10, color: tk.textTer, marginBottom: 10 }}>TEAM PROGRESS</div>
@@ -342,10 +438,16 @@ export function TaskUI(props: TaskUIProps) {
                       </div>
                     )}
 
-                    <div style={{ marginTop: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {selectedTask.status === "todo" && <button onClick={() => props.handleStatusChange(selectedTask, "in_progress")} style={{ flex: 1, background: "rgba(168,85,247,0.15)", color: tk.purple, border: `1px solid rgba(168,85,247,0.3)`, padding: "9px 14px", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>▶ Start Task</button>}
-                      {selectedTask.status === "in_progress" && <button onClick={() => props.handleStatusChange(selectedTask, "completed")} style={{ flex: 1, background: "rgba(16,185,129,0.15)", color: tk.green, border: `1px solid rgba(16,185,129,0.3)`, padding: "9px 14px", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>✓ Complete</button>}
-                    </div>
+                    {(props.userId === Number(selectedTask.assigned_to) || props.isAdmin) ? (
+                      <div style={{ marginTop: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {selectedTask.status === "todo" && <button onClick={() => props.handleStatusChange(selectedTask, "in_progress")} style={{ flex: 1, background: "rgba(168,85,247,0.15)", color: tk.purple, border: `1px solid rgba(168,85,247,0.3)`, padding: "9px 14px", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>▶ Start Task</button>}
+                        {selectedTask.status === "in_progress" && <button onClick={() => props.handleStatusChange(selectedTask, "completed")} style={{ flex: 1, background: "rgba(16,185,129,0.15)", color: tk.green, border: `1px solid rgba(16,185,129,0.3)`, padding: "9px 14px", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>✓ Complete</button>}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 24, padding: "12px", background: tk.bg, border: `1px solid ${tk.border}`, borderRadius: 8, textAlign: "center", color: tk.textTer, fontSize: 12 }}>
+                        You have view-only access to this task.
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -404,12 +506,13 @@ export function TaskUI(props: TaskUIProps) {
                 )}
               </div>
             </div>
+            </>
           )}
 
           {/* CREATE MODAL */}
           {showCreate && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(5px)", zIndex: 100, display: "flex", justifyContent: "center", alignItems: "center" }} onClick={() => props.setShowCreate(false)}>
-              <div className="modal-in" style={{ background: "#0b1628", border: `1px solid ${tk.borderHover}`, borderRadius: 20, width: 560, maxHeight: "92vh", overflowY: "auto", padding: 28 }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-in" style={{ background: tk.surface, border: `1px solid ${tk.borderHover}`, borderRadius: 20, width: 560, maxHeight: "92vh", overflowY: "auto", padding: 28 }} onClick={(e) => e.stopPropagation()}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Create Task (Step {props.createStep})</h2>
                   <button onClick={() => props.setShowCreate(false)} style={{ background: tk.glass, border: `1px solid ${tk.border}`, color: tk.textSec, width: 30, height: 30, borderRadius: 7, cursor: "pointer" }}>✕</button>

@@ -2,86 +2,205 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Plus, Pin, Trash2, CheckCircle2 } from "lucide-react";
-import { useAnnouncementStore } from "@/features/announcements/store/announcementStore";
-import { announcementService } from "@/features/announcements/services/announcementService";
-
-// ── Design Tokens ─────────────────────────────────────────────────────
-const tk = {
-  bg: "#020617", surface: "rgba(15,23,42,0.8)", surfaceHover: "rgba(30,41,59,0.8)",
-  border: "rgba(255,255,255,0.06)", borderHover: "rgba(255,255,255,0.14)",
-  text: "#f1f5f9", textSecondary: "#94a3b8", textTer: "#64748b", // Fix: renamed textSec to textSecondary
-  accent: "#3b82f6", success: "#10b981", danger: "#ef4444", warning: "#f59e0b", purple: "#a855f7",
-};
+import { Bell, Search, Archive, AlertTriangle, Plus } from "lucide-react";
+import { workspaceService } from "@/features/workspace/workspaceService";
+import { apiFetch } from "@/lib/api";
+import { getWorkspaceId } from "@/lib/auth";
+import { tk, Announcement, Team } from "@/features/announcements/lib";
+import { AnnouncementCard } from "@/features/announcements/components/AnnouncementCard";
+import { AnnouncementModal } from "@/features/announcements/components/AnnouncementModal";
+import { AnnouncementDrawer } from "@/features/announcements/components/AnnouncementDrawer";
 
 export default function AnnouncementsPage() {
-  const {
-    announcements,
-    fetchAnnouncements,
-    createAnnouncement,
-    deleteAnnouncement,
-    markAsRead,
-  } = useAnnouncementStore();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState("member");
+  const [userTeams, setUserTeams] = useState<Team[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"all" | "archive">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [showModal, setShowModal] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newContent, setNewContent] = useState("");
-  const [newPriority, setNewPriority] = useState("Normal");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [initialData, setInitialData] = useState<Announcement | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
 
+  const [selectedAnn, setSelectedAnn] = useState<Announcement | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const canPost = role === "owner" || role === "admin" || role === "leader";
+
   useEffect(() => {
-    const role = localStorage.getItem("workspace_role") || "member";
-    setIsAdmin(role === "owner" || role === "admin");
+    workspaceService
+      .getStats()
+      .then((s: any) => setRole(s?.role || "member"))
+      .catch(() => {});
+    workspaceService
+      .getTeams()
+      .then((t: any) => setUserTeams(t || []))
+      .catch(() => {});
     fetchAnnouncements();
-  }, [fetchAnnouncements]);
+  }, []);
 
-  const handlePublish = async () => {
-    if (!newTitle.trim() || !newContent.trim()) return;
-    setIsPublishing(true);
+  const fetchAnnouncements = async () => {
+    setLoading(true);
+    const wsId = getWorkspaceId();
     try {
-      await createAnnouncement({
-        title: newTitle,
-        content: newContent,
-        priority: newPriority as any,
-      });
+      const res = await apiFetch(
+        `/api/announcements/${wsId}/?filter=${activeTab}&search=${searchQuery}`,
+      );
+      const data = await res.json();
+      setAnnouncements(data.results || []);
+    } catch {
+      setAnnouncements([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    const delay = setTimeout(fetchAnnouncements, 300);
+    return () => clearTimeout(delay);
+  }, [activeTab, searchQuery]);
+
+  const fetchAnnouncementDetail = async (id: number) => {
+    setDetailLoading(true);
+    const wsId = getWorkspaceId();
+    try {
+      const res = await apiFetch(`/api/announcements/${wsId}/${id}/`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedAnn((prev) => (prev ? { ...prev, ...data } : data));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setDetailLoading(false);
+  };
+
+  const openDetail = (item: Announcement) => {
+    setSelectedAnn(item);
+    if (!item.is_read) handleAction(item.id, "read");
+    fetchAnnouncementDetail(item.id);
+  };
+
+  const handlePublish = async (formData: any) => {
+    if (!formData.title.trim() || !formData.content.trim()) return;
+    setIsPublishing(true);
+    const wsId = getWorkspaceId();
+
+    try {
+      if (editingId) {
+        await apiFetch(`/api/announcements/${wsId}/${editingId}/update/`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: formData.title,
+            content: formData.content,
+            priority: formData.priority,
+            pinned: formData.pinned,
+          }),
+        });
+      } else {
+        const res = await apiFetch(`/api/announcements/${wsId}/create/`, {
+          method: "POST",
+          body: JSON.stringify({
+            title: formData.title,
+            content: formData.content,
+            priority: formData.priority,
+            pinned: formData.pinned,
+            team_ids: formData.team_ids,
+            expiry_days: formData.expiry_days,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to create");
+        const newAnn = await res.json();
+        if (formData.pendingFiles.length > 0 && newAnn.id) {
+          const form = new FormData();
+          formData.pendingFiles.forEach((file: File) =>
+            form.append("files", file),
+          );
+          await apiFetch(
+            `/api/announcements/${wsId}/${newAnn.id}/attachments/`,
+            {
+              method: "POST",
+              body: form,
+            },
+          );
+        }
+      }
       setShowModal(false);
-      setNewTitle("");
-      setNewContent("");
-      setNewPriority("Normal");
-    } catch (error) {
-      console.error("Failed to publish:", error);
-    } finally {
-      setIsPublishing(false);
+      setEditingId(null);
+      setInitialData(null);
+      fetchAnnouncements();
+    } catch (e) {
+      console.error(e);
+    }
+    setIsPublishing(false);
+  };
+
+  const handleAction = async (
+    id: number,
+    action: "pin" | "archive" | "read",
+  ) => {
+    const wsId = getWorkspaceId();
+    try {
+      if (action === "pin")
+        await apiFetch(`/api/announcements/${wsId}/${id}/pin/`, {
+          method: "PATCH",
+        });
+      else if (action === "archive")
+        await apiFetch(`/api/announcements/${wsId}/${id}/archive/`, {
+          method: "PATCH",
+        });
+      else if (action === "read")
+        await apiFetch(`/api/announcements/${wsId}/${id}/mark-read/`, {
+          method: "POST",
+        });
+
+      fetchAnnouncements();
+      if (selectedAnn?.id === id) {
+        setSelectedAnn((prev) =>
+          prev
+            ? {
+                ...prev,
+                [action === "pin"
+                  ? "pinned"
+                  : action === "archive"
+                    ? "is_archived"
+                    : "is_read"]:
+                  action === "pin"
+                    ? !prev.pinned
+                    : action === "archive"
+                      ? !prev.is_archived
+                      : true,
+              }
+            : null,
+        );
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this announcement?")) return;
-    await deleteAnnouncement(id);
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    const wsId = getWorkspaceId();
+    try {
+      await apiFetch(`/api/announcements/${wsId}/${confirmDeleteId}/delete/`, {
+        method: "DELETE",
+      });
+      setConfirmDeleteId(null);
+      if (selectedAnn?.id === confirmDeleteId) setSelectedAnn(null);
+      fetchAnnouncements();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const getPriorityStyle = (priority: string) => {
-    switch (priority) {
-      case "Critical":
-        return {
-          bg: "rgba(239,68,68,0.15)",
-          color: tk.danger,
-          label: "Critical",
-        };
-      case "High":
-        return {
-          bg: "rgba(245,158,11,0.15)",
-          color: tk.warning,
-          label: "High Priority",
-        };
-      default:
-        return {
-          bg: "rgba(16,185,129,0.15)",
-          color: tk.success,
-          label: "Normal",
-        };
-    }
+  const handleEditClick = (item: Announcement) => {
+    setSelectedAnn(null);
+    setEditingId(item.id);
+    setInitialData(item);
+    setShowModal(true);
   };
 
   return (
@@ -89,435 +208,421 @@ export default function AnnouncementsPage() {
       style={{
         minHeight: "100vh",
         background: tk.bg,
-        color: tk.text,
+        color: tk.textPrimary,
         fontFamily: "'Inter', sans-serif",
-        padding: "32px 40px",
+        padding: "40px 24px",
       }}
     >
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          marginBottom: "32px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "28px",
-              fontWeight: 700,
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Announcements
-          </h1>
-          <p
-            style={{
-              margin: "8px 0 0",
-              color: tk.textSecondary,
-              fontSize: "15px",
-            }}
-          >
-            Stay updated with the latest company news and updates.
-          </p>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              height: "40px",
-              padding: "0 18px",
-              borderRadius: "8px",
-              border: "none",
-              background: tk.accent,
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: "14px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#4f46e5")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = tk.accent)}
-          >
-            <Plus size={16} /> New Post
-          </button>
-        )}
-      </div>
+      <style>{`
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .drawer-slide { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-fade { animation: fadeIn 0.2s ease-out; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .shimmer-bg { background: linear-gradient(90deg, ${tk.surface} 25%, ${tk.surfaceHover} 50%, ${tk.surface} 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${tk.border}; border-radius: 3px; }
+        .ann-card { transition: all 0.2s ease; } .ann-card:hover { background: ${tk.surfaceHover}; border-color: ${tk.borderHover}; transform: translateX(4px); }
+      `}</style>
 
-      {/* LIST */}
+            {/* PREMIUM LAYOUT WRAPPER */}
       <div
         style={{
-          display: "grid",
-          gap: "16px",
-          maxWidth: "900px",
+          maxWidth: "960px",
           margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: "24px",
         }}
       >
-        {announcements.length === 0 && (
+        {/* HEADER */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "16px",
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "24px",
+                fontWeight: 700,
+                letterSpacing: "-0.4px",
+              }}
+            >
+              Announcements
+            </h1>
+            <p
+              style={{
+                margin: "6px 0 0",
+                color: tk.textSecondary,
+                fontSize: "14px",
+              }}
+            >
+              Stay updated with company news and updates.
+            </p>
+          </div>
+          {canPost && (
+            <button
+              onClick={() => {
+                setEditingId(null);
+                setInitialData(null);
+                setShowModal(true);
+              }}
+              style={{
+                height: "40px",
+                padding: "0 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: tk.brand,
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 0,
+                boxShadow: `0 4px 12px ${tk.brand}40`,
+                transition: "filter 0.2s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.filter = "brightness(1.1)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.filter = "brightness(1)")
+              }
+            >
+              <Plus size={16} /> Create Announcement
+            </button>
+          )}
+        </div>
+
+        {/* CONTROLS */}
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search
+              size={16}
+              style={{
+                position: "absolute",
+                left: 14,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: tk.textMuted,
+                pointerEvents: "none",
+              }}
+            />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search announcements..."
+              style={{
+                width: "100%",
+                padding: "10px 16px 10px 40px",
+                borderRadius: "8px",
+                border: `1px solid ${tk.border}`,
+                background: tk.surface,
+                color: tk.textPrimary,
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+                transition: "border-color 0.2s",
+              }}
+              onFocus={(e) =>
+                (e.currentTarget.style.borderColor = tk.brandLight)
+              }
+              onBlur={(e) => (e.currentTarget.style.borderColor = tk.border)}
+            />
+          </div>
           <div
             style={{
-              padding: "40px",
-              textAlign: "center",
-              color: tk.textTer,
+              display: "flex",
+              gap: 2,
               background: tk.surface,
+              padding: 4,
+              borderRadius: "8px",
               border: `1px solid ${tk.border}`,
-              borderRadius: "16px",
+              flexShrink: 0,
             }}
           >
-            <Bell size={32} style={{ marginBottom: "12px", opacity: 0.5 }} />
-            <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-              No Announcements Yet
-            </div>
-            <div style={{ fontSize: "14px" }}>
-              Check back later for updates.
-            </div>
-          </div>
-        )}
-
-        {announcements.map((item) => {
-          const pStyle = getPriorityStyle(item.priority);
-          return (
-            <div
-              key={item.id}
+            <button
+              onClick={() => setActiveTab("all")}
               style={{
+                padding: "8px 16px",
+                borderRadius: "6px",
+                border: "none",
+                background: activeTab === "all" ? tk.brand : "transparent",
+                color: activeTab === "all" ? "#fff" : tk.textSecondary,
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setActiveTab("archive")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "6px",
+                border: "none",
+                background: activeTab === "archive" ? tk.brand : "transparent",
+                color: activeTab === "archive" ? "#fff" : tk.textSecondary,
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              Archive
+            </button>
+          </div>
+        </div>
+
+        {/* FEED */}
+        <div>
+          {loading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="shimmer-bg"
+                  style={{
+                    height: 92,
+                    borderRadius: "10px",
+                    border: `1px solid ${tk.border}`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : announcements.length === 0 ? (
+            <div
+              style={{
+                padding: 48,
+                textAlign: "center",
+                color: tk.textMuted,
                 background: tk.surface,
                 border: `1px solid ${tk.border}`,
-                borderLeft: `3px solid ${item.is_read ? tk.border : tk.accent}`,
-                borderRadius: "16px",
-                padding: "24px",
-                transition: "all 0.2s",
-                cursor: "pointer",
-                opacity: item.is_read ? 0.8 : 1,
+                borderRadius: "12px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = tk.borderHover;
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = tk.border;
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-              onClick={() => !item.is_read && markAsRead(item.id)}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: "12px",
-                }}
-              >
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
-                >
-                  {!item.is_read && (
-                    <span
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: tk.accent,
-                        display: "inline-block",
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
-                  <div>
-                    <h3
-                      style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}
-                    >
-                      {item.title}
-                    </h3>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        marginTop: "4px",
-                      }}
-                    >
-                      <span style={{ fontSize: "12px", color: tk.textTer }}>
-                        {item.by}
-                      </span>
-                      <span style={{ fontSize: "12px", color: tk.textTer }}>
-                        •
-                      </span>
-                      <span style={{ fontSize: "12px", color: tk.textTer }}>
-                        {item.time}
-                      </span>
-                      {item.team_name && (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            padding: "2px 6px",
-                            background: "rgba(255,255,255,0.05)",
-                            borderRadius: "4px",
-                            color: tk.textSecondary
-
-,
-                            marginLeft: "4px",
-                          }}
-                        >
-                          {item.team_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  {item.pinned && <Pin size={16} color={tk.accent} />}
-                  <span
+              {searchQuery ? (
+                <>
+                  <Search size={28} style={{ opacity: 0.4 }} />
+                  <div
                     style={{
-                      fontSize: "11px",
-                      padding: "4px 8px",
-                      borderRadius: "6px",
-                      background: pStyle.bg,
-                      color: pStyle.color,
                       fontWeight: 600,
+                      fontSize: 15,
+                      color: tk.textSecondary,
                     }}
                   >
-                    {pStyle.label}
-                  </span>
-                  {isAdmin && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(item.id);
-                      }}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: tk.textTer,
-                        cursor: "pointer",
-                        padding: "4px",
-                        borderRadius: "4px",
-                        transition: "color 0.2s",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = tk.danger)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = tk.textTer)
-                      }
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <p
-                style={{
-                  margin: 0,
-                  color: tk.textSecondary
-
-,
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                }}
-              >
-                {item.content}
-              </p>
-
-              {!item.is_read && (
-                <div
-                  style={{
-                    marginTop: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    color: tk.accent,
-                    fontSize: "12px",
-                    fontWeight: 600,
-                  }}
-                >
-                  <CheckCircle2 size={14} /> Click to mark as read
-                </div>
+                    No announcements matched "{searchQuery}"
+                  </div>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: tk.brandLight,
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Clear search
+                  </button>
+                </>
+              ) : activeTab === "archive" ? (
+                <>
+                  <Archive size={32} style={{ opacity: 0.4 }} />
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 15,
+                      color: tk.textSecondary,
+                    }}
+                  >
+                    Archive is empty
+                  </div>
+                  <div style={{ fontSize: "13px" }}>
+                    Expired announcements will appear here.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Bell size={32} style={{ opacity: 0.4 }} />
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 15,
+                      color: tk.textSecondary,
+                    }}
+                  >
+                    No Announcements
+                  </div>
+                  <div style={{ fontSize: "13px" }}>
+                    Check back later for updates.
+                  </div>
+                </>
               )}
             </div>
-          );
-        })}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {announcements.map((item) => (
+                <AnnouncementCard
+                  key={item.id}
+                  item={item}
+                  onClick={() => openDetail(item)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* CREATE MODAL */}
-      {showModal && (
+      {/* MODAL */}
+      <AnnouncementModal
+        showModal={showModal}
+        onClose={() => setShowModal(false)}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
+        editingId={editingId}
+        initialData={initialData}
+        userTeams={userTeams}
+      />
+
+      {/* DRAWER */}
+      <AnnouncementDrawer
+        selectedAnn={selectedAnn}
+        detailLoading={detailLoading}
+        canPost={canPost}
+        onClose={() => setSelectedAnn(null)}
+        handleAction={handleAction}
+        handleEditClick={handleEditClick}
+        setConfirmDeleteId={setConfirmDeleteId}
+      />
+
+      {/* DELETE CONFIRMATION */}
+      {confirmDeleteId && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(5px)",
+            background: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(6px)",
+            zIndex: 200,
             display: "flex",
-            alignItems: "center",
             justifyContent: "center",
-            zIndex: 100,
+            alignItems: "center",
+            padding: 20,
           }}
-          onClick={() => setShowModal(false)}
+          onClick={() => setConfirmDeleteId(null)}
         >
           <div
+            className="modal-fade"
             style={{
-              background: "#0b1628",
-              border: `1px solid ${tk.borderHover}`,
-              borderRadius: "20px",
-              padding: "28px",
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
+              borderRadius: "12px",
               width: "100%",
-              maxWidth: "500px",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              maxWidth: "400px",
+              padding: 28,
+              boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2
-              style={{ margin: "0 0 24px", fontSize: "18px", fontWeight: 700 }}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
             >
-              New Announcement
-            </h2>
-
-            <div style={{ marginBottom: "16px" }}>
-              <label
+              <div
                 style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: tk.textTer,
-                  textTransform: "uppercase",
-                  display: "block",
-                  marginBottom: "6px",
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background: `${tk.primary}15`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 16,
                 }}
               >
-                Title
-              </label>
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Announcement title"
+                <AlertTriangle size={24} color={tk.primary} />
+              </div>
+              <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>
+                Delete Announcement?
+              </h3>
+              <p
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "8px",
-                  border: `1px solid ${tk.border}`,
-                  background: tk.bg,
-                  color: tk.text,
-                  outline: "none",
-                  fontSize: "14px",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: "16px" }}>
-              <label
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: tk.textTer,
-                  textTransform: "uppercase",
-                  display: "block",
-                  marginBottom: "6px",
+                  margin: "0 0 24px",
+                  color: tk.textSecondary,
+                  fontSize: 14,
+                  lineHeight: 1.5,
                 }}
               >
-                Content
-              </label>
-              <textarea
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="Write your message..."
-                rows={4}
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "8px",
-                  border: `1px solid ${tk.border}`,
-                  background: tk.bg,
-                  color: tk.text,
-                  outline: "none",
-                  fontSize: "14px",
-                  resize: "vertical",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: "24px" }}>
-              <label
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: tk.textTer,
-                  textTransform: "uppercase",
-                  display: "block",
-                  marginBottom: "6px",
-                }}
-              >
-                Priority
-              </label>
-              <select
-                value={newPriority}
-                onChange={(e) => setNewPriority(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "8px",
-                  border: `1px solid ${tk.border}`,
-                  background: tk.bg,
-                  color: tk.text,
-                  outline: "none",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="Normal">Normal</option>
-                <option value="High">High Priority</option>
-                <option value="Critical">Critical</option>
-              </select>
-            </div>
-
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: `1px solid ${tk.border}`,
-                  background: "transparent",
-                  color: tk.textSecondary
-
-,
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePublish}
-                disabled={isPublishing}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: tk.accent,
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  opacity: isPublishing ? 0.6 : 1,
-                }}
-              >
-                {isPublishing ? "Publishing..." : "Publish"}
-              </button>
+                This action cannot be undone. This announcement will be
+                permanently deleted.
+              </p>
+              <div style={{ display: "flex", gap: 12, width: "100%" }}>
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${tk.border}`,
+                    background: "transparent",
+                    color: tk.textSecondary,
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = tk.bg)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: tk.primary,
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "filter 0.2s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.filter = "brightness(1.1)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.filter = "brightness(1)")
+                  }
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

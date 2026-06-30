@@ -19,6 +19,7 @@ import {
   toggleReaction,
   markMessageRead,
   getWorkspaceUsers,
+  getChannelMembers,
 } from "../services/channelService";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import { createDMRequest, respondDMRequest } from "../services/dmRequestService";
@@ -87,6 +88,7 @@ export function useChatPage() {
   const [editContent, setEditContent] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
@@ -94,6 +96,10 @@ export function useChatPage() {
     Array<{ url: string; type: string; name: string }>
   >([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [showRightPanel, setShowRightPanel] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState("members");
+  const [channelMembers, setChannelMembers] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
 
   // ── Derived State ─────────────────────────────────────────────────────────
   const selectedChannel =
@@ -191,7 +197,7 @@ export function useChatPage() {
         }
       }
     },
-    onError: (error) => console.error("WebSocket error:", error),
+    onError: (error) => console.warn("WebSocket connection issue:", error),
   });
 
   // ── Load Channels on Auth ─────────────────────────────────────────────────
@@ -200,11 +206,13 @@ export function useChatPage() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    Promise.all([loadChannels(), loadDMs()]).then(([loadedChannels, loadedDms]) => {
-      const all = [...loadedChannels, ...loadedDms];
-      setChannels(all);
-      if (all.length > 0) selectChannel(all[0].id);
-    });
+    Promise.all([loadChannels(), loadDMs()])
+      .then(([loadedChannels, loadedDms]) => {
+        const all = [...loadedChannels, ...loadedDms];
+        setChannels(all);
+        if (all.length > 0) selectChannel(all[0].id);
+      })
+      .finally(() => setIsInitialLoading(false));
 
     // Fetch workspace users for DM/group member selection
     getWorkspaceUsers()
@@ -267,7 +275,29 @@ export function useChatPage() {
     setIsSelectMode(false);
     setSelectedMsgIds(new Set());
     setShowEmojiPicker(false);
+    setShowRightPanel(false);
+    setChannelMembers([]);
   }, [selectedChannelId]);
+
+  // Fetch members and presence when panel is opened
+  useEffect(() => {
+    if (showRightPanel && selectedChannelId) {
+      getChannelMembers(selectedChannelId)
+        .then(setChannelMembers)
+        .catch(() => {});
+        
+      const fetchPresence = () => {
+        workspaceService.getOnlineMembers()
+          .then((data: any) => setOnlineUsers(data?.online_users || []))
+          .catch(() => {});
+      };
+
+      fetchPresence(); // Fetch immediately
+      const interval = setInterval(fetchPresence, 15000); // Poll every 15s
+
+      return () => clearInterval(interval); // Cleanup on close
+    }
+  }, [showRightPanel, selectedChannelId]);
 
   // ── Close Menu on Outside Click ───────────────────────────────────────────
   useEffect(() => {
@@ -474,24 +504,18 @@ export function useChatPage() {
       if (newChannelType === "dm") {
         if (!newChannelDMUserId) return;
         try {
-          // Backend should create the channel immediately and return it
-          const res: any = await createDMRequest({
+          // Backend creates a PENDING DM Request, NOT a channel.
+          await createDMRequest({
             receiver_id: Number(newChannelDMUserId),
             initial_message: newChannelDMMessage || "Hello!",
           });
           
-          // If backend returns a channel object, add it and select it
-          if (res && res.id) {
-            // Assuming backend returns the channel object directly or nested
-            const newChannel: any = res.channel || res; 
-            // Check if it's a valid channel object (has name property)
-            if (newChannel && newChannel.name) {
-              addChannel(newChannel);
-              selectChannel(newChannel.id);
-            }
-          }
+          // Show success state or notify user that request is pending
+          // We do NOT add a channel or switch to it until the receiver accepts.
+          alert("DM Request sent! You can start chatting once they accept.");
         } catch (err: any) {
           console.error("DM request failed:", err.message);
+          alert(err.message || "Failed to send DM request");
         }
       } else {
         if (!newChannelName.trim()) return;
@@ -813,5 +837,12 @@ export function useChatPage() {
     handleCopySelected,
     handleBulkDeleteForMe,
     handleBulkDeleteForEveryone,
+    isInitialLoading,
+    showRightPanel,
+    setShowRightPanel,
+    rightPanelTab,
+    setRightPanelTab,
+    channelMembers,
+    onlineUsers,
   };
 }

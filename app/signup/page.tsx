@@ -28,6 +28,8 @@ import {
   Target,
   User,
   Building2,
+  ArrowLeft,
+  UserPlus,
 } from "lucide-react";
 
 /* ─── Floating icon helper ─── */
@@ -87,12 +89,17 @@ export default function SignupPage() {
   usePublicRoute();
   const router = useRouter();
 
+  const [step, setStep] = useState(0); // 0: Choice, 1: Form
+  const [onboardingMode, setOnboardingMode] = useState<"START_COMPANY" | "JOIN_COMPANY">("JOIN_COMPANY");
+  
   const [formData, setFormData] = useState({
     fullName: "",
-    companyName: "",
     username: "",
     email: "",
     password: "",
+    workspaceName: "",
+    companyName: "",
+    workspaceSlug: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,12 +116,20 @@ export default function SignupPage() {
       setError("Please fill in all required fields.");
       return;
     }
+    if (onboardingMode === "START_COMPANY" && !formData.workspaceName) {
+      setError("Workspace name is required to start a company.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("http://127.0.0.1:8000/api/accounts/register/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          onboarding_mode: onboardingMode,
+          company_name: onboardingMode === "START_COMPANY" ? formData.companyName || formData.workspaceName : "",
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -250,16 +265,67 @@ export default function SignupPage() {
           <span className="text-xl font-bold text-white">Acumen Teams</span>
         </div>
 
-        {/* Glass signup card */}
+        {/* ONBOARDING CHOICE SCREEN (Step 0) */}
+        {step === 0 && (
+          <div className="w-full max-w-3xl text-center">
+            <h1 className="text-4xl font-bold text-white mb-3">Welcome to Acumen Teams</h1>
+            <p className="text-slate-300 mb-12 text-lg">Choose how you'd like to get started.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 1: Start Company */}
+              <div 
+                className="group relative bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 text-left transition-all duration-300 hover:bg-white/[0.07] hover:border-blue-400/30 cursor-pointer flex flex-col overflow-hidden"
+                onClick={() => { setOnboardingMode("START_COMPANY"); setStep(1); }}
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all"></div>
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 mb-6">
+                    <Building2 size={28} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Start a Company</h3>
+                  <p className="text-slate-400 text-sm mb-8 flex-1 leading-relaxed">Create your own workspace, invite your team, and manage everything from one dashboard.</p>
+                  <div className="flex items-center gap-2 text-blue-400 font-semibold text-sm group-hover:gap-3 transition-all">
+                    Continue <ArrowRight size={16} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Join Company */}
+              <div 
+                className="group relative bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 text-left transition-all duration-300 hover:bg-white/[0.07] hover:border-emerald-400/30 cursor-pointer flex flex-col overflow-hidden"
+                onClick={() => { setOnboardingMode("JOIN_COMPANY"); setStep(1); }}
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all"></div>
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 mb-6">
+                    <UserPlus size={28} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Join an Existing Company</h3>
+                  <p className="text-slate-400 text-sm mb-8 flex-1 leading-relaxed">Create your account and instantly join a workspace using an invitation link from your team.</p>
+                  <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm group-hover:gap-3 transition-all">
+                    Continue <ArrowRight size={16} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GLASS SIGNUP CARD (Step 1) */}
+        {step === 1 && (
         <div className="w-full max-w-md bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 lg:p-10 shadow-2xl">
+
+          {/* Back Button */}
+          <button onClick={() => setStep(0)} className="text-slate-300 hover:text-white text-sm flex items-center gap-2 mb-6 transition-colors">
+            <ArrowLeft size={16} /> Back
+          </button>
 
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
-              Start Free Today
+              {onboardingMode === "START_COMPANY" ? "Start Your Company" : "Create Your Account"}
             </h1>
             <p className="text-slate-300 text-base">
-              No credit card required. Create your workspace instantly.
+              {onboardingMode === "START_COMPANY" ? "Set up your workspace details below." : "Join a workspace using an invitation later."}
             </p>
           </div>
 
@@ -317,24 +383,65 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Company Name */}
-            <div>
-              <label htmlFor="companyName" className="block mb-1.5 text-slate-200 font-medium text-sm">
-                Company Name <span className="text-slate-500 font-normal">(optional)</span>
-              </label>
-              <div className="relative group">
-                <input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
-                  placeholder="Enter company name"
-                  value={formData.companyName}
-                  onChange={handleChange}
-                />
-                <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
-              </div>
-            </div>
+            {/* Workspace Details (Only if START_COMPANY) */}
+            {onboardingMode === "START_COMPANY" && (
+              <>
+                <div>
+                  <label htmlFor="workspaceName" className="block mb-1.5 text-slate-200 font-medium text-sm">
+                    Workspace Name
+                  </label>
+                  <div className="relative group">
+                    <input
+                      id="workspaceName"
+                      name="workspaceName"
+                      type="text"
+                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
+                      placeholder="e.g. Acume Inc."
+                      value={formData.workspaceName}
+                      onChange={handleChange}
+                      required
+                    />
+                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="companyName" className="block mb-1.5 text-slate-200 font-medium text-sm">
+                    Legal Company Name <span className="text-slate-500 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative group">
+                    <input
+                      id="companyName"
+                      name="companyName"
+                      type="text"
+                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
+                      placeholder="Enter legal company name"
+                      value={formData.companyName}
+                      onChange={handleChange}
+                    />
+                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="workspaceSlug" className="block mb-1.5 text-slate-200 font-medium text-sm">
+                    Workspace Slug <span className="text-slate-500 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative group">
+                    <input
+                      id="workspaceSlug"
+                      name="workspaceSlug"
+                      type="text"
+                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
+                      placeholder="e.g. acume-inc"
+                      value={formData.workspaceSlug}
+                      onChange={handleChange}
+                    />
+                    <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Username */}
             <div>
@@ -431,6 +538,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+        )}
       </div>
 
       {/* ═══ Global animations ═══ */}
