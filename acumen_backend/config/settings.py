@@ -9,10 +9,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-dev-key")
 DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,.railway.app,acumenteamspersonal-production.up.railway.app",
-).split(",")
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    ".railway.app",
+    ".vercel.app",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -89,11 +91,13 @@ CACHES = {
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
 ]
+
 CSRF_TRUSTED_ORIGINS = [
     "https://*.vercel.app",
 ]
