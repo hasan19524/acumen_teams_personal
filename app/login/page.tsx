@@ -100,12 +100,20 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/accounts/login/", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/api/accounts/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login, password }),
       });
-      const data = await res.json();
+
+      // Safely attempt to parse JSON body (throttled responses might not have JSON)
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Body is empty or not JSON
+      }
+
       if (res.ok) {
         localStorage.setItem("token", data.access);
         localStorage.setItem("refresh", data.refresh);
@@ -114,10 +122,22 @@ export default function LoginPage() {
         if (data.workspace_id) localStorage.setItem("workspace_id", String(data.workspace_id));
         router.push("/dashboard");
       } else {
-        setError(data.detail || "Login failed.");
+        // Handle specific HTTP status codes with exact messages
+        if (res.status === 401) {
+          setError("Invalid email or password.");
+        } else if (res.status === 403) {
+          setError("Your account has been disabled.");
+        } else if (res.status === 429) {
+          setError("Too many login attempts. Please try again later.");
+        } else if (res.status >= 500) {
+          setError("Something went wrong. Please try again.");
+        } else {
+          setError(data?.detail || data?.error || "Login failed.");
+        }
       }
     } catch {
-      setError("Network error. Please try again.");
+      // This catch block is ONLY hit on actual network failures (server unreachable, offline)
+      setError("Network connection error.");
     } finally {
       setLoading(false);
     }

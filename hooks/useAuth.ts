@@ -63,9 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
+    
+    // If there is no token, only redirect if they are trying to access a protected route
     if (!token) {
-      // If no token and not on login page, redirect
-      if (pathname !== "/login") {
+      if (pathname.startsWith("/dashboard")) {
         router.replace("/login");
       }
       return;
