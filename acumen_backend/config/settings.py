@@ -87,7 +87,16 @@ CACHES = {
     }
 }
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.vercel.app",
+]
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -111,10 +120,10 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "20/min",      # Anonymous users (e.g., login attempts)
-        "user": "120/min",     # Authenticated users (global API limit)
-        "chat": "60/min",      # Specific throttle scope for chat messages
-        "create": "30/min",    # Specific throttle scope for creating tasks/announcements
+        "anon": "20/min",  # Anonymous users (e.g., login attempts)
+        "user": "120/min",  # Authenticated users (global API limit)
+        "chat": "60/min",  # Specific throttle scope for chat messages
+        "create": "30/min",  # Specific throttle scope for creating tasks/announcements
     },
 }
 
