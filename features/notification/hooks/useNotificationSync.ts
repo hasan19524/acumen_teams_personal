@@ -4,7 +4,7 @@ import { notificationApi } from "../services/notificationApi";
 import { useAuth } from "@/hooks/useAuth";
 
 export const useNotificationSync = () => {
-  const { authChecked } = useAuth(false);
+  const { authChecked } = useAuth();
   const setUnreadCount = useNotificationStore((s) => s.setUnreadCount);
 
   useEffect(() => {

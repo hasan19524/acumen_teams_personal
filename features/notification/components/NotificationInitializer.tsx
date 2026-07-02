@@ -8,7 +8,7 @@ import { useNotificationSync } from "../hooks/useNotificationSync";
 
 export function NotificationInitializer() {
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
-  const { authChecked } = useAuth(false);
+  const { authChecked } = useAuth();
 
   // Phase 3: Unread count polling + tab visibility sync
   useUnreadCount();

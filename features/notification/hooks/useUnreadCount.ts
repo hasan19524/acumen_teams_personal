@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 const SYNC_INTERVAL_MS = 60_000;
 
 export const useUnreadCount = () => {
-  const { authChecked } = useAuth(false);
+  const { authChecked } = useAuth();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const setUnreadCount = useNotificationStore((s) => s.setUnreadCount);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
