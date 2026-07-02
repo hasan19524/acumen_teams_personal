@@ -47,9 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ONLY logout if the token is actually unauthorized. 
         // Ignore 429 (rate limit) or 500 (server error) so the UI doesn't flash.
         localStorage.clear();
-        setAuthChecked(false);
+        setAuthChecked(true); // Mark as checked so UI doesn't hang
         setWorkspaceId(null);
-        router.replace("/login");
+        
+        // ONLY redirect to login if they are trying to access a protected route
+        if (window.location.pathname.startsWith("/dashboard")) {
+          router.replace("/login");
+        }
       } else {
         // For rate limits (429) or server errors (500), keep the user logged in
         setAuthChecked(true);

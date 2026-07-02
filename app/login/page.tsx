@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  ArrowLeft,
   Shield,
   Users,
   BarChart3,
@@ -146,6 +147,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex relative overflow-hidden font-sans"
       style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 30%, #312e81 60%, #1e1b4b 100%)" }}>
+
+      {/* Back to Home Button */}
+      <Link href="/" className="absolute top-8 left-8 z-20 flex items-center gap-2 text-slate-300 hover:text-white transition-colors group">
+        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+        <span className="text-sm font-medium">Back to Home</span>
+      </Link>
 
       {/* ═══ Animated background elements ═══ */}
 

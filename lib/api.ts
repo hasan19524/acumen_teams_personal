@@ -19,7 +19,8 @@ async function refreshAccessToken(): Promise<string | null> {
       localStorage.removeItem("token");
       localStorage.removeItem("refresh");
       localStorage.removeItem("username");
-      window.location.href = "/login";
+      localStorage.removeItem("workspace_id");
+      // Do NOT hard redirect here. Let the AuthProvider handle routing based on the current path.
       return null;
     }
   } catch {

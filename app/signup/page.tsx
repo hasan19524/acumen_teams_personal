@@ -149,9 +149,15 @@ export default function SignupPage() {
     }
   };
 
-  return (
+    return (
     <div className="min-h-screen flex relative overflow-hidden font-sans"
       style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 30%, #312e81 60%, #1e1b4b 100%)" }}>
+
+      {/* Back to Home Button */}
+      <Link href="/" className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 flex items-center gap-2 text-slate-300 hover:text-white transition-colors group">
+        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+        <span className="text-sm font-medium hidden sm:inline">Back to Home</span>
+      </Link>
 
       {/* ═══ Animated background elements ═══ */}
 
@@ -255,7 +261,7 @@ export default function SignupPage() {
       {/* ════════════════════════════════════════
           RIGHT SIDE — Glass card
       ════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 relative z-10">
+      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-8 lg:p-16 pt-20 sm:pt-16 lg:pt-16 relative z-10 w-full">
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
@@ -267,10 +273,10 @@ export default function SignupPage() {
 
         {/* ONBOARDING CHOICE SCREEN (Step 0) */}
         {step === 0 && (
-          <div className="w-full max-w-3xl text-center">
-            <h1 className="text-4xl font-bold text-white mb-3">Welcome to Acumen Teams</h1>
-            <p className="text-slate-300 mb-12 text-lg">Choose how you'd like to get started.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="w-full max-w-4xl text-center px-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">Welcome to Acumen Teams</h1>
+            <p className="text-slate-300 mb-8 md:mb-12 text-base md:text-lg">Choose how you'd like to get started.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {/* Card 1: Start Company */}
               <div 
                 className="group relative bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 text-left transition-all duration-300 hover:bg-white/[0.07] hover:border-blue-400/30 cursor-pointer flex flex-col overflow-hidden"
