@@ -98,8 +98,6 @@ export default function SignupPage() {
     email: "",
     password: "",
     workspaceName: "",
-    companyName: "",
-    workspaceSlug: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -122,13 +120,13 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/accounts/register/", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/api/accounts/register/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
           onboarding_mode: onboardingMode,
-          company_name: onboardingMode === "START_COMPANY" ? formData.companyName || formData.workspaceName : "",
+          company_name: formData.workspaceName, // Backend expects company_name or workspace_name
         }),
       });
       const data = await res.json();
@@ -368,7 +366,7 @@ export default function SignupPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSignup} className="space-y-4">
+          <form onSubmit={handleSignup} className="space-y-3">
             {/* Full Name */}
             <div>
               <label htmlFor="fullName" className="block mb-1.5 text-slate-200 font-medium text-sm">
@@ -391,62 +389,24 @@ export default function SignupPage() {
 
             {/* Workspace Details (Only if START_COMPANY) */}
             {onboardingMode === "START_COMPANY" && (
-              <>
-                <div>
-                  <label htmlFor="workspaceName" className="block mb-1.5 text-slate-200 font-medium text-sm">
-                    Workspace Name
-                  </label>
-                  <div className="relative group">
-                    <input
-                      id="workspaceName"
-                      name="workspaceName"
-                      type="text"
-                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
-                      placeholder="e.g. Acume Inc."
-                      value={formData.workspaceName}
-                      onChange={handleChange}
-                      required
-                    />
-                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
-                  </div>
+              <div>
+                <label htmlFor="workspaceName" className="block mb-1.5 text-slate-200 font-medium text-sm">
+                  Workspace Name
+                </label>
+                <div className="relative group">
+                  <input
+                    id="workspaceName"
+                    name="workspaceName"
+                    type="text"
+                    className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
+                    placeholder="e.g. Acume Inc."
+                    value={formData.workspaceName}
+                    onChange={handleChange}
+                    required
+                  />
+                  <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
                 </div>
-
-                <div>
-                  <label htmlFor="companyName" className="block mb-1.5 text-slate-200 font-medium text-sm">
-                    Legal Company Name <span className="text-slate-500 font-normal">(optional)</span>
-                  </label>
-                  <div className="relative group">
-                    <input
-                      id="companyName"
-                      name="companyName"
-                      type="text"
-                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
-                      placeholder="Enter legal company name"
-                      value={formData.companyName}
-                      onChange={handleChange}
-                    />
-                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="workspaceSlug" className="block mb-1.5 text-slate-200 font-medium text-sm">
-                    Workspace Slug <span className="text-slate-500 font-normal">(optional)</span>
-                  </label>
-                  <div className="relative group">
-                    <input
-                      id="workspaceSlug"
-                      name="workspaceSlug"
-                      type="text"
-                      className="w-full py-3 pl-11 pr-4 bg-white/10 border border-white/20 rounded-xl text-base text-white placeholder-slate-400 transition-all duration-300 outline-none focus:bg-white/15 focus:border-blue-400/50 focus:ring-4 focus:ring-blue-500/10 hover:bg-white/15"
-                      placeholder="e.g. acume-inc"
-                      value={formData.workspaceSlug}
-                      onChange={handleChange}
-                    />
-                    <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-300 transition-colors" size={18} />
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
             {/* Username */}
