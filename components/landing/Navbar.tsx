@@ -24,7 +24,9 @@ export default function Navbar() {
   const router = useRouter();
   const [scrolled, setScrolled] = useState(pathname !== "/");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState(pathname === "/" ? "home" : pathname);
+  const [activeSection, setActiveSection] = useState(
+    pathname === "/" ? "home" : pathname,
+  );
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
@@ -33,7 +35,13 @@ export default function Navbar() {
       setActiveSection(pathname);
       return;
     }
-    const handleScroll = () => setScrolled(window.scrollY > 20);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+      // FIX: Force the underline back to "Home" when scrolled near the top
+      if (window.scrollY < 300) {
+        setActiveSection("home");
+      }
+    };
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
@@ -50,7 +58,7 @@ export default function Navbar() {
           }
         });
       },
-      { rootMargin: "-40% 0px -55% 0px", threshold: 0 }
+      { rootMargin: "-40% 0px -55% 0px", threshold: 0 },
     );
 
     sectionIds.forEach((id) => {
@@ -60,6 +68,14 @@ export default function Navbar() {
 
     return () => observerRef.current?.disconnect();
   }, []);
+
+  // Lock body scroll while the mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   const handleNavClick = (e: React.MouseEvent, href: string) => {
     if (href.startsWith("/#")) {
@@ -91,32 +107,57 @@ export default function Navbar() {
           : "bg-transparent"
       }`}
     >
-      <div className="w-full max-w-7xl mx-auto px-6 py-4">
+      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 py-4">
         <div className="flex items-center justify-between">
-
           {/* Logo */}
-          <Link href="/" onClick={(e) => handleNavClick(e, "/")} className="flex items-center gap-3 group cursor-pointer">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-[0_0_20px_rgba(37,99,235,0.25)] group-hover:shadow-[0_0_28px_rgba(37,99,235,0.45)] transition-shadow">
-              AT
+          <Link
+            href="/"
+            onClick={(e) => handleNavClick(e, "/")}
+            className="flex items-center gap-2.5 group cursor-pointer -ml-4 md:-ml-23 md:mr-6 shrink-0"
+          >
+            <div className="relative w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 ring-1 ring-white/40 flex items-center justify-center text-white font-bold text-sm shadow-[0_2px_10px_rgba(37,99,235,0.35)] group-hover:shadow-[0_4px_18px_rgba(37,99,235,0.5)] transition-shadow">
+              <span className="relative z-10 tracking-tight">AT</span>
+              <span className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/25 to-transparent" />
             </div>
-            <span className="text-slate-900 font-bold text-lg leading-tight hidden sm:block">
-              Acumen Teams
+            <span className="text-slate-900 font-bold text-lg leading-tight tracking-tight hidden sm:block whitespace-nowrap">
+              Acumen <span className="font-semibold text-slate-500">Teams</span>
             </span>
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1 shrink-0">
             {/* Home Button - Emphasized */}
-            <Link 
-              href="/" 
-              onClick={(e) => handleNavClick(e, "/")} 
-              className={`text-sm font-bold py-2 px-4 rounded-lg transition-colors mr-2 ${
-                activeSection === "home" || pathname === "/"
-                  ? "bg-blue-50 text-blue-600" 
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            <Link
+              href="/"
+              onClick={(e) => handleNavClick(e, "/")}
+              className={`group relative flex items-center gap-1.5 text-sm font-bold py-2 px-4 rounded-lg transition-colors mr-2 whitespace-nowrap ${
+                activeSection === "home"
+                  ? "text-blue-600"
+                  : "text-slate-600 hover:text-blue-600"
               }`}
             >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="flex-shrink-0"
+              >
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
               Home
+              <span
+                className={`absolute bottom-1 left-4 right-4 h-0.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)] transition-all duration-300 ${
+                  activeSection === "home"
+                    ? "opacity-100 scale-x-100"
+                    : "opacity-0 scale-x-0 group-hover:opacity-60 group-hover:scale-x-100"
+                }`}
+              />
             </Link>
 
             {SCROLL_LINKS.map((link) => {
@@ -126,19 +167,26 @@ export default function Navbar() {
                   key={link.name}
                   href={`/#${link.href}`}
                   onClick={(e) => handleNavClick(e, `/#${link.href}`)}
-                  className={`relative text-sm font-medium py-2 px-4 rounded-lg transition-colors group ${
-                    isActive ? "text-blue-600" : "text-slate-600 hover:text-slate-900"
+                  className={`relative text-sm font-medium py-2 px-4 rounded-lg transition-colors group whitespace-nowrap ${
+                    isActive
+                      ? "text-blue-600"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   {link.name === "Pricing" ? "Future Plans" : link.name}
                   <span
                     className={`absolute bottom-1 left-4 right-4 h-0.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)] transition-all duration-300 ${
-                      isActive ? "opacity-100 scale-x-100" : "opacity-0 scale-x-0 group-hover:opacity-60 group-hover:scale-x-100"
+                      isActive
+                        ? "opacity-100 scale-x-100"
+                        : "opacity-0 scale-x-0 group-hover:opacity-60 group-hover:scale-x-100"
                     }`}
                   />
                 </Link>
               );
             })}
+
+            {/* Vertical Barricade Divider */}
+            <div className="hidden md:block h-6 w-px bg-slate-300 mx-3 rounded-full"></div>
 
             {PAGE_LINKS.map((link) => {
               const isActive = pathname === link.href;
@@ -147,14 +195,18 @@ export default function Navbar() {
                   key={link.name}
                   href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className={`relative text-sm font-medium py-2 px-4 rounded-lg transition-colors group ${
-                    isActive ? "text-blue-600" : "text-slate-600 hover:text-slate-900"
+                  className={`relative text-sm font-medium py-2 px-4 rounded-lg transition-colors group whitespace-nowrap ${
+                    isActive
+                      ? "text-blue-600"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   {link.name}
                   <span
                     className={`absolute bottom-1 left-4 right-4 h-0.5 bg-blue-500 rounded-full transition-all duration-300 ${
-                      isActive ? "opacity-100 scale-x-100" : "opacity-0 scale-x-0 group-hover:opacity-60 group-hover:scale-x-100"
+                      isActive
+                        ? "opacity-100 scale-x-100"
+                        : "opacity-0 scale-x-0 group-hover:opacity-60 group-hover:scale-x-100"
                     }`}
                   />
                 </Link>
@@ -162,11 +214,8 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Vertical Divider */}
-          <div className="hidden md:block h-6 w-px bg-slate-200 mx-2"></div>
-
           {/* Right Actions */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3 md:ml-6 lg:ml-10 shrink-0 whitespace-nowrap">
             <Link
               href="/login"
               className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium px-3 py-2"
@@ -197,18 +246,38 @@ export default function Navbar() {
 
           {/* Mobile Toggle */}
           <button
-            className="md:hidden p-2 text-slate-700"
+            className="md:hidden p-2 -mr-2 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileOpen ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
+      </div>
 
-        {/* Mobile Menu */}
-        {mobileOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t border-slate-200 pt-4 space-y-1">
-            <Link href="/" onClick={(e) => handleNavClick(e, "/")} className={`block py-2.5 px-4 rounded-xl text-sm font-bold transition-colors ${activeSection === "home" ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:bg-slate-50"}`}>
+      {/* Mobile Menu */}
+      <div
+        className={`md:hidden fixed inset-x-0 top-[64px] bottom-0 bg-white transition-all duration-300 ease-out ${
+          mobileOpen
+            ? "opacity-100 translate-y-0 pointer-events-auto"
+            : "opacity-0 -translate-y-2 pointer-events-none"
+        }`}
+      >
+        <div className="h-full overflow-y-auto flex flex-col px-4 pt-2 pb-8">
+          <div className="flex flex-col gap-1 pt-2">
+            <Link
+              href="/"
+              onClick={(e) => handleNavClick(e, "/")}
+              className={`flex items-center py-3.5 px-4 rounded-xl text-[15px] font-bold transition-colors ${
+                activeSection === "home"
+                  ? "text-blue-600 bg-blue-50"
+                  : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
               Home
             </Link>
             {SCROLL_LINKS.map((link) => {
@@ -218,14 +287,19 @@ export default function Navbar() {
                   key={link.name}
                   href={`/#${link.href}`}
                   onClick={(e) => handleNavClick(e, `/#${link.href}`)}
-                  className={`block py-2.5 px-4 rounded-xl text-sm font-medium transition-colors ${
-                    isActive ? "text-blue-600 bg-blue-50 font-semibold" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  className={`flex items-center py-3.5 px-4 rounded-xl text-[15px] font-medium transition-colors ${
+                    isActive
+                      ? "text-blue-600 bg-blue-50 font-semibold"
+                      : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {link.name === "Pricing" ? "Future Plans" : link.name}
                 </Link>
               );
             })}
+
+            <div className="h-px bg-slate-100 my-2 mx-4" />
+
             {PAGE_LINKS.map((link) => {
               const isActive = pathname === link.href;
               return (
@@ -233,35 +307,41 @@ export default function Navbar() {
                   key={link.name}
                   href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className={`block py-2.5 px-4 rounded-xl text-sm font-medium transition-colors ${
-                    isActive ? "text-blue-600 bg-blue-50 font-semibold" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  className={`flex items-center py-3.5 px-4 rounded-xl text-[15px] font-medium transition-colors ${
+                    isActive
+                      ? "text-blue-600 bg-blue-50 font-semibold"
+                      : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {link.name}
                 </Link>
               );
             })}
-            <div className="pt-3 border-t border-slate-100 space-y-2 px-1">
-              <Link
-                href="/login"
-                onClick={() => setMobileOpen(false)}
-                className="block py-2.5 px-3 text-sm font-medium text-slate-600 hover:text-slate-900"
-              >
-                Login
-              </Link>
-              <Link href="/download" onClick={() => setMobileOpen(false)}>
-                <Button variant="outline" className="w-full rounded-full border-slate-300 gap-2 text-sm">
-                  <Download className="w-4 h-4" /> Download
-                </Button>
-              </Link>
-              <Link href="/signup" onClick={() => setMobileOpen(false)}>
-                <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-full font-semibold text-sm">
-                  Start Free
-                </Button>
-              </Link>
-            </div>
           </div>
-        )}
+
+          <div className="mt-auto pt-6 border-t border-slate-100 space-y-3">
+            <Link
+              href="/login"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-center py-3 text-[15px] font-semibold text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              Login
+            </Link>
+            <Link href="/download" onClick={() => setMobileOpen(false)}>
+              <Button
+                variant="outline"
+                className="w-full rounded-full border-slate-300 gap-2 text-[15px] h-12"
+              >
+                <Download className="w-4 h-4" /> Download
+              </Button>
+            </Link>
+            <Link href="/signup" onClick={() => setMobileOpen(false)}>
+              <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-full font-semibold text-[15px] h-12">
+                Start Free
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
     </nav>
   );

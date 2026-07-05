@@ -30,6 +30,13 @@ def contact_support(request):
 
     api_key = os.environ.get("RESEND_API_KEY")
     support_email = os.environ.get("SUPPORT_EMAIL", "hasansiddique19524@gmail.com")
+    support_email_2 = os.environ.get("SUPPORT_EMAIL_2")  # Fetch the second email
+    
+    # Build the recipient list dynamically
+    recipient_emails = [support_email]
+    if support_email_2:
+        recipient_emails.append(support_email_2)
+        
     from_email = os.environ.get("FROM_EMAIL", "no-reply@acumenteams.com")
 
     if not api_key:
@@ -47,7 +54,7 @@ def contact_support(request):
         resend.Emails.send(
             {
                 "from": from_email,
-                "to": [support_email],
+                "to": recipient_emails,
                 "subject": email_subject,
                 "text": email_body,
             }
