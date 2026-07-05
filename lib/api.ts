@@ -70,7 +70,7 @@ export async function apiFetch(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  if (!isFormData) {
+  if (!isFormData && options.body) {
     headers["Content-Type"] = "application/json";
   }
 

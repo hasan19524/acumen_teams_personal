@@ -36,10 +36,7 @@ const ALLOWED_WITHOUT_WORKSPACE = [
   "/dashboard/settings",
 ];
 
-// Default item for the 4th slot
-const DEFAULT_DYNAMIC_ITEM = { label: "Attendance", path: "/dashboard/attendance", icon: Clock };
-
-// Items inside the "More" menu (Attendance removed as requested)
+// Items inside the "More" menu
 const MORE_ITEMS = [
   { label: "Announcements", path: "/dashboard/announcements", icon: Megaphone },
   { label: "Teams", path: "/dashboard/team", icon: Users },
@@ -58,9 +55,6 @@ export default function DashboardLayout({
 
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [showTabletSidebar, setShowTabletSidebar] = useState(false);
-  
-  // Dynamic 4th slot state (Defaults to Attendance)
-  const [dynamicItem, setDynamicItem] = useState(DEFAULT_DYNAMIC_ITEM);
 
   const openProfile = useProfileStore((s) => s.openProfile);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
@@ -82,16 +76,6 @@ export default function DashboardLayout({
     setShowTabletSidebar(false);
     setShowMoreSheet(false);
   }, [authChecked, isIndependent, pathname, router]);
-
-  // If we navigate directly to a "More" route, update the 4th slot to match
-  useEffect(() => {
-    const foundItem = MORE_ITEMS.find((item) => pathname.startsWith(item.path));
-    if (foundItem) {
-      setDynamicItem(foundItem);
-    } else if (pathname.startsWith(DEFAULT_DYNAMIC_ITEM.path)) {
-      setDynamicItem(DEFAULT_DYNAMIC_ITEM);
-    }
-  }, [pathname]);
 
   if (!authChecked) {
     return (
@@ -310,17 +294,17 @@ export default function DashboardLayout({
             </span>
           </button>
 
-          {/* DYNAMIC 4TH SLOT */}
+          {/* 4TH SLOT: ATTENDANCE */}
           <button
-            onClick={() => router.push(dynamicItem.path)}
+            onClick={() => router.push("/dashboard/attendance")}
             className="flex flex-col items-center p-1.5 transition-colors w-1/5"
             style={{
-              color: isActive(dynamicItem.path) ? "#5DADE2" : "#B7C0D8",
+              color: isActive("/dashboard/attendance") ? "#5DADE2" : "#B7C0D8",
             }}
           >
-            <dynamicItem.icon size={20} />
+            <Clock size={20} />
             <span className="text-[9px] mt-1 font-semibold whitespace-nowrap">
-              {dynamicItem.label}
+              Attendance
             </span>
           </button>
 
@@ -355,7 +339,6 @@ export default function DashboardLayout({
               <button
                 key={item.label}
                 onClick={() => {
-                  setDynamicItem(item); // Update the 4th slot!
                   router.push(item.path);
                   setShowMoreSheet(false);
                 }}

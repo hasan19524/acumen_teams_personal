@@ -31,13 +31,7 @@ def checkin(request: Request, workspace_id: int) -> Response:
 
     config = get_config(workspace_id)
 
-    # ENFORCE WORKING DAYS: Prevent check-in on non-working days (e.g., weekends)
-    if not config.is_working_day(today):
-        return Response(
-            {"error": "Today is a non-working day. Check-in is disabled."}, 
-            status=400
-        )
-
+    # Allow check-in on any day, but status logic remains intact
     previous_active = Attendance.objects.filter(
         user=user, check_in__isnull=False, check_out__isnull=True
     ).exclude(date=today)
