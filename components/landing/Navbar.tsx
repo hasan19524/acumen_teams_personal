@@ -86,8 +86,8 @@ export default function Navbar() {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "backdrop-blur-xl bg-white/85 border-b border-slate-200/80 shadow-[0_4px_30px_rgba(0,0,0,0.08)]"
+        scrolled || mobileOpen
+          ? "backdrop-blur-xl bg-white/95 border-b border-slate-200/80 shadow-[0_4px_30px_rgba(0,0,0,0.08)]"
           : "bg-transparent"
       }`}
     >
@@ -162,6 +162,9 @@ export default function Navbar() {
             })}
           </div>
 
+          {/* Vertical Divider */}
+          <div className="hidden md:block h-6 w-px bg-slate-200 mx-2"></div>
+
           {/* Right Actions */}
           <div className="hidden md:flex items-center gap-3">
             <Link
@@ -204,7 +207,7 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {mobileOpen && (
-          <div className="md:hidden mt-3 pb-4 border-t border-slate-200 pt-4 space-y-1 bg-white/95 backdrop-blur-sm rounded-b-2xl">
+          <div className="md:hidden mt-4 pb-4 border-t border-slate-200 pt-4 space-y-1">
             <Link href="/" onClick={(e) => handleNavClick(e, "/")} className={`block py-2.5 px-4 rounded-xl text-sm font-bold transition-colors ${activeSection === "home" ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:bg-slate-50"}`}>
               Home
             </Link>
