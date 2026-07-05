@@ -268,6 +268,14 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+```run
+cd acumen_backend
+python -m daphne -p 8000 config.asgi:application
+
+npm  run dev
+```
+
+
 Backend runs on:
 
 ```

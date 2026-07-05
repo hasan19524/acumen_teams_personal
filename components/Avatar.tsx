@@ -21,14 +21,19 @@ export default function Avatar({
   const [imgError, setImgError] = useState(false);
 
   // 1. Try to resolve from global cache
+  // FIX: Return the raw record object to maintain stable reference and prevent infinite loops
   const userId = user?.id || user?.user_id;
   const cached = useAvatarStore((state) =>
-    userId ? state.getUser(userId) : null,
+    userId ? state.users[userId] : null,
   );
 
-  // 2. Fallback to props if not in cache
+  // 2. Fallback to props if not in cache, and check expiry safely
+  const isCacheExpired = cached && cached.expiresAt < Date.now();
   let imageSrc =
-    src || cached?.avatarUrl || user?.profile_image || user?.avatar_url;
+    src ||
+    (cached && !isCacheExpired ? cached.avatarUrl : null) ||
+    user?.profile_image ||
+    user?.avatar_url;
   let displayName = name || cached?.name || user?.full_name || "";
 
   useEffect(() => {

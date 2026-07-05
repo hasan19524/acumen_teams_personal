@@ -74,10 +74,23 @@ export async function apiFetch(
     headers["Content-Type"] = "application/json";
   }
 
-  let res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkError) {
+    // If the backend is down or crashes, return a fake 503 response
+    // so the frontend doesn't crash and can show a clean error.
+    return new Response(
+      JSON.stringify({ error: "Network error. Is the backend running?" }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 
   if (res.status === 401) {
     const newToken = await refreshAccessToken();
