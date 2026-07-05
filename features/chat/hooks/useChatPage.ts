@@ -482,15 +482,52 @@ export function useChatPage() {
       const currentMsgs = messages[selectedChannelId] || [];
       setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
 
-      wsSend({
-        type: "message",
-        content: messageInput,
-        client_id: clientId, // Send client_id for deduplication
-        ...(replyingTo ? { reply_to: replyingTo.id } : {}),
-      });
+      const contentCopy = messageInput;
+      const replyToCopy = replyingTo ? replyingTo.id : null;
       
       setMessageInput("");
       setReplyingTo(null);
+
+      try {
+        if (isReady()) {
+          // Use WebSocket if available
+          wsSend({
+            type: "message",
+            content: contentCopy,
+            client_id: clientId, // Send client_id for deduplication
+            ...(replyToCopy ? { reply_to: replyToCopy } : {}),
+          });
+        } else {
+          // Fallback to HTTP if WebSocket is not connected
+          import("../services/channelService").then(({ sendMessageHttp }) => {
+            sendMessageHttp({
+              channel_id: selectedChannelId,
+              content: contentCopy,
+              client_id: clientId,
+              reply_to_id: replyToCopy || null,
+            }).catch(() => {
+              // If HTTP fails, remove the optimistic message
+              const latestMsgs = useChatStore.getState().messages[selectedChannelId] || [];
+              setMessages(selectedChannelId, latestMsgs.filter(m => m.id !== tempId));
+              alert("Failed to send message. Please try again.");
+            });
+          });
+        }
+      } catch (err) {
+        // If wsSend throws synchronously, fallback to HTTP
+        import("../services/channelService").then(({ sendMessageHttp }) => {
+          sendMessageHttp({
+            channel_id: selectedChannelId,
+            content: contentCopy,
+            client_id: clientId,
+            reply_to_id: replyToCopy || null,
+          }).catch(() => {
+            const latestMsgs = useChatStore.getState().messages[selectedChannelId] || [];
+            setMessages(selectedChannelId, latestMsgs.filter(m => m.id !== tempId));
+            alert("Failed to send message. Please try again.");
+          });
+        });
+      }
 
       // Always scroll to bottom after sending
       setTimeout(() => {

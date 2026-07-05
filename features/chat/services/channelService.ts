@@ -359,3 +359,18 @@ export async function sendGroupInvite(
   });
   if (!res.ok) throw new Error("Failed to send group invite");
 }
+
+export async function sendMessageHttp(payload: {
+  channel_id: number;
+  content: string;
+  client_id: string;
+  reply_to_id?: number | null;
+}) {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/messages/`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to send message");
+  return res.json();
+}
