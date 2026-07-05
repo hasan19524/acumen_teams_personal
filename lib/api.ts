@@ -1,5 +1,16 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+// ── Global In-Memory Cache ───────────────────────────────────────────────
+const apiCache = new Map<
+  string,
+  { body: string; timestamp: number; headers: Headers }
+>();
+const CACHE_TTL = 30000; // 30 seconds - prevents spamming API calls on page navigations
+
+export function invalidateCache() {
+  apiCache.clear();
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   const refresh = localStorage.getItem("refresh");
   if (!refresh) return null;
@@ -20,7 +31,6 @@ async function refreshAccessToken(): Promise<string | null> {
       localStorage.removeItem("refresh");
       localStorage.removeItem("username");
       localStorage.removeItem("workspace_id");
-      // Do NOT hard redirect here. Let the AuthProvider handle routing based on the current path.
       return null;
     }
   } catch {
@@ -34,8 +44,27 @@ export async function apiFetch(
 ): Promise<Response> {
   const token = localStorage.getItem("token");
   const isFormData = options.body instanceof FormData;
+  const method = options.method?.toUpperCase() || "GET";
 
-  // If it's FormData, DO NOT set Content-Type. The browser must set it with the boundary.
+  // Mutations MUST clear the cache so the next GET fetches fresh data from the server
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    invalidateCache();
+  }
+
+  // If it's a GET request, check the cache first
+  if (method === "GET") {
+    const cached = apiCache.get(endpoint);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      // Return a mock Response object so the frontend behaves exactly as if it made a network request
+      return new Response(cached.body, {
+        status: 200,
+        statusText: "OK",
+        headers: cached.headers,
+      });
+    }
+  }
+
+  // If not in cache, prepare the real request
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) || {}),
@@ -63,5 +92,17 @@ export async function apiFetch(
     }
   }
 
+  // Cache successful GET responses
+  if (method === "GET" && res.ok) {
+    const clonedRes = res.clone();
+    const body = await clonedRes.text();
+    apiCache.set(endpoint, {
+      body,
+      timestamp: Date.now(),
+      headers: clonedRes.headers,
+    });
+  }
+
   return res;
 }
+

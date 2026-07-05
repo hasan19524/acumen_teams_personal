@@ -1,8 +1,7 @@
-// features/teams/components/AddMemberModal.tsx
 "use client";
 
 import { useState } from "react";
-import { X, Search, Plus, Loader2, CheckCircle2 } from "lucide-react";
+import { X, Search, Plus, CheckCircle2 } from "lucide-react";
 import { tk, Member, Team } from "../lib";
 import { workspaceService } from "@/features/workspace/workspaceService";
 
@@ -34,8 +33,6 @@ export function AddMemberModal({
       await workspaceService.inviteTeamMember(team.id, userId);
       setInvitedIds((prev) => [...prev, userId]);
     } catch (err: any) {
-      // If it's a 409 (Invite already pending), we can safely mark them as invited in the UI
-      // to prevent them from clicking again, and show a friendly message.
       if (err.message.includes("pending")) {
         setInvitedIds((prev) => [...prev, userId]);
         alert("This user already has a pending invitation for this team.");
@@ -57,176 +54,68 @@ export function AddMemberModal({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)",
-        zIndex: 200,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
-      }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex justify-center items-center p-4"
       onClick={onClose}
     >
       <div
-        className="modal-fade"
-        style={{
-          background: tk.surface,
-          border: `1px solid ${tk.border}`,
-          borderRadius: 12,
-          width: "100%",
-          maxWidth: 420,
-          padding: 24,
-          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-        }}
+        className="bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-sm p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 700,
-              color: tk.textPrimary,
-            }}
-          >
-            Add to {team.name}
-          </h2>
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-lg font-bold text-white">Add to {team.name}</h2>
           <button
             onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: tk.textMuted,
-              cursor: "pointer",
-            }}
+            className="bg-transparent border-none text-[#7A86A7] cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div style={{ position: "relative", marginBottom: 16 }}>
+        <div className="relative mb-4">
           <Search
             size={16}
-            style={{
-              position: "absolute",
-              left: 12,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: tk.textMuted,
-              pointerEvents: "none",
-            }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A86A7] pointer-events-none"
           />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search workspace members..."
             autoFocus
-            style={{
-              width: "100%",
-              padding: "10px 14px 10px 36px",
-              borderRadius: 8,
-              border: `1px solid ${tk.border}`,
-              background: tk.bg,
-              color: tk.textPrimary,
-              fontSize: 14,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
+            className="w-full p-2.5 pl-9 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
           />
         </div>
 
-        <div
-          style={{
-            maxHeight: 300,
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
+        <div className="max-h-72 overflow-y-auto flex flex-col gap-2">
           {availableMembers.length === 0 ? (
-            <div
-              style={{
-                padding: 24,
-                textAlign: "center",
-                color: tk.textMuted,
-                fontSize: 13,
-              }}
-            >
+            <div className="p-6 text-center text-[#7A86A7] text-sm">
               No members available to add.
             </div>
           ) : (
             availableMembers.map((u) => (
               <div
                 key={u.user_id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: 8,
-                  borderRadius: 8,
-                  background: tk.bg,
-                  border: `1px solid ${tk.border}`,
-                }}
+                className="flex items-center justify-between p-2 rounded-lg bg-[#081325] border border-[#2A3A5C]"
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
                       background: `linear-gradient(135deg, ${tk.brand}, ${tk.brandLight})`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 600,
-                      fontSize: 13,
-                      color: "#fff",
                     }}
                   >
                     {(u.full_name || u.username).charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: tk.textPrimary,
-                      }}
-                    >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
                       {u.full_name || u.username}
                     </div>
-                    <div style={{ fontSize: 12, color: tk.textMuted }}>
-                      @{u.username}
-                    </div>
+                    <div className="text-xs text-[#7A86A7]">@{u.username}</div>
                   </div>
                 </div>
                 <button
                   onClick={() => handleInvite(u.user_id)}
                   disabled={invitedIds.includes(u.user_id)}
-                  style={{
-                    background: invitedIds.includes(u.user_id) ? tk.surfaceHover : tk.brand,
-                    border: "none",
-                    color: "#fff",
-                    width: 32,
-                    height: 32,
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: invitedIds.includes(u.user_id) ? 0.5 : 1,
-                  }}
+                  className="bg-[#4B1587] border-none text-white w-8 h-8 rounded-md cursor-pointer flex items-center justify-center disabled:opacity-50 disabled:bg-[#20304E]"
                 >
                   {invitedIds.includes(u.user_id) ? (
                     <CheckCircle2 size={16} />

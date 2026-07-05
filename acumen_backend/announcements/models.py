@@ -1,8 +1,9 @@
-# acumen_backend/announcements/models.py
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 
 class Announcement(models.Model):
@@ -66,3 +67,21 @@ class AnnouncementAttachment(models.Model):
     file_name = models.CharField(max_length=255)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        try:
+            old_obj = AnnouncementAttachment.objects.get(pk=self.pk)
+            if old_obj.file and old_obj.file != self.file:
+                old_obj.file.delete(save=False)
+        except AnnouncementAttachment.DoesNotExist:
+            pass
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.file_name
+
+
+@receiver(post_delete, sender=AnnouncementAttachment)
+def delete_announcement_attachment_on_delete(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

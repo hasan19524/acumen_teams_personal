@@ -70,6 +70,11 @@ urlpatterns = [
         name="team_invite",
     ),
     path(
+        "<int:workspace_id>/settings/",
+        views.WorkspaceSettingsView.as_view(),
+        name="workspace_settings",
+    ),
+    path(
         "<int:workspace_id>/teams/invite/<int:pk>/",
         views.TeamInviteRespondView.as_view(),
         name="team_invite_respond",
@@ -83,6 +88,11 @@ urlpatterns = [
         "<int:workspace_id>/teams/<int:team_id>/members/<int:user_id>/promote/",
         views.PromoteTeamLeaderView.as_view(),
         name="promote_leader"
+    ),
+    path(
+        "<int:workspace_id>/teams/<int:team_id>/members/<int:user_id>/demote/",
+        views.DemoteTeamLeaderView.as_view(),
+        name="demote_leader"
     ),
     # Invite Center & Groups
     path(
@@ -124,5 +134,7 @@ urlpatterns = [
     path("<int:workspace_id>/stats/", views.dashboard_stats, name="dashboard_stats"),
     path("create/", CreateWorkspaceView.as_view(), name="create-workspace"),
     path("create/", CreateWorkspaceView.as_view(), name="create-workspace"),
+    path("<int:workspace_id>/schedule-deletion/", views.ScheduleDeletionView.as_view(), name="schedule_deletion"),
+    path("<int:workspace_id>/cancel-deletion/", views.CancelDeletionView.as_view(), name="cancel_deletion"),
 
 ]

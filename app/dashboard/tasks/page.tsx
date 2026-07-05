@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation"; // ADDED for deep linking
 import { useTaskStore } from "@/features/tasks/store/taskStore";
 import { Task, TaskPriority, TaskStatus } from "@/features/tasks/types/task";
 import { apiFetch } from "@/lib/api";
@@ -11,6 +12,8 @@ import { TaskUI } from "@/features/tasks/components/TaskUI";
 import ArchiveView from "@/components/tasks/ArchiveView";
 
 export default function TasksPage() {
+  const searchParams = useSearchParams(); // ADDED for deep linking
+
   const [userId, setUserId] = useState(0);
   const [userRole, setUserRole] = useState("member");
   const [availableTeams, setAvailableTeams] = useState<
@@ -74,6 +77,18 @@ export default function TasksPage() {
   const [sortBy, setSortBy] = useState<
     "due" | "priority" | "status" | "created"
   >("due");
+
+  // ADDED: Deep Link Effect for Dashboard Cards
+  useEffect(() => {
+    const statusFilter = searchParams.get("status");
+    if (statusFilter === "pending_approval") {
+      setActiveFilter("pending_approval");
+      setViewMode("received"); // Usually approvals are in received tasks
+    } else if (statusFilter === "overdue") {
+      setActiveFilter("overdue");
+      setViewMode("hub");
+    }
+  }, [searchParams]);
 
   // Create Modal State
   const [createStep, setCreateStep] = useState(1);
@@ -218,7 +233,7 @@ export default function TasksPage() {
     useTaskStore.getState().deleteAttachment(id);
   };
 
-    if (viewMode === "archive") {
+  if (viewMode === "archive") {
     return <ArchiveView onBack={() => setViewMode("hub")} />;
   }
 

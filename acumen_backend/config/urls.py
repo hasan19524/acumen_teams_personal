@@ -33,6 +33,8 @@ urlpatterns = [
     path("api/tasks/", include("tasks.urls")),
     path("api/announcements/", include("announcements.urls")),
     path("api/notifications/", include("notifications.urls")),
+    path("api/support/", include("support.urls")),
+    path("api/uploads/", include("upload.urls")),
 ]
 
 if settings.DEBUG:

@@ -16,13 +16,28 @@ from .models import (
 
 class UserMiniSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "full_name"]
+        fields = ["id", "username", "first_name", "last_name", "full_name", "profile_image"]
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip()
+
+    def get_profile_image(self, obj):
+        # Safely fetch the profile image URL if it exists
+        if hasattr(obj, 'profile') and obj.profile.profile_image:
+            request = self.context.get("request")
+            try:
+                url = obj.profile.profile_image.url
+                if request:
+                    return request.build_absolute_uri(url)
+                from django.conf import settings
+                return f"{settings.BASE_URL}{url}"
+            except Exception:
+                return None
+        return None
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -40,6 +55,7 @@ class ChannelSerializer(serializers.ModelSerializer):
     # NEW: Sidebar preview fields
     last_message = serializers.SerializerMethodField()
     last_message_time = serializers.SerializerMethodField()
+    last_message_sender = serializers.CharField(read_only=True, default=None)
     unread_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -64,6 +80,7 @@ class ChannelSerializer(serializers.ModelSerializer):
             "is_pending",
             "last_message",
             "last_message_time",
+            "last_message_sender",
             "unread_count",
         ]
 
@@ -84,31 +101,12 @@ class ChannelSerializer(serializers.ModelSerializer):
         return ""
 
     def get_last_message_time(self, obj):
-        # Use annotated field if available
+        # Return raw ISO string so the frontend can format it in the user's local timezone
         if hasattr(obj, 'last_message_created'):
-            if not obj.last_message_created:
-                return None
-            from django.utils import timezone
-            created_at = obj.last_message_created
-            now = timezone.now()
-            if created_at.date() == now.date():
-                return created_at.strftime("%I:%M %p")
-            elif (now.date() - created_at.date()).days == 1:
-                return "Yesterday"
-            else:
-                return created_at.strftime("%d/%m/%Y")
-            
-        # Fallback
+            return obj.last_message_created.isoformat() if obj.last_message_created else None
+        
         last_msg = Message.objects.filter(channel=obj, is_deleted=False).order_by("-created_at").first()
-        if not last_msg: return None
-        from django.utils import timezone
-        now = timezone.now()
-        if last_msg.created_at.date() == now.date():
-            return last_msg.created_at.strftime("%I:%M %p")
-        elif (now.date() - last_msg.created_at.date()).days == 1:
-            return "Yesterday"
-        else:
-            return last_msg.created_at.strftime("%d/%m/%Y")
+        return last_msg.created_at.isoformat() if last_msg else None
 
     def get_unread_count(self, obj):
         # Use annotated field if available
@@ -141,7 +139,8 @@ class ChannelSerializer(serializers.ModelSerializer):
             .first()
         )
         if other:
-            return UserMiniSerializer(other.user).data
+            # FIX: Pass context so it generates a valid presigned S3 URL
+            return UserMiniSerializer(other.user, context={"request": request}).data
         return None
 
     def get_is_member_active(self, obj):

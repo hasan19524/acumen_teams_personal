@@ -100,6 +100,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         msg_type = data.get("type", "message")
 
         if msg_type == "ping":
+            # Immediately reply with pong to keep the WebSocket alive
+            # This prevents the frontend from timing out and reconnecting every 15-30s
             await self.send(
                 text_data=json.dumps(
                     {"type": "pong", "timestamp": timezone.now().isoformat()}

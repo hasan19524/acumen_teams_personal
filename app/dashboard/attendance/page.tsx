@@ -4,6 +4,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { workspaceService } from "@/features/workspace/workspaceService";
+import { useProfileStore } from "@/features/dashboard/store/profileStore";
+import Avatar from "@/components/Avatar";
 import {
   Clock,
   LogIn,
@@ -48,6 +50,8 @@ type TeamMemberAtt = {
   full_name: string;
   status: string;
   check_in: string | null;
+  profile_image?: string | null;
+  role?: string;
 };
 
 type TeamAtt = {
@@ -114,6 +118,9 @@ export default function AttendancePage() {
     grace_period_minutes: 15,
     working_days: ["0", "1", "2", "3", "4"],
   });
+
+  // Global Profile Drawer
+  const openProfile = useProfileStore((state) => state.openProfile);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -242,15 +249,7 @@ export default function AttendancePage() {
   const isManager = role === "leader" || role === "admin" || role === "owner";
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: tk.bg,
-        color: tk.textPrimary,
-        fontFamily: "'Inter', sans-serif",
-        padding: "32px 40px",
-      }}
-    >
+    <main className="h-full bg-[#081325] text-white font-sans flex flex-col overflow-hidden">
       <style>{`
         .ac-hover { transition: all 0.15s ease; }
         .ac-hover:hover { background: ${tk.surfaceHover} !important; border-color: ${tk.border} !important; }
@@ -259,702 +258,416 @@ export default function AttendancePage() {
         .ac-input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid ${tk.border}; background: ${tk.bg}; color: ${tk.textPrimary}; font-size: 14px; outline: none; font-family: inherit; }
         .fade-in { animation: acFadeIn 0.2s ease-out; }
         @keyframes acFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
       `}</style>
 
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "32px",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700 }}>
-            Attendance
-          </h1>
-          <p
-            style={{
-              margin: "8px 0 0",
-              color: tk.textSecondary,
-              fontSize: "14px",
-            }}
-          >
-            Track your work hours and team activity.
-          </p>
+      {/* =========================================
+          1. LOCKED TOP SECTION (No Scroll)
+      ========================================== */}
+      <div className="flex-shrink-0 p-4 sm:p-6 lg:p-8 border-b border-[#2A3A5C]/50">
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Attendance</h1>
+            <p className="text-sm text-[#B7C0D8] mt-1">
+              Track your work hours and team activity.
+            </p>
+          </div>
+          {isManager && (
+            <div className="flex gap-1 bg-[#172440] p-1 rounded-lg border border-[#2A3A5C]">
+              <button
+                onClick={() => setActiveTab("personal")}
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${activeTab === "personal" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+              >
+                Personal
+              </button>
+              <button
+                onClick={() => setActiveTab("team")}
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors ${activeTab === "team" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+              >
+                Team
+              </button>
+              <button
+                onClick={() => setShowConfig(true)}
+                className="p-2 rounded-md text-[#B7C0D8] hover:text-white"
+              >
+                <Settings size={16} />
+              </button>
+            </div>
+          )}
         </div>
-        {isManager && (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              background: tk.surface,
-              padding: 4,
-              borderRadius: 10,
-              border: `1px solid ${tk.border}`,
-            }}
-          >
-            <button
-              onClick={() => setActiveTab("personal")}
-              style={{
-                background: activeTab === "personal" ? tk.brand : "transparent",
-                color: activeTab === "personal" ? "#fff" : tk.textSecondary,
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 13,
-              }}
-            >
-              Personal
-            </button>
-            <button
-              onClick={() => setActiveTab("team")}
-              style={{
-                background: activeTab === "team" ? tk.brand : "transparent",
-                color: activeTab === "team" ? "#fff" : tk.textSecondary,
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 13,
-              }}
-            >
-              Team
-            </button>
-            <button
-              onClick={() => setShowConfig(true)}
-              style={{
-                background: "transparent",
-                color: tk.textSecondary,
-                border: "none",
-                padding: "8px",
-                borderRadius: 6,
-                cursor: "pointer",
-              }}
-            >
-              <Settings size={16} />
-            </button>
+
+        {/* PERSONAL VIEW TOP PART */}
+        {activeTab === "personal" && (
+          <div className="fade-in">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-4 sm:p-5">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] sm:text-xs text-[#7A86A7] font-medium">
+                    TODAY STATUS
+                  </span>
+                  {todayIn ? (
+                    <CheckCircle2 size={16} color={tk.success} />
+                  ) : checkedOutToday ? (
+                    <CheckCircle2 size={16} color={tk.brandLight} />
+                  ) : (
+                    <AlertCircle size={16} color={tk.textMuted} />
+                  )}
+                </div>
+                <div
+                  className="text-base sm:text-xl font-bold"
+                  style={{
+                    color: todayIn
+                      ? tk.success
+                      : checkedOutToday
+                        ? tk.brandLight
+                        : tk.textPrimary,
+                  }}
+                >
+                  {todayStatus
+                    ? statusConfig[todayStatus]?.label || "Not In"
+                    : "Not In"}
+                </div>
+              </div>
+              <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-4 sm:p-5">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] sm:text-xs text-[#7A86A7] font-medium">
+                    CHECK IN
+                  </span>
+                  <LogIn size={16} color={tk.brandLight} />
+                </div>
+                <div className="text-base sm:text-xl font-bold">
+                  {todayIn
+                    ? new Date(todayIn).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : checkedOutToday &&
+                        history.find((r) => r.is_today)?.check_in
+                      ? new Date(
+                          history.find((r) => r.is_today)!.check_in!,
+                        ).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "--:--"}
+                </div>
+              </div>
+              <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-4 sm:p-5">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] sm:text-xs text-[#7A86A7] font-medium">
+                    ACTIVE HOURS
+                  </span>
+                  <Clock size={16} color={tk.success} />
+                </div>
+                <div className="text-base sm:text-xl font-bold">
+                  {todayIn
+                    ? timer
+                    : todayDuration != null
+                      ? formatDuration(todayDuration)
+                      : "0h 0m"}
+                </div>
+              </div>
+              <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-4 sm:p-5">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] sm:text-xs text-[#7A86A7] font-medium">
+                    MONTHLY %
+                  </span>
+                  <Calendar size={16} color={tk.warning} />
+                </div>
+                <div className="text-base sm:text-xl font-bold text-[#F5B041]">
+                  {percentage}%
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                className="ac-btn flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#4B1587] text-white font-semibold text-sm disabled:opacity-50"
+                disabled={loading || !!todayIn || checkedOutToday}
+                onClick={handleCheckIn}
+              >
+                <LogIn size={16} /> Clock In
+              </button>
+              <button
+                className="ac-btn flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A3A5C] text-white font-semibold text-sm disabled:opacity-50"
+                disabled={loading || !todayIn}
+                onClick={handleCheckOut}
+              >
+                <LogOutIcon size={16} /> Clock Out
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* PERSONAL VIEW */}
-      {activeTab === "personal" && (
-        <div className="fade-in">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "16px",
-              marginBottom: "32px",
-            }}
-          >
-            <div
-              style={{
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                padding: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <span
-                  style={{
-                    color: tk.textMuted,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                  }}
-                >
-                  TODAY STATUS
-                </span>
-                {todayIn ? (
-                  <CheckCircle2 size={16} color={tk.success} />
-                ) : checkedOutToday ? (
-                  <CheckCircle2 size={16} color={tk.brandLight} />
+      {/* =========================================
+          2. SCROLLABLE LOWER SECTION
+      ========================================== */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 lg:p-8 pt-6">
+        {/* PERSONAL VIEW HISTORY */}
+        {activeTab === "personal" && (
+          <div className="fade-in">
+            <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-4 sm:p-6">
+              <h3 className="text-base font-bold mb-5">Recent History</h3>
+
+              <div className="hidden md:grid grid-cols-5 gap-4 px-4 pb-2 text-xs text-[#7A86A7] font-medium border-b border-[#2A3A5C]">
+                <span>Date</span>
+                <span>Check In</span>
+                <span>Check Out</span>
+                <span>Duration</span>
+                <span className="text-right">Status</span>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2">
+                {history.length > 0 ? (
+                  history.map((item, i) => {
+                    const s = statusConfig[item.status] || statusConfig.absent;
+                    return (
+                      <div
+                        key={item.date ?? `item-${i}`}
+                        className="p-4 bg-[#081325] rounded-lg border border-[#2A3A5C]"
+                      >
+                        {/* Mobile Layout (Labeled Ticket Style) */}
+                        <div className="md:hidden">
+                          {/* Top Row: Date & Status */}
+                          <div className="flex justify-between items-center pb-3 border-b border-[#2A3A5C] mb-3">
+                            <span className="flex items-center gap-2 text-white font-semibold text-sm">
+                              <Calendar size={14} color={tk.textMuted} />
+                              {new Date(item.date).toLocaleDateString(
+                                undefined,
+                                {
+                                  weekday: "short",
+                                  day: "numeric",
+                                  month: "short",
+                                },
+                              )}
+                            </span>
+                            <span
+                              className="text-[10px] px-2 py-1 rounded-md font-semibold"
+                              style={{ background: s.bg, color: s.color }}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+
+                          {/* Middle Row: Check In & Check Out */}
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div className="flex items-center gap-2">
+                              <LogIn size={16} className="text-[#5DADE2]" />
+                              <div>
+                                <div className="text-[10px] text-[#7A86A7] uppercase tracking-wider">
+                                  Check In
+                                </div>
+                                <div className="text-sm text-[#B7C0D8] font-medium mt-0.5">
+                                  {item.check_in
+                                    ? new Date(
+                                        item.check_in,
+                                      ).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "--"}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <LogOutIcon
+                                size={16}
+                                className="text-[#5DADE2]"
+                              />
+                              <div>
+                                <div className="text-[10px] text-[#7A86A7] uppercase tracking-wider">
+                                  Check Out
+                                </div>
+                                <div className="text-sm text-[#B7C0D8] font-medium mt-0.5">
+                                  {item.check_out
+                                    ? new Date(
+                                        item.check_out,
+                                      ).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "--"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bottom Row: Duration */}
+                          <div className="flex items-center justify-between pt-3 border-t border-[#2A3A5C]">
+                            <div className="flex items-center gap-2">
+                              <Clock size={16} className="text-[#1FA463]" />
+                              <span className="text-[10px] text-[#7A86A7] uppercase tracking-wider">
+                                Active Hours
+                              </span>
+                            </div>
+                            <span className="text-sm text-[#1FA463] font-bold">
+                              {formatDuration(item.duration_hours)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Desktop Layout (Single Row Grid) */}
+                        <div className="hidden md:grid grid-cols-5 gap-4 items-center text-sm">
+                          <span className="flex items-center gap-2 text-[#B7C0D8]">
+                            {new Date(item.date).toLocaleDateString()}
+                          </span>
+                          <span className="text-[#B7C0D8]">
+                            {item.check_in
+                              ? new Date(item.check_in).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "--"}
+                          </span>
+                          <span className="text-[#B7C0D8]">
+                            {item.check_out
+                              ? new Date(item.check_out).toLocaleTimeString(
+                                  [],
+                                  { hour: "2-digit", minute: "2-digit" },
+                                )
+                              : "--"}
+                          </span>
+                          <span className="text-[#5DADE2] font-semibold">
+                            {formatDuration(item.duration_hours)}
+                          </span>
+                          <span
+                            className="text-xs px-2 py-1 rounded-md font-semibold justify-self-end"
+                            style={{ background: s.bg, color: s.color }}
+                          >
+                            {s.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
-                  <AlertCircle size={16} color={tk.textMuted} />
+                  <div className="py-12 text-center text-[#7A86A7]">
+                    No records found.
+                  </div>
                 )}
               </div>
-              <div
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: todayIn
-                    ? tk.success
-                    : checkedOutToday
-                      ? tk.brandLight
-                      : tk.textPrimary,
-                }}
-              >
-                {todayStatus
-                  ? statusConfig[todayStatus]?.label || "Not In"
-                  : "Not In"}
-              </div>
-            </div>
-            <div
-              style={{
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                padding: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <span
-                  style={{
-                    color: tk.textMuted,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                  }}
-                >
-                  CHECK IN
-                </span>
-                <LogIn size={16} color={tk.brandLight} />
-              </div>
-              <div style={{ fontSize: "22px", fontWeight: 700 }}>
-                {todayIn
-                  ? new Date(todayIn).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : checkedOutToday && history.find((r) => r.is_today)?.check_in
-                    ? new Date(
-                        history.find((r) => r.is_today)!.check_in!,
-                      ).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "--:--"}
-              </div>
-            </div>
-            <div
-              style={{
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                padding: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <span
-                  style={{
-                    color: tk.textMuted,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                  }}
-                >
-                  ACTIVE HOURS
-                </span>
-                <Clock size={16} color={tk.success} />
-              </div>
-              <div style={{ fontSize: "22px", fontWeight: 700 }}>
-                {todayIn
-                  ? timer
-                  : todayDuration != null
-                    ? formatDuration(todayDuration)
-                    : "0h 0m"}
-              </div>
-            </div>
-            <div
-              style={{
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                padding: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <span
-                  style={{
-                    color: tk.textMuted,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                  }}
-                >
-                  MONTHLY %
-                </span>
-                <Calendar size={16} color={tk.warning} />
-              </div>
-              <div
-                style={{ fontSize: "22px", fontWeight: 700, color: tk.warning }}
-              >
-                {percentage}%
-              </div>
             </div>
           </div>
+        )}
 
-          <div style={{ display: "flex", gap: "12px", marginBottom: "40px" }}>
-            <button
-              className="ac-btn"
-              disabled={loading || !!todayIn || checkedOutToday}
-              onClick={handleCheckIn}
-              style={{
-                height: "40px",
-                padding: "0 20px",
-                borderRadius: "8px",
-                border: "none",
-                background: tk.brand,
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: 14,
-                opacity: loading || !!todayIn || checkedOutToday ? 0.5 : 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <LogIn size={16} /> Clock In
-            </button>
-            <button
-              className="ac-btn"
-              disabled={loading || !todayIn}
-              onClick={handleCheckOut}
-              style={{
-                height: "40px",
-                padding: "0 20px",
-                borderRadius: "8px",
-                border: `1px solid ${tk.border}`,
-                background: "transparent",
-                color: tk.textPrimary,
-                fontWeight: 600,
-                fontSize: 14,
-                opacity: loading || !todayIn ? 0.5 : 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <LogOutIcon size={16} /> Clock Out
-            </button>
-          </div>
-
-          <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: "12px",
-              padding: "24px",
-            }}
-          >
-            <h3
-              style={{ margin: "0 0 20px", fontSize: "16px", fontWeight: 700 }}
-            >
-              Recent History
-            </h3>
-            <div style={{ display: "grid", gap: "8px" }}>
-              {history.length > 0 ? (
-                history.map((item, i) => {
-                  const s = statusConfig[item.status] || statusConfig.absent;
-                  return (
-                    <div
-                      key={item.date ?? `item-${i}`}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr 1fr 0.5fr",
-                        padding: "14px 16px",
-                        background: tk.bg,
-                        borderRadius: "8px",
-                        border: `1px solid ${tk.border}`,
-                        alignItems: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: tk.textSecondary,
-                          fontSize: "13px",
-                        }}
-                      >
-                        <Calendar size={14} color={tk.textMuted} />{" "}
-                        {new Date(item.date).toLocaleDateString()}
-                      </span>
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: tk.textSecondary,
-                          fontSize: "13px",
-                        }}
-                      >
-                        <LogIn size={14} color={tk.textMuted} />{" "}
-                        {item.check_in
-                          ? new Date(item.check_in).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "--"}
-                      </span>
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: tk.textSecondary,
-                          fontSize: "13px",
-                        }}
-                      >
-                        <LogOutIcon size={14} color={tk.textMuted} />{" "}
-                        {item.check_out
-                          ? new Date(item.check_out).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "--"}
-                      </span>
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: tk.brandLight,
-                          fontWeight: 600,
-                          fontSize: "13px",
-                        }}
-                      >
-                        {formatDuration(item.duration_hours)}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          padding: "4px 10px",
-                          borderRadius: "6px",
-                          background: s.bg,
-                          color: s.color,
-                          fontWeight: 600,
-                          textTransform: "capitalize",
-                          justifySelf: "end",
-                        }}
-                      >
-                        {s.label}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
+        {/* TEAM VIEW */}
+        {activeTab === "team" && isManager && (
+          <div className="fade-in flex flex-col gap-4">
+            {teamData.length === 0 ? (
+              <div className="py-12 text-center text-[#7A86A7] bg-[#172440] border border-[#2A3A5C] rounded-xl">
+                No team attendance data found.
+              </div>
+            ) : (
+              teamData.map((team) => (
                 <div
-                  style={{
-                    padding: "40px",
-                    textAlign: "center",
-                    color: tk.textMuted,
-                  }}
+                  key={team.team_id}
+                  onClick={() => setSelectedTeam(team)}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#172440] border border-[#2A3A5C] rounded-xl p-5 cursor-pointer hover:border-[#5DADE2] transition-all"
                 >
-                  No records found.
+                  <div className="flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-[#081325] border border-[#2A3A5C] flex items-center justify-center">
+                      <Users size={20} color={tk.brandLight} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold">{team.team_name}</h3>
+                      <p className="text-xs text-[#7A86A7] mt-1">
+                        {team.total_members} Members
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-8">
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-[#1FA463]">
+                        {team.present_count}
+                      </div>
+                      <div className="text-[10px] text-[#7A86A7] uppercase">
+                        Present
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-[#7A86A7]">
+                        {team.absent_count}
+                      </div>
+                      <div className="text-[10px] text-[#7A86A7] uppercase">
+                        Absent
+                      </div>
+                    </div>
+                    <div className="w-24 text-center">
+                      <div className="text-lg font-bold text-[#5DADE2]">
+                        {team.present_percentage}%
+                      </div>
+                      <div className="h-1.5 bg-[#081325] rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full bg-[#1FA463] rounded-full"
+                          style={{ width: `${team.present_percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              ))
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* TEAM VIEW */}
-      {activeTab === "team" && isManager && (
-        <div
-          className="fade-in"
-          style={{ display: "flex", flexDirection: "column", gap: 16 }}
-        >
-          {teamData.length === 0 ? (
-            <div
-              style={{
-                padding: 40,
-                textAlign: "center",
-                color: tk.textMuted,
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: 12,
-              }}
-            >
-              No team attendance data found.
-            </div>
-          ) : (
-            teamData.map((team) => (
-              <div
-                key={team.team_id}
-                onClick={() => setSelectedTeam(team)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: tk.surface,
-                  border: `1px solid ${tk.border}`,
-                  borderRadius: 12,
-                  padding: "20px 24px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = tk.brandLight;
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 8px 24px rgba(0,0,0,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = tk.border;
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: tk.bg,
-                      border: `1px solid ${tk.border}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Users size={20} color={tk.brandLight} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
-                      {team.team_name}
-                    </h3>
-                    <p
-                      style={{
-                        margin: "4px 0 0",
-                        fontSize: 13,
-                        color: tk.textMuted,
-                      }}
-                    >
-                      {team.total_members} Members
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-                  <div style={{ textAlign: "right" }}>
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: tk.success,
-                      }}
-                    >
-                      {team.present_count}
-                    </div>
-                    <div style={{ fontSize: 11, color: tk.textMuted }}>
-                      Present
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: tk.textMuted,
-                      }}
-                    >
-                      {team.absent_count}
-                    </div>
-                    <div style={{ fontSize: 11, color: tk.textMuted }}>
-                      Absent
-                    </div>
-                  </div>
-                  <div style={{ width: 120, textAlign: "center" }}>
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: tk.brandLight,
-                      }}
-                    >
-                      {team.present_percentage}%
-                    </div>
-                    <div
-                      style={{
-                        height: 4,
-                        background: tk.bg,
-                        borderRadius: 2,
-                        marginTop: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${team.present_percentage}%`,
-                          height: "100%",
-                          background: tk.success,
-                          borderRadius: 2,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* TEAM DETAIL DRAWER */}
+      {/* TEAM DETAIL DRAWER (Cleaned Up) */}
       {selectedTeam && (
-        <>
+        <div className="fixed inset-0 z-50 flex justify-end">
           <div
+            className="absolute inset-0 bg-black/50"
             onClick={() => setSelectedTeam(null)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.5)",
-              zIndex: 40,
-            }}
           />
-          <aside
-            style={{
-              position: "fixed",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 420,
-              background: tk.surface,
-              borderLeft: `1px solid ${tk.border}`,
-              zIndex: 50,
-              display: "flex",
-              flexDirection: "column",
-              boxShadow: "-12px 0 40px rgba(0,0,0,0.3)",
-            }}
-          >
-            <header
-              style={{
-                padding: "20px 24px",
-                borderBottom: `1px solid ${tk.border}`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
+          <aside className="relative w-full sm:w-[420px] bg-[#172440] border-l border-[#2A3A5C] flex flex-col shadow-2xl">
+            {/* Header */}
+            <header className="p-5 border-b border-[#2A3A5C] flex justify-between items-center">
               <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                  {selectedTeam.team_name}
-                </h2>
-                <p
-                  style={{
-                    margin: "4px 0 0",
-                    fontSize: 13,
-                    color: tk.textMuted,
-                  }}
-                >
+                <h2 className="text-lg font-bold">{selectedTeam.team_name}</h2>
+                <p className="text-xs text-[#7A86A7] mt-1">
                   {selectedTeam.present_count} Present ·{" "}
                   {selectedTeam.absent_count} Absent
                 </p>
               </div>
               <button
                 onClick={() => setSelectedTeam(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: tk.textMuted,
-                  cursor: "pointer",
-                  padding: 4,
-                }}
+                className="text-[#7A86A7] hover:text-white"
               >
                 <X size={20} />
               </button>
             </header>
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+
+            {/* Member List (Clicking opens Global Profile) */}
+            <div className="flex-1 overflow-y-auto p-4">
               {selectedTeam.members.map((m) => {
                 const s = statusConfig[m.status] || statusConfig.absent;
                 return (
                   <div
                     key={m.user_id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      padding: "12px",
-                      borderRadius: 8,
-                      marginBottom: 6,
-                      background: tk.bg,
-                      border: `1px solid ${tk.border}`,
-                    }}
+                    onClick={() => openProfile(m)} // <-- THIS TRIGGERS THE GLOBAL DRAWER
+                    className="flex items-center gap-3 p-3 rounded-lg mb-2 bg-[#081325] border border-[#2A3A5C] cursor-pointer hover:border-[#5DADE2] transition-colors"
                   >
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: `linear-gradient(135deg, ${tk.brand}, ${tk.brandLight})`,
-                        color: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {m.full_name?.charAt(0) || "?"}
-                    </div>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: tk.textPrimary,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
+                    <Avatar
+                      src={m.profile_image}
+                      name={m.full_name}
+                      size="sm"
+                      className="flex-shrink-0"
+                    />
+                    <div className="flex-1 overflow-hidden">
+                      <div className="text-sm font-semibold text-white truncate">
                         {m.full_name}
                       </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: tk.textMuted,
-                          marginTop: 2,
-                        }}
-                      >
+                      <div className="text-xs text-[#7A86A7] mt-0.5">
                         {m.check_in
                           ? `Checked in at ${new Date(m.check_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                           : "No check-in today"}
                       </div>
                     </div>
                     <span
-                      style={{
-                        fontSize: 11,
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        background: s.bg,
-                        color: s.color,
-                        fontWeight: 600,
-                        textTransform: "capitalize",
-                        flexShrink: 0,
-                      }}
+                      className="text-[10px] px-2 py-1 rounded-md font-semibold flex-shrink-0"
+                      style={{ background: s.bg, color: s.color }}
                     >
                       {s.label}
                     </span>
@@ -963,77 +676,32 @@ export default function AttendancePage() {
               })}
             </div>
           </aside>
-        </>
+        </div>
       )}
 
       {/* CONFIG MODAL */}
       {showConfig && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(4px)",
-            zIndex: 100,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={() => setShowConfig(false)}
         >
           <div
-            className="fade-in"
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: "12px",
-              width: 480,
-              padding: 28,
-            }}
+            className="bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-md p-6 fade-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 24,
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                Attendance Configuration
-              </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold">Attendance Configuration</h2>
               <button
                 onClick={() => setShowConfig(false)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: tk.textMuted,
-                  cursor: "pointer",
-                }}
+                className="text-[#7A86A7] hover:text-white"
               >
                 <X size={20} />
               </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                }}
-              >
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: tk.textMuted,
-                      textTransform: "uppercase",
-                      display: "block",
-                      marginBottom: 6,
-                    }}
-                  >
+                  <label className="text-xs font-semibold text-[#7A86A7] uppercase block mb-2">
                     Shift Start
                   </label>
                   <input
@@ -1047,16 +715,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <div>
-                  <label
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: tk.textMuted,
-                      textTransform: "uppercase",
-                      display: "block",
-                      marginBottom: 6,
-                    }}
-                  >
+                  <label className="text-xs font-semibold text-[#7A86A7] uppercase block mb-2">
                     Shift End
                   </label>
                   <input
@@ -1071,16 +730,7 @@ export default function AttendancePage() {
                 </div>
               </div>
               <div>
-                <label
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: tk.textMuted,
-                    textTransform: "uppercase",
-                    display: "block",
-                    marginBottom: 6,
-                  }}
-                >
+                <label className="text-xs font-semibold text-[#7A86A7] uppercase block mb-2">
                   Grace Period (Minutes)
                 </label>
                 <input
@@ -1096,19 +746,10 @@ export default function AttendancePage() {
                 />
               </div>
               <div>
-                <label
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: tk.textMuted,
-                    textTransform: "uppercase",
-                    display: "block",
-                    marginBottom: 6,
-                  }}
-                >
+                <label className="text-xs font-semibold text-[#7A86A7] uppercase block mb-2">
                   Working Days
                 </label>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex gap-2">
                   {["0", "1", "2", "3", "4", "5", "6"].map((d) => {
                     const dayName = [
                       "Mon",
@@ -1129,17 +770,7 @@ export default function AttendancePage() {
                             : [...config.working_days, d];
                           setConfig({ ...config, working_days: newDays });
                         }}
-                        style={{
-                          flex: 1,
-                          padding: "8px 0",
-                          borderRadius: 6,
-                          border: `1px solid ${isActive ? tk.brand : tk.border}`,
-                          background: isActive ? tk.brand : "transparent",
-                          color: isActive ? "#fff" : tk.textMuted,
-                          fontWeight: 600,
-                          fontSize: 12,
-                          cursor: "pointer",
-                        }}
+                        className={`flex-1 py-2 rounded-md text-xs font-semibold border ${isActive ? "bg-[#4B1587] border-[#4B1587] text-white" : "border-[#2A3A5C] text-[#7A86A7]"}`}
                       >
                         {dayName}
                       </button>
@@ -1148,22 +779,8 @@ export default function AttendancePage() {
                 </div>
               </div>
               <button
-                className="ac-btn"
                 onClick={handleSaveConfig}
-                style={{
-                  marginTop: 8,
-                  background: tk.brand,
-                  color: "#fff",
-                  border: "none",
-                  padding: "12px",
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                }}
+                className="ac-btn w-full bg-[#4B1587] text-white py-3 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
               >
                 <Save size={16} /> Save Configuration
               </button>
@@ -1175,23 +792,14 @@ export default function AttendancePage() {
       {/* TOAST NOTIFICATION */}
       {toast && (
         <div
+          className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg font-semibold text-sm shadow-2xl z-[1000]"
           style={{
-            position: "fixed",
-            bottom: "32px",
-            left: "50%",
-            transform: "translateX(-50%)",
             background:
               toast.type === "error"
                 ? "rgba(227,30,36,0.15)"
                 : "rgba(31,164,99,0.15)",
             border: `1px solid ${toast.type === "error" ? "rgba(227,30,36,0.3)" : "rgba(31,164,99,0.3)"}`,
             color: toast.type === "error" ? tk.primary : tk.success,
-            padding: "12px 24px",
-            borderRadius: "10px",
-            fontWeight: 600,
-            fontSize: "14px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-            zIndex: 1000,
           }}
         >
           {toast.msg}

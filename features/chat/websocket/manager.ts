@@ -28,8 +28,8 @@ export class WebSocketManager {
 
   private readonly MAX_RECONNECT_ATTEMPTS = 15;
   private readonly MAX_BACKOFF_MS = 30000;
-  private readonly HEARTBEAT_INTERVAL = 30000;
-  private readonly HEARTBEAT_TIMEOUT = 25000;
+  private readonly HEARTBEAT_INTERVAL = 15000; // Reduced to 15s to beat Railway/Nginx proxy timeouts
+  private readonly HEARTBEAT_TIMEOUT = 10000;  // Reduced to 10s for faster detection
   private pingTimer: NodeJS.Timeout | null = null;
 
   constructor(config: WebSocketManagerConfig) {
@@ -108,7 +108,8 @@ export class WebSocketManager {
 
   disconnect(): void {
     this.isManualClose = true;
-    this.setState("disconnected");
+    // FIX: Do not set state to "disconnected" here. 
+    // Let the new connection overwrite the state, preventing UI flashes on channel switch.
     this.clearTimers();
 
     if (this.ws) {
@@ -175,9 +176,10 @@ export class WebSocketManager {
     );
     this.clearTimers();
 
+    // FIX: If this was an intentional close (e.g., switching channels),
+    // do NOT set state to "disconnected". This prevents the UI from flashing "Offline".
     if (this.isManualClose) {
-      this.setState("disconnected");
-      return;
+      return; 
     }
 
     // ── NEW: Prevent reconnect on Auth/Policy violations ──────────────────

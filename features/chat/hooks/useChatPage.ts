@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getWorkspaceId } from "@/lib/auth";
 import { useChatStore } from "../store/chatStore";
 import { useWebSocket } from "./useWebSocket";
 import { useFileUpload } from "./useFileUpload";
@@ -18,6 +18,8 @@ import {
   editMessage,
   toggleReaction,
   markMessageRead,
+  markChannelRead,
+  hideMessageForMe,
   getWorkspaceUsers,
   getChannelMembers,
 } from "../services/channelService";
@@ -123,7 +125,8 @@ export function useChatPage() {
     send: wsSend,
     isReady,
   } = useWebSocket({
-    channelId: selectedChannelId,
+    // FIX: Do not connect WebSocket for temporary (negative ID) channels
+    channelId: selectedChannelId && selectedChannelId > 0 ? selectedChannelId : null,
     token: authChecked
       ? typeof window !== "undefined"
         ? localStorage.getItem("token")
@@ -190,9 +193,9 @@ export function useChatPage() {
             }, 50);
           }
 
-          // Mark message as read if it's not our own message and we are at the bottom
-          if (senderId !== myUserId && isAtBottomRef.current && data.data?.id) {
-            markMessageRead(data.data.id);
+          // FIX: If we are at the bottom and it's not our message, mark the whole channel as read via bulk API
+          if (senderId !== myUserId && isAtBottomRef.current) {
+            markChannelRead(targetChannelId).catch(() => {});
           }
         }
       }
@@ -206,36 +209,65 @@ export function useChatPage() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    Promise.all([loadChannels(), loadDMs()])
-      .then(([loadedChannels, loadedDms]) => {
-        const all = [...loadedChannels, ...loadedDms];
-        setChannels(all);
-        if (all.length > 0) selectChannel(all[0].id);
-      })
-      .finally(() => setIsInitialLoading(false));
+    // FIX: Only fetch channels if they haven't been loaded yet.
+    // This prevents overwriting local unread counts (like 0 for the active channel) 
+    // with stale backend data when navigating back to the chat page.
+    if (useChatStore.getState().channels.length === 0) {
+      Promise.all([loadChannels(), loadDMs()])
+        .then(([loadedChannels, loadedDms]) => {
+          setChannels([...loadedChannels, ...loadedDms]);
+        })
+        .finally(() => setIsInitialLoading(false));
+    } else {
+      setIsInitialLoading(false);
+    }
 
-    // Fetch workspace users for DM/group member selection
-    getWorkspaceUsers()
-      .then((data) => setWorkspaceUsers(Array.isArray(data) ? data : []))
-      .catch(() => {});
+    // Initial fetch of workspace users
+    refreshWorkspaceUsers();
 
     // Fetch teams for team channel creation
     workspaceService.getTeams()
       .then((data) => setUserTeams(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [authChecked, setChannels, selectChannel]);
+  }, [authChecked, setChannels]);
 
   // ── Load Messages on Channel Select ───────────────────────────────────────
   useEffect(() => {
     if (!selectedChannelId) return;
-    initialLoadDoneRef.current.delete(selectedChannelId);
-    setMessages(selectedChannelId, []);
-    setPagination(selectedChannelId, { nextOffset: 0, hasOlder: false });
-    isLoadingOlderRef.current = false;
-    setIsLoadingOlder(false);
 
+    // FIX: Do not fetch messages for temporary (negative ID) channels
+    if (selectedChannelId < 0) {
+      setMessages(selectedChannelId, []);
+      return;
+    }
+
+    // FIX: Check if messages are already cached in the store to prevent UI reload flashes
+    const cachedMsgs = useChatStore.getState().messages[selectedChannelId];
+    const hasCache = cachedMsgs && cachedMsgs.length > 0;
+
+    if (hasCache) {
+      // Instantly scroll to bottom using cached messages without wiping the UI
+      initialLoadDoneRef.current.delete(selectedChannelId);
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        setIsAtBottom(true);
+        initialLoadDoneRef.current.add(selectedChannelId);
+      }, 0);
+    } else {
+      // Only show loading skeleton if we have NO cached data
+      initialLoadDoneRef.current.delete(selectedChannelId);
+      setMessages(selectedChannelId, []);
+      setPagination(selectedChannelId, { nextOffset: 0, hasOlder: false });
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+
+    // Always fetch in the background to sync any missed messages silently
     loadMessages(selectedChannelId).then(
       ({ messages: msgs, pagination: pag }) => {
+        // Ensure we haven't switched channels while this request was in flight
+        if (useChatStore.getState().selectedChannelId !== selectedChannelId) return;
+
         setMessages(selectedChannelId, msgs);
         setPagination(selectedChannelId, pag);
 
@@ -244,24 +276,16 @@ export function useChatPage() {
             bottomRef.current?.scrollIntoView({ behavior: "auto" });
             setIsAtBottom(true);
             initialLoadDoneRef.current.add(selectedChannelId);
-          }, 300);
+          }, 50); // Faster timeout since DOM is likely already painted
         }
 
-        // Mark other people's messages as read when opening a channel
-        const otherMsgs = msgs.filter(
-          (m) => m.sender?.id !== myUserId && !m.is_deleted,
-        );
-        otherMsgs.forEach((m) => {
-          const alreadyRead = m.reads?.some(
-            (r: any) => r.user?.id === myUserId,
-          );
-          if (!alreadyRead) {
-            markMessageRead(m.id);
-          }
-        });
+        // Mark channel as read in the background (only for real channels)
+        if (selectedChannelId > 0) {
+          markChannelRead(selectedChannelId).catch(() => {});
+        }
       },
     );
-  }, [selectedChannelId, setMessages, setPagination, myUserId, markMessageRead]);
+  }, [selectedChannelId, setMessages, setPagination, myUserId, markChannelRead]);
 
   // ── Scroll Restoration after loading older ────────────────────────────────
   // Handled directly inside handleScroll callback for precision.
@@ -279,12 +303,19 @@ export function useChatPage() {
     setChannelMembers([]);
   }, [selectedChannelId]);
 
-  // Fetch members and presence when panel is opened
-  useEffect(() => {
-    if (showRightPanel && selectedChannelId) {
+  const fetchChannelMembers = useCallback(() => {
+    // FIX: Only fetch members for real (positive ID) channels
+    if (selectedChannelId && selectedChannelId > 0) {
       getChannelMembers(selectedChannelId)
         .then(setChannelMembers)
         .catch(() => {});
+    }
+  }, [selectedChannelId]);
+
+  // Fetch members and presence when panel is opened
+  useEffect(() => {
+    if (showRightPanel && selectedChannelId && selectedChannelId > 0) {
+      fetchChannelMembers();
         
       const fetchPresence = () => {
         workspaceService.getOnlineMembers()
@@ -354,8 +385,63 @@ export function useChatPage() {
     });
   }, [selectedChannelId, activeThread, isReady, wsSend, messages, setMessages, myUserId]);
 
-  const handleSend = useCallback(() => {
-    if (!selectedChannelId) return;
+  const handleSend = useCallback(async () => {
+    if (!selectedChannelId || !selectedChannel) return;
+
+    // FIX: Intercept send for Temporary DM Request channels
+    if ((selectedChannel as any).is_temp) {
+      const content = messageInput.trim();
+      if (!content) return;
+
+      const clientId = crypto.randomUUID();
+      const tempId = -Date.now();
+      const myUsername = localStorage.getItem("username") || "You";
+
+      const optimisticMsg: Message = {
+        id: tempId,
+        channel: selectedChannelId,
+        sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
+        sender_name: myUsername,
+        content: content,
+        display_content: content,
+        client_id: clientId,
+        is_edited: false,
+        edited_at: null,
+        is_deleted: false,
+        reply_to: null,
+        attachments: [],
+        reactions: [],
+        reads: [],
+        created_at: new Date().toISOString(),
+        created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        _status: "pending",
+      };
+
+      // Add message locally
+      const currentMsgs = messages[selectedChannelId] || [];
+      setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
+      
+      // Lock the input by marking request as pending
+      useChatStore.getState().updateChannel(selectedChannelId, { is_request_pending: true });
+      setMessageInput("");
+
+      // Send API Request
+      try {
+        await createDMRequest({
+          receiver_id: (selectedChannel as any).dm_partner.id,
+          initial_message: content,
+        });
+        
+        // Update workspace users so they don't show up in search again
+        refreshWorkspaceUsers();
+      } catch (err: any) {
+        alert(err.message || "Failed to send DM request");
+        // Remove the optimistic message and unlock on failure
+        setMessages(selectedChannelId, currentMsgs);
+        useChatStore.getState().updateChannel(selectedChannelId, { is_request_pending: false });
+      }
+      return; // Stop normal WS send
+    }
 
     if (pendingFiles.length > 0) {
       uploadFiles(pendingFiles);
@@ -582,6 +668,51 @@ export function useChatPage() {
     }
   }, []);
 
+  const refreshWorkspaceUsers = useCallback(() => {
+    getWorkspaceUsers()
+      .then((data) => setWorkspaceUsers(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const handleStartDMRequest = useCallback((userId: number) => {
+    const user = workspaceUsers.find(u => u.id === userId);
+    if (!user) return;
+
+    // 1. Create a temporary local channel to open the chat window
+    const tempId = -Date.now(); // Negative ID to avoid collision with backend
+    const tempChannel: any = {
+      id: tempId,
+      name: user.full_name || user.username,
+      slug: `temp_dm_${user.id}`,
+      is_private: true,
+      is_dm: true,
+      channel_type: "dm",
+      workspace: Number(getWorkspaceId()),
+      created_by: myUserId,
+      created_at: new Date().toISOString(),
+      member_count: 2,
+      dm_partner: { id: user.id, username: user.username, full_name: user.full_name },
+      is_member_active: true,
+      is_pending: false,
+      is_temp: true, // Flag to identify this is a temporary request channel
+      is_request_pending: false, // Flag to lock input after sending
+    };
+
+    addChannel(tempChannel);
+    selectChannel(tempId);
+  }, [workspaceUsers, addChannel, selectChannel, myUserId]);
+
+  // ── Catch Send Message Route from Team Page ───────────────────────────────
+  useEffect(() => {
+    if (authChecked) {
+      const dmUserId = localStorage.getItem("start_dm_user_id");
+      if (dmUserId) {
+        localStorage.removeItem("start_dm_user_id");
+        handleStartDMRequest(Number(dmUserId));
+      }
+    }
+  }, [authChecked, handleStartDMRequest]);
+
   const handleAcceptDM = useCallback(async () => {
     const reqId = (selectedChannel as any)?.dm_request_id;
     if (!reqId) return;
@@ -611,7 +742,8 @@ export function useChatPage() {
   }, [selectedChannel, selectChannel]);
 
   const handleReply = useCallback((msg: Message) => {
-    setActiveThread(msg); // Open the thread panel instead of the bottom reply bar
+    // FIX: Only set inline reply preview. Do NOT open the thread panel.
+    setReplyingTo(msg);
     setActiveMenuMsgId(null);
   }, []);
 
@@ -636,24 +768,37 @@ export function useChatPage() {
   );
 
   const handleDeleteForEveryone = useCallback(async (msgId: number) => {
+    // 1. Optimistic UI Update - instantly REMOVE the message locally
+    if (selectedChannelId) {
+      const currentMsgs = messages[selectedChannelId] || [];
+      setMessages(selectedChannelId, currentMsgs.filter((m) => m.id !== msgId));
+    }
+
+    setDeleteModalMsgId(null);
+
+    // 2. Persist in backend
     try {
       await deleteMessageForEveryone(msgId);
     } catch (error) {
       console.error("Failed to delete message:", error);
     }
-    setDeleteModalMsgId(null);
-  }, []);
+  }, [selectedChannelId, messages, setMessages]);
 
   const handleDeleteForMe = useCallback(
-    (msgId: number) => {
+    async (msgId: number) => {
       if (selectedChannelId) {
+        // 1. Optimistic UI update
         const currentMsgs = messages[selectedChannelId] || [];
-        setMessages(
-          selectedChannelId,
-          currentMsgs.filter((m) => m.id !== msgId),
-        );
+        setMessages(selectedChannelId, currentMsgs.filter((m) => m.id !== msgId));
+        setDeleteModalMsgId(null);
+
+        // 2. Persist in backend
+        try {
+          await hideMessageForMe(msgId);
+        } catch (error) {
+          console.error("Failed to hide message on backend:", error);
+        }
       }
-      setDeleteModalMsgId(null);
     },
     [selectedChannelId, messages, setMessages],
   );
@@ -825,6 +970,9 @@ export function useChatPage() {
     typingUsers,
     handleToggleReaction,
     handleMarkRead,
+    handleStartDMRequest,
+    refreshWorkspaceUsers,
+    fetchChannelMembers,
     handleAcceptDM,
     handleBlockDM,
     handleEditMessage,

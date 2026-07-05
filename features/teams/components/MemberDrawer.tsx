@@ -1,26 +1,22 @@
-// features/teams/components/MemberDrawer.tsx
-"use client";
-
 import {
   X,
   Mail,
   CalendarDays,
   Shield,
-  Crown,
   Trash2,
-  ArrowRightCircle,
-  MessageSquare,
   User,
+  MessageSquare,
 } from "lucide-react";
 import { tk, Member, getRoleBadgeStyle } from "../lib";
+import Avatar from "@/components/Avatar";
 
 interface MemberDrawerProps {
   member: Member | null;
   myRole: string;
   onClose: () => void;
   onRemoveMember: (userId: number) => void;
-  onMoveTeam: (userId: number) => void;
   onChangeRole: (userId: number) => void;
+  onSendMessage: (userId: number) => void;
 }
 
 export function MemberDrawer({
@@ -28,12 +24,17 @@ export function MemberDrawer({
   myRole,
   onClose,
   onRemoveMember,
-  onMoveTeam,
   onChangeRole,
+  onSendMessage,
 }: MemberDrawerProps) {
   if (!member) return null;
 
   const isAdmin = myRole === "owner" || myRole === "admin";
+  const isOwner = member.role === "owner";
+
+  // FIX: Do not allow removing or changing roles of the workspace owner
+  const canManage = isAdmin && !isOwner;
+
   const joinedDate = member.joined_at
     ? new Date(member.joined_at).toLocaleDateString("en-US", {
         year: "numeric",
@@ -41,12 +42,6 @@ export function MemberDrawer({
         day: "numeric",
       })
     : "Recently";
-  const daysAgo = member.joined_at
-    ? Math.floor(
-        (Date.now() - new Date(member.joined_at).getTime()) /
-          (1000 * 60 * 60 * 24),
-      )
-    : 0;
 
   const s = getRoleBadgeStyle(member.role);
 
@@ -116,23 +111,12 @@ export function MemberDrawer({
             marginBottom: 32,
           }}
         >
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: `linear-gradient(135deg, ${tk.brand}, ${tk.brandLight})`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 32,
-              fontWeight: 700,
-              color: "#fff",
-              marginBottom: 16,
-            }}
-          >
-            {(member.full_name || member.username).charAt(0).toUpperCase()}
-          </div>
+          <Avatar 
+            src={member.profile_image} 
+            name={member.full_name || member.username} 
+            size="lg" 
+            className="mb-4"
+          />
           <div style={{ fontSize: 20, fontWeight: 700, color: tk.textPrimary }}>
             {member.full_name || member.username}
           </div>
@@ -208,7 +192,7 @@ export function MemberDrawer({
               <CalendarDays size={12} /> Joined Workspace
             </div>
             <div style={{ fontSize: 14, color: tk.textSecondary }}>
-              {joinedDate} ({daysAgo} days ago)
+              {joinedDate}
             </div>
           </div>
 
@@ -233,7 +217,9 @@ export function MemberDrawer({
             >
               <User size={12} /> About
             </div>
-            <div style={{ fontSize: 14, color: tk.textSecondary, lineHeight: 1.5 }}>
+            <div
+              style={{ fontSize: 14, color: tk.textSecondary, lineHeight: 1.5 }}
+            >
               No bio available. This user hasn't added a description yet.
             </div>
           </div>
@@ -281,31 +267,18 @@ export function MemberDrawer({
           </div>
         </div>
 
+        {/* Actions */}
         <div style={{ display: "grid", gap: 8 }}>
-          <button
-            style={{ ...drawerBtn, background: tk.surfaceHover }}
-            onClick={() => alert("Redirecting to chat...")}
-          >
-            <MessageSquare size={16} color={tk.brandLight} /> Send Message
-          </button>
-          {isAdmin && (
+          {canManage && (
             <button
               style={drawerBtn}
               onClick={() => onChangeRole(member.user_id)}
             >
-              <Shield size={16} color={tk.textSecondary} /> Change Role
+              <Shield size={16} color={tk.textSecondary} /> Change Workspace
+              Role
             </button>
           )}
-
-          {isAdmin && (
-            <button
-              style={drawerBtn}
-              onClick={() => onMoveTeam(member.user_id)}
-            >
-              <ArrowRightCircle size={16} color={tk.textSecondary} /> Move Team
-            </button>
-          )}
-          {isAdmin && member.role !== "owner" && (
+          {canManage && (
             <button
               style={{
                 ...drawerBtn,
@@ -314,8 +287,25 @@ export function MemberDrawer({
               }}
               onClick={() => onRemoveMember(member.user_id)}
             >
-              <Trash2 size={16} color={tk.primary} /> Remove Member
+              <Trash2 size={16} color={tk.primary} /> Remove from Workspace
             </button>
+          )}
+          {!canManage && (
+            <div
+              style={{
+                padding: "12px",
+                background: tk.bg,
+                borderRadius: 8,
+                border: `1px solid ${tk.border}`,
+                textAlign: "center",
+                fontSize: 12,
+                color: tk.textMuted,
+              }}
+            >
+              {isOwner
+                ? "Workspace Owner details cannot be modified."
+                : "You do not have permission to manage this user."}
+            </div>
           )}
         </div>
       </div>

@@ -14,9 +14,9 @@ FILE_TYPE_CONFIG = {
     ".jpeg": {"mimes": ["image/jpeg"], "max_size_mb": 20},
     ".png": {"mimes": ["image/png"], "max_size_mb": 20},
     ".webp": {"mimes": ["image/webp"], "max_size_mb": 20},
-    # ── Videos ───────────────────────────────────────────────────────────
+    # ── Videos & Audio ───────────────────────────────────────────────────
     ".mp4": {"mimes": ["video/mp4", "video/mp4; codecs=avc1"], "max_size_mb": 120},
-    ".webm": {"mimes": ["video/webm"], "max_size_mb": 120},
+    ".webm": {"mimes": ["video/webm", "audio/webm", "audio/webm;codecs=opus"], "max_size_mb": 120},
     ".mov": {"mimes": ["video/quicktime"], "max_size_mb": 120},
     # ── Documents ────────────────────────────────────────────────────────
     ".pdf": {"mimes": ["application/pdf"], "max_size_mb": 10},

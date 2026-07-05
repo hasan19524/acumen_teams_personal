@@ -31,6 +31,13 @@ def checkin(request: Request, workspace_id: int) -> Response:
 
     config = get_config(workspace_id)
 
+    # ENFORCE WORKING DAYS: Prevent check-in on non-working days (e.g., weekends)
+    if not config.is_working_day(today):
+        return Response(
+            {"error": "Today is a non-working day. Check-in is disabled."}, 
+            status=400
+        )
+
     previous_active = Attendance.objects.filter(
         user=user, check_in__isnull=False, check_out__isnull=True
     ).exclude(date=today)
@@ -218,15 +225,27 @@ def team_attendance(request: Request, workspace_id: int) -> Response:
             else:
                 absent_count += 1
 
+            # Safely fetch profile image and role
+            avatar_url = None
+            try:
+                if hasattr(m.user, 'profile') and m.user.profile.profile_image:
+                    avatar_url = request.build_absolute_uri(m.user.profile.profile_image.url)
+            except Exception:
+                pass
+            
+            # Safely get role (sometimes m is TeamMembership, sometimes WorkspaceMembership)
+            role = getattr(m, 'role', 'member')
+
             member_attendance.append(
                 {
                     "user_id": m.user.id,
                     "username": m.user.username,
                     "full_name": m.user.get_full_name() or m.user.username,
+                    "role": role,
+                    "profile_image": avatar_url,
                     "status": status,
                 }
             )
-
         total_members = len(member_attendance)
         present_percentage = (
             round((present_count / total_members) * 100, 0) if total_members > 0 else 0

@@ -40,7 +40,10 @@ export function useWebSocket(options: UseWebSocketOptions) {
         managerRef.current.disconnect();
         managerRef.current = null;
       }
-      setState("disconnected");
+      // FIX: Only set to disconnected if we are leaving the chat page entirely
+      if (state !== "disconnected") {
+        setState("disconnected");
+      }
       return;
     }
 
@@ -57,6 +60,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
       token,
       channelId,
       onStateChange: (newState) => {
+        // FIX: Keep the UI as "connected" during channel switches to prevent flashing.
+        // Only update to "connecting" if we aren't already connected.
+        if (newState === "connecting" && state === "connected") {
+          return;
+        }
         setState(newState);
         onStateChangeRef.current?.(newState);
       },

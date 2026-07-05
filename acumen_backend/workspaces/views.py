@@ -7,6 +7,9 @@ from rest_framework.views import APIView
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
+from tasks.models import Task
+from attendance.models import Attendance
+    
 
 from django.utils import timezone
 from datetime import timedelta
@@ -25,6 +28,7 @@ from .models import (
 )
 from .permissions import IsWorkspaceMember, HasWorkspacePermission, is_team_leader
 from .services import WorkspaceService, TeamService
+from accounts.models import validate_image_file
 from notifications.services import NotificationService, WorkspaceEvent
 import logging
 
@@ -115,11 +119,10 @@ def all_teams(request, workspace_id):
     if not membership:
         return Response({"error": "Not authorized"}, status=403)
 
-    # Exclude "Unassigned" and "General". "Management" is allowed.
+    # Exclude "General" and "Unassigned" system teams from the Teams grid.
     base_qs = Team.objects.filter(workspace_id=workspace_id).exclude(
-        Q(name__iexact="Unassigned") | Q(name__iexact="General")
+        team_type__in=[TeamType.GENERAL, TeamType.UNASSIGNED]
     )
-
     # RBAC FIX: Admins/Owners see all. Members see teams they are active members of OR lead.
     if membership.role in ("owner", "admin"):
         teams = base_qs
@@ -127,6 +130,10 @@ def all_teams(request, workspace_id):
         user_team_ids = TeamMembership.objects.filter(
             user=request.user, is_active=True
         ).values_list("team_id", flat=True)
+        # Ensure "Unassigned" is always visible to standard members
+        unassigned_team = Team.objects.filter(workspace_id=workspace_id, name__iexact="Unassigned").first()
+        if unassigned_team:
+            user_team_ids = list(user_team_ids) + [unassigned_team.id]
         teams = base_qs.filter(id__in=user_team_ids)
 
     # Get all active workspace user IDs to ensure we don't count "ghost" members 
@@ -199,6 +206,15 @@ def workspace_members(request, workspace_id):
 
         teams_list = [{"id": tm.team.id, "name": tm.team.name, "is_leader": tm.is_leader} for tm in user_teams_qs]
 
+        # Fetch profile image safely
+        # FIX: Use .url directly to preserve S3 presigned query parameters
+        avatar_url = None
+        if hasattr(m.user, 'profile') and m.user.profile.profile_image:
+            try:
+                avatar_url = m.user.profile.profile_image.url
+            except Exception:
+                pass
+
         response_data.append(
             {
                 "user_id": m.user.id,
@@ -206,14 +222,18 @@ def workspace_members(request, workspace_id):
                 "full_name": f"{m.user.first_name} {m.user.last_name}".strip()
                 or m.user.username,
                 "role": role,
+                "profile_image": avatar_url, # FIX: Added profile image URL
                 "teams": teams_list,  # NEW: Array of teams
                 "team": teams_list[0]["name"] if teams_list else "Unassigned", # Keep for backward compat
                 "joined_at": m.joined_at.isoformat(),
+                "email": m.user.email,
+                "phone_number": getattr(m.user.profile, 'phone_number', None) if hasattr(m.user, 'profile') else None,
+                "bio": getattr(m.user.profile, 'bio', None) if hasattr(m.user, 'profile') else None,
+                "designation": getattr(m.user.profile, 'designation', None) if hasattr(m.user, 'profile') else None,
             }
         )
 
     return Response(response_data)
-
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -224,10 +244,11 @@ def dashboard_stats(request, workspace_id):
     if not membership:
         return Response({"total_members": 0, "total_teams": 0, "total_leaders": 0, "role": "member"})
 
-    # Count distinct users for KPIs to avoid counting multiple assignments
-    total_members = WorkspaceMembership.objects.filter(
+    active_user_ids = list(WorkspaceMembership.objects.filter(
         workspace_id=workspace_id, is_active=True
-    ).values("user_id").distinct().count()
+    ).values_list("user_id", flat=True))
+    
+    total_members = len(active_user_ids)
 
     total_leaders = TeamMembership.objects.filter(
         team__workspace_id=workspace_id,
@@ -235,46 +256,139 @@ def dashboard_stats(request, workspace_id):
         is_leader=True
     ).values("user_id").distinct().count()
 
+ 
+    pending_approvals = Task.objects.filter(
+        workspace_id=workspace_id, 
+        status="pending_approval", 
+        is_deleted=False
+    ).count()
+    
+    overdue_tasks = Task.objects.filter(
+        workspace_id=workspace_id, 
+        status__in=["todo", "in_progress"], 
+        due_date__lt=timezone.now(), 
+        is_deleted=False
+    ).count()
+    
+    open_invites = WorkspaceInvite.objects.filter(
+        workspace_id=workspace_id, 
+        status="pending"
+    ).count()
+
+    present_today = Attendance.objects.filter(
+        user_id__in=active_user_ids, 
+        workspace_id=workspace_id,
+        date=timezone.localdate(), 
+        check_out__isnull=True,
+        status__in=["present", "late", "half_day"]
+    ).count()
+    
+    absent_today = max(0, total_members - present_today)
+
+    # Calculate Weekly Productivity Score
+    seven_days_ago = timezone.now() - timedelta(days=7)
+    completed_tasks_week = Task.objects.filter(
+        workspace_id=workspace_id,
+        status="completed",
+        updated_at__gte=seven_days_ago,
+        is_deleted=False
+    ).count()
+    
+    total_assigned_tasks_week = Task.objects.filter(
+        workspace_id=workspace_id,
+        created_at__gte=seven_days_ago,
+        is_deleted=False
+    ).count()
+    
+    attendance_days_week = Attendance.objects.filter(
+        user_id__in=active_user_ids,
+        workspace_id=workspace_id,
+        date__gte=seven_days_ago.date(),
+        status__in=["present", "late", "half_day"]
+    ).values('date').distinct().count()
+    
+    total_possible = total_assigned_tasks_week + 5 # 5 standard work days
+    total_actual = completed_tasks_week + attendance_days_week
+    productivity_score = min(100, int((total_actual / total_possible) * 100)) if total_possible > 0 else 0
+
+    # Personalized data for members
+    my_pending_tasks = 0
+    my_overdue_tasks = 0
+    my_dm_requests = 0
+    
+    if membership.role == "member":
+        my_pending_tasks = Task.objects.filter(
+            workspace_id=workspace_id, assigned_to=request.user, status__in=["todo", "in_progress"], is_deleted=False
+        ).count()
+        my_overdue_tasks = Task.objects.filter(
+            workspace_id=workspace_id, assigned_to=request.user, status__in=["todo", "in_progress"], due_date__lt=timezone.now(), is_deleted=False
+        ).count()
+        try:
+            from chat.models import DMRequest
+            my_dm_requests = DMRequest.objects.filter(receiver=request.user, workspace_id=workspace_id, status="pending").count()
+        except Exception:
+            pass
+
     return Response(
         {
             "total_members": total_members,
             "total_teams": Team.objects.filter(workspace_id=workspace_id).count(),
             "total_leaders": total_leaders,
             "role": membership.role,
+            "pending_approvals": pending_approvals,
+            "overdue_tasks": overdue_tasks,
+            "open_invites": open_invites,
+            "present_today": present_today,
+            "absent_today": absent_today,
+            "productivity_score": productivity_score,
+            "my_pending_tasks": my_pending_tasks,
+            "my_overdue_tasks": my_overdue_tasks,
+            "my_dm_requests": my_dm_requests,
         }
     )
-
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def workspace_presence(request, workspace_id):
-    # Ensure user is part of this workspace
     if not WorkspaceMembership.objects.filter(
         user_id=request.user.id, workspace_id=workspace_id, is_active=True
     ).exists():
         return Response({"error": "Unauthorized"}, status=403)
 
     try:
-        from django_redis import get_redis_connection
+        from attendance.models import Attendance
 
-        redis_conn = get_redis_connection("default")
-
-        # Get all active members of the workspace
         memberships = WorkspaceMembership.objects.filter(
             workspace_id=workspace_id, is_active=True
         ).select_related("user")
+        active_user_ids = [m.user_id for m in memberships]
+
+        active_attendances = Attendance.objects.filter(
+            user_id__in=active_user_ids,
+            workspace_id=workspace_id,
+            date=timezone.localdate(),
+            check_out__isnull=True,
+            status__in=["present", "late", "half_day"]
+        ).select_related('user')
 
         online_users = []
-        for m in memberships:
-            presence_key = f"presence:user:{m.user_id}"
-            # Check if the key exists in Redis (set by NotificationConsumer)
-            if redis_conn.exists(presence_key):
+        for att in active_attendances:
+            m = next((mem for mem in memberships if mem.user_id == att.user_id), None)
+            if m:
+                # Fetch user's active standard team
+                team_membership = TeamMembership.objects.filter(
+                    user=m.user, team__workspace_id=workspace_id, is_active=True
+                ).exclude(team__team_type__in=[TeamType.UNASSIGNED, TeamType.GENERAL]).first()
+                team_name = team_membership.team.name if team_membership else "Unassigned"
+                
                 online_users.append(
                     {
                         "id": m.user_id,
                         "username": m.user.username,
                         "full_name": m.user.get_full_name() or m.user.username,
                         "role": m.role,
+                        "team": team_name,
+                        "clock_in_time": att.check_in.isoformat()
                     }
                 )
 
@@ -282,7 +396,6 @@ def workspace_presence(request, workspace_id):
             {"online_users": online_users, "online_count": len(online_users)}
         )
     except Exception as e:
-        # Fallback if Redis is down or not installed
         return Response(
             {"online_users": [], "online_count": 0, "error": str(e)}, status=200
         )
@@ -665,10 +778,14 @@ class GenerateInviteLinkView(WorkspaceBaseView):
             expires_at=expires_at,
         )
 
+        # FIX: Use frontend URL environment variable so links/QRs point to the Next.js app
+        import os
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        
         return Response(
             {
                 "token": str(invite.token),
-                "invite_url": f"{request.scheme}://{request.get_host()}/join/{invite.token}",
+                "invite_url": f"{frontend_url}/join/{invite.token}",
                 "role": role,
                 "expires_at": invite.expires_at,
                 "max_uses": max_uses,
@@ -676,28 +793,43 @@ class GenerateInviteLinkView(WorkspaceBaseView):
         )
 
 
+from django.db import transaction
+
 class JoinWorkspaceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, token):
-        try:
-            invite = WorkspaceInvite.objects.get(token=token)
-        except WorkspaceInvite.DoesNotExist:
-            return Response({"error": "Invalid invite link."}, status=404)
+        # Use transaction.atomic and select_for_update to prevent race conditions on max_uses
+        with transaction.atomic():
+            try:
+                invite = WorkspaceInvite.objects.select_for_update().get(token=token)
+            except WorkspaceInvite.DoesNotExist:
+                return Response({"error": "Invalid invite link."}, status=404)
 
-        if not invite.is_valid():
-            return Response(
-                {"error": "This invite link has expired or been disabled."}, status=400
-            )
+            # Re-validate token status strictly inside the transaction
+            if not invite.is_valid():
+                return Response(
+                    {"error": "This invite link has expired or been disabled."}, status=400
+                )
 
-        WorkspaceService.join_workspace(
-            invite.workspace,
-            request.user,
-            role=invite.role_to_assign,
-            invited_by=invite.created_by,
-        )
-        invite.use_count += 1
-        invite.save()
+            # Check if user is already a member (prevent invite replay)
+            if WorkspaceMembership.objects.filter(
+                user=request.user, workspace=invite.workspace, is_active=True
+            ).exists():
+                return Response({"error": "You are already a member of this workspace."}, status=400)
+
+            try:
+                WorkspaceService.join_workspace(
+                    invite.workspace,
+                    request.user,
+                    role=invite.role_to_assign,
+                    invited_by=invite.created_by,
+                )
+                invite.use_count += 1
+                invite.save()
+            except Exception as e:
+                logger.error(f"Failed to join workspace via invite: {e}")
+                return Response({"error": "Failed to join workspace."}, status=500)
 
         return Response(
             {
@@ -714,18 +846,28 @@ class InviteInfoView(APIView):
 
     def get(self, request, token):
         try:
-            invite = WorkspaceInvite.objects.get(token=token)
+            invite = WorkspaceInvite.objects.select_related("workspace", "created_by").get(token=token)
         except WorkspaceInvite.DoesNotExist:
             return Response({"error": "Invalid invite link."}, status=404)
 
         if not invite.is_valid():
             return Response({"error": "This invite link has expired."}, status=400)
+            
+        workspace = invite.workspace
+        member_count = WorkspaceMembership.objects.filter(workspace=workspace, is_active=True).count()
+        
         return Response(
             {
-                "workspace_name": invite.workspace.name,
+                "workspace_name": workspace.name,
+                "workspace_logo": workspace.logo.url if workspace.logo else None,
+                "workspace_color": "#4B1587", # Fallback brand color
+                "member_count": member_count,
+                "created_at": workspace.created_at.isoformat(),
                 "role": invite.role_to_assign,
-                "invited_by": invite.created_by.username,
-                "expires_at": invite.expires_at,
+                "inviter_id": invite.created_by.id,
+                "inviter_name": invite.created_by.get_full_name() or invite.created_by.username,
+                "inviter_username": invite.created_by.username,
+                "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
             }
         )
 
@@ -1433,3 +1575,122 @@ class PromoteTeamLeaderView(WorkspaceBaseView):
             return Response({"error": "A server error occurred while promoting the leader."}, status=500)
 
         return Response({"detail": f"{target_user.username} promoted to leader of {team.name}"})
+    
+class DemoteTeamLeaderView(WorkspaceBaseView):
+
+    def post(self, request, workspace_id, team_id, user_id):
+        workspace = self.get_workspace()
+        try:
+            team = Team.objects.get(id=team_id, workspace=workspace)
+        except Team.DoesNotExist:
+            return Response({"error": "Team not found"}, status=404)
+
+        membership = WorkspaceMembership.objects.filter(
+            user=request.user, workspace=workspace, is_active=True
+        ).first()
+        if not membership:
+            return Response({"error": "Not authorized"}, status=403)
+
+        is_admin = membership.role in ("owner", "admin")
+        is_current_leader = is_team_leader(request.user, team.id)
+        
+        if not (is_admin or is_current_leader):
+            return Response({"error": "Only admins or team leaders can demote others"}, status=403)
+
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        try:
+            TeamService.demote_leader(team, target_user)
+        except Exception as e:
+            logger.error(f"Failed to demote leader: {e}")
+            return Response({"error": "A server error occurred while demoting the leader."}, status=500)
+
+        return Response({"detail": f"{target_user.username} demoted from leader of {team.name}"})
+
+
+class WorkspaceSettingsView(WorkspaceBaseView):
+    """Allows Owner/Admin to update workspace name, description, and logo."""
+    required_permission = "manage_workspace"
+
+    def get(self, request, workspace_id):
+        workspace = self.get_workspace()
+        return Response({
+            "id": workspace.id,
+            "name": workspace.name,
+            "description": workspace.description,
+            "logo": workspace.logo.url if workspace.logo else None,
+            "pending_delete": workspace.pending_delete,
+            "deletion_at": workspace.deletion_at.isoformat() if workspace.deletion_at else None,
+        })
+
+    def patch(self, request, workspace_id):
+        workspace = self.get_workspace()
+        
+        membership = WorkspaceMembership.objects.filter(
+            user=request.user, workspace=workspace, is_active=True
+        ).first()
+        if not membership or membership.role not in ("owner", "admin"):
+            return Response({"error": "Not authorized"}, status=403)
+
+        name = request.data.get("name")
+        description = request.data.get("description")
+        logo = request.FILES.get("logo")
+
+        if name:
+            workspace.name = name
+        if description is not None:
+            workspace.description = description
+        if logo:
+            try:
+                validate_image_file(logo)
+            except Exception as e:
+                return Response({"error": str(e)}, status=400)
+            
+            # NOTE: We don't delete the old logo here. The Workspace model's save() method
+            # automatically detects the change and deletes the old file from S3.
+            workspace.logo = logo
+
+        workspace.save()
+        return Response({
+            "id": workspace.id,
+            "name": workspace.name,
+            "description": workspace.description,
+            "logo": workspace.logo.url if workspace.logo else None,
+            "detail": "Workspace updated successfully"
+        })
+
+from datetime import timedelta
+from django.utils import timezone
+
+class ScheduleDeletionView(WorkspaceBaseView):
+    """Allows Owner to schedule workspace deletion (24h cooldown)."""
+    required_permission = "delete_workspace"
+
+    def post(self, request, workspace_id):
+        workspace = self.get_workspace()
+        if workspace.owner != request.user:
+            return Response({"error": "Only the owner can schedule deletion."}, status=403)
+
+        workspace.pending_delete = True
+        workspace.deletion_requested_at = timezone.now()
+        workspace.deletion_at = timezone.now() + timedelta(hours=24)
+        workspace.save()
+        
+        return Response({"message": "Workspace deletion scheduled. It will be permanently deleted in 24 hours."})
+
+class CancelDeletionView(WorkspaceBaseView):
+    """Allows Owner to cancel scheduled deletion."""
+    def post(self, request, workspace_id):
+        workspace = self.get_workspace()
+        if workspace.owner != request.user:
+            return Response({"error": "Only the owner can cancel deletion."}, status=403)
+
+        workspace.pending_delete = False
+        workspace.deletion_requested_at = None
+        workspace.deletion_at = None
+        workspace.save()
+        
+        return Response({"message": "Workspace deletion canceled. Everything is back to normal."})

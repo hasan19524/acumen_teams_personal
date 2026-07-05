@@ -62,7 +62,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   typingUsers: {},
 
   selectChannel: (channelId) => {
-    set({ selectedChannelId: channelId });
+    // FIX: Immediately zero out unread count when a channel is selected
+    set((state) => ({
+      selectedChannelId: channelId,
+      channels: state.channels.map((c) =>
+        c.id === channelId ? { ...c, unread_count: 0 } : c
+      ),
+    }));
   },
 
   setMessages: (channelId, msgs) => {
@@ -135,137 +141,121 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (!envelope.data || !envelope.event) return;
 
     set((state) => {
-      // ── Message / Reaction / Read Events ───────────────────
       const channelId = envelope.data.channel;
       if (!channelId) return state;
       const currentMessages = state.messages[channelId] || [];
+      const eventType = envelope.event as string;
 
-      switch (envelope.event) {
-        case "message.created": {
-          const msg = envelope.data;
-          // 1. Hard Dedup
-          if (currentMessages.some((m) => m.id === msg.id)) {
-            return state;
-          }
+      if (eventType === "message.created") {
+        const msg = envelope.data;
+        if (currentMessages.some((m) => m.id === msg.id)) return state;
 
-          // 1.5 Update Channel Sidebar (Last Message & Unread Count)
-          const updatedChannels = state.channels.map((c) => {
-            if (c.id === channelId) {
-              const isMyMessage = msg.sender?.id === get().myUserId;
-              return {
-                ...c,
-                last_message: msg.content || "📎 Attachment",
-                last_message_time: "Now",
-                unread_count: isMyMessage || state.selectedChannelId === channelId ? 0 : (c.unread_count || 0) + 1,
-              };
+        const updatedChannels = state.channels.map((c) => {
+          if (c.id === channelId) {
+            const isMyMessage = msg.sender?.id === get().myUserId;
+            const isSelected = state.selectedChannelId === channelId;
+            if (isMyMessage || isSelected) {
+              return { ...c, last_message: msg.content || "📎 Attachment", last_message_time: "Now", unread_count: 0 };
             }
-            return c;
-          });
+            return { ...c, last_message: msg.content || "📎 Attachment", last_message_time: "Now", unread_count: (c.unread_count || 0) + 1 };
+          }
+          return c;
+        });
 
-          // 2. Optimistic Reconciliation
-          if (msg.client_id) {
-            const optimisticIndex = currentMessages.findIndex(
-              (m) => m.client_id === msg.client_id,
-            );
-            if (optimisticIndex !== -1) {
-              const updated = [...currentMessages];
-              const oldMsg = updated[optimisticIndex];
+        if (msg.client_id) {
+          const optimisticIndex = currentMessages.findIndex((m) => m.client_id === msg.client_id);
+          if (optimisticIndex !== -1) {
+            const updated = [...currentMessages];
+            const oldMsg = updated[optimisticIndex];
+            if (oldMsg._previewUrls) {
+              oldMsg._previewUrls.forEach((url) => URL.revokeObjectURL(url));
+            }
+            updated[optimisticIndex] = { ...msg, _status: "confirmed" };
+            return { messages: { ...state.messages, [channelId]: updated }, channels: updatedChannels };
+          }
+        }
 
-              if (oldMsg._previewUrls) {
-                oldMsg._previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        const updated = [...currentMessages, msg].slice(-MAX_MESSAGES);
+        return { messages: { ...state.messages, [channelId]: updated }, channels: updatedChannels };
+      } 
+      else if (eventType === "message.updated") {
+        const msg = envelope.data;
+        const updated = currentMessages.map((m) => (m.id === msg.id ? msg : m));
+        return { messages: { ...state.messages, [channelId]: updated } };
+      } 
+      else if (eventType === "message.deleted") {
+        const msg = envelope.data;
+        const updated = currentMessages.map((m) =>
+          m.id === msg.id ? { ...m, is_deleted: true, content: "", display_content: "[Message deleted]" } : m,
+        );
+        return { messages: { ...state.messages, [channelId]: updated } };
+      } 
+      else if (eventType === "reaction.added") {
+        const { message_id, reaction } = envelope.data;
+        if (!message_id || !reaction) return state;
+        const updated = currentMessages.map((m) =>
+          m.id === message_id
+            ? {
+                ...m,
+                reactions: [
+                  ...(m.reactions || []).filter(
+                    (r: any) => !(r.user?.id === reaction.user?.id && r.emoji === reaction.emoji)
+                  ),
+                  reaction,
+                ],
               }
+            : m,
+        );
+        return { messages: { ...state.messages, [channelId]: updated } };
+      } 
+      else if (eventType === "reaction.removed") {
+        const { message_id, reaction_id, user_id, emoji } = envelope.data;
+        if (!message_id) return state;
+        const updated = currentMessages.map((m) =>
+          m.id === message_id
+            ? {
+                ...m,
+                reactions: (m.reactions || []).filter((r: any) => {
+                  if (reaction_id && r.id === reaction_id) return false;
+                  if (user_id && emoji && r.user?.id === user_id && r.emoji === emoji) return false;
+                  return true;
+                }),
+              }
+            : m,
+        );
+        return { messages: { ...state.messages, [channelId]: updated } };
+      } 
+      else if (eventType === "channel.cleared") {
+        const chId = Number((envelope.data as any).channel_id);
+        if (isNaN(chId)) return state;
+        // Empty the messages array for the cleared channel
+        return { messages: { ...state.messages, [chId]: [] } };
+      } 
+      else if (eventType === "channel.read") {
+        const chId = Number((envelope.data as any).channel_id);
+        if (isNaN(chId)) return state;
+        const updatedChannels = state.channels.map((c) => (c.id === chId ? { ...c, unread_count: 0 } : c));
+        return { channels: updatedChannels };
+      } 
+      else if (eventType === "message.read") {
+        const { message_id, read } = envelope.data;
+        if (!message_id || !read) return state;
+        const chId = Number(channelId);
+        if (isNaN(chId)) return state;
 
-              updated[optimisticIndex] = { ...msg, _status: "confirmed" };
-              return { messages: { ...state.messages, [channelId]: updated } };
-            }
+        const updated = currentMessages.map((m) =>
+          m.id === message_id ? { ...m, reads: [...(m.reads || []), read] } : m,
+        );
+        const updatedChannels = state.channels.map((c) => {
+          if (c.id === chId && (c.unread_count || 0) > 0) {
+            return { ...c, unread_count: (c.unread_count || 0) - 1 };
           }
-
-          // 3. Standard Append
-          const updated = [...currentMessages, msg].slice(-MAX_MESSAGES);
-          return { 
-            messages: { ...state.messages, [channelId]: updated },
-            channels: updatedChannels // FIX: Return the updated channels so the sidebar updates
-          };
-        }
-
-        case "message.updated": {
-          const msg = envelope.data;
-          const updated = currentMessages.map((m) =>
-            m.id === msg.id ? msg : m,
-          );
-          return { messages: { ...state.messages, [channelId]: updated } };
-        }
-
-        case "message.deleted": {
-          const msg = envelope.data;
-          const updated = currentMessages.map((m) =>
-            m.id === msg.id
-              ? {
-                  ...m,
-                  is_deleted: true,
-                  content: "",
-                  display_content: "[Message deleted]",
-                }
-              : m,
-          );
-          return { messages: { ...state.messages, [channelId]: updated } };
-        }
-
-        case "reaction.added": {
-          const { message_id, reaction } = envelope.data;
-          if (!message_id || !reaction) return state;
-          const updated = currentMessages.map((m) =>
-            m.id === message_id
-              ? {
-                  ...m,
-                  reactions: [
-                    // Remove old reaction by this user with the SAME emoji only
-                    // (user can have multiple different emojis on the same message)
-                    ...(m.reactions || []).filter(
-                      (r: any) => !(r.user?.id === reaction.user?.id && r.emoji === reaction.emoji)
-                    ),
-                    reaction,
-                  ],
-                }
-              : m,
-          );
-          return { messages: { ...state.messages, [channelId]: updated } };
-        }
-
-        case "reaction.removed": {
-          const { message_id, reaction_id, user_id, emoji } = envelope.data;
-          if (!message_id) return state;
-          const updated = currentMessages.map((m) =>
-            m.id === message_id
-              ? {
-                  ...m,
-                  reactions: (m.reactions || []).filter((r: any) => {
-                    // Try matching by database ID first
-                    if (reaction_id && r.id === reaction_id) return false;
-                    // Fallback: match by user_id and emoji
-                    if (user_id && emoji && r.user?.id === user_id && r.emoji === emoji) return false;
-                    return true;
-                  }),
-                }
-              : m,
-          );
-          return { messages: { ...state.messages, [channelId]: updated } };
-        }
-
-        case "message.read": {
-          const { message_id, read } = envelope.data;
-          if (!message_id || !read) return state;
-          const updated = currentMessages.map((m) =>
-            m.id === message_id
-              ? { ...m, reads: [...(m.reads || []), read] }
-              : m,
-          );
-          return { messages: { ...state.messages, [channelId]: updated } };
-        }
-
-        default:
-          return state;
+          return c;
+        });
+        return { messages: { ...state.messages, [chId]: updated }, channels: updatedChannels };
       }
+
+      return state;
     });
   },
 

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 
 class Task(models.Model):
@@ -15,7 +17,7 @@ class Task(models.Model):
         ("in_progress", "In Progress"),
         ("completed", "Completed"),
         ("pending_approval", "Pending Approval"),
-        ("overdue", "Overdue"), # Kept for legacy/data consistency, computed dynamically for Phase 3+
+        ("overdue", "Overdue"),
     ]
     TASK_TYPE_CHOICES = [
         ("personal", "Personal"),
@@ -47,9 +49,7 @@ class Task(models.Model):
     )
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True, default="")
-    assignee_name = models.CharField(
-        max_length=200, blank=True, default="You"
-    )  # Kept for backward compatibility
+    assignee_name = models.CharField(max_length=200, blank=True, default="You")
     assigned_to = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -105,7 +105,6 @@ class Task(models.Model):
         return self.title
 
     def check_overdue(self):
-        """Auto-transition to overdue if past due_date and not completed."""
         if self.due_date and self.status in ("todo", "in_progress"):
             if timezone.now() > self.due_date:
                 self.status = "overdue"
@@ -114,8 +113,8 @@ class Task(models.Model):
         return False
 
     def mark_completed(self, completed_by_user):
-        """Mark task as completed. Set archive_after to 7 weeks."""
         from datetime import timedelta
+
         self.status = "completed"
         self.completed_at = timezone.now()
         self.completed_by = completed_by_user
@@ -131,7 +130,6 @@ class Task(models.Model):
         )
 
     def reopen(self):
-        """Reopen a completed/overdue task."""
         self.status = "in_progress"
         self.completed_at = None
         self.completed_by = None
@@ -149,12 +147,10 @@ class Task(models.Model):
         )
 
     def approve(self):
-        """Approve a task that requires approval."""
         self.is_approved = True
         self.save(update_fields=["is_approved", "updated_at"])
 
     def archive_if_ready(self):
-        """Auto-archive if archive_after has passed."""
         if self.archive_after and timezone.now() >= self.archive_after:
             self.is_archived = True
             self.save(update_fields=["is_archived", "updated_at"])
@@ -163,8 +159,6 @@ class Task(models.Model):
 
 
 class TaskActivity(models.Model):
-    """Activity timeline for a task."""
-
     ACTION_CHOICES = [
         ("created", "Created"),
         ("assigned", "Assigned"),
@@ -197,15 +191,15 @@ class TaskActivity(models.Model):
 
 
 class TaskMember(models.Model):
-    """Tracks individual participation and status for team tasks."""
     STATUS_CHOICES = [
         ("todo", "To Do"),
         ("in_progress", "In Progress"),
         ("completed", "Completed"),
     ]
-
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="members")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="task_participations")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="task_participations"
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="todo")
     completed_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -225,9 +219,10 @@ class TaskMember(models.Model):
 
 
 class TaskComment(models.Model):
-    """Task discussion comments."""
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="comments")
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="task_comments")
+    author = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="task_comments"
+    )
     message = models.TextField()
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -242,10 +237,11 @@ class TaskComment(models.Model):
 
 
 class TaskAttachment(models.Model):
-    """Task file attachments."""
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attachments")
-    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="task_attachments")
-    file = models.FileField(upload_to='task_attachments/%Y/%m/%d/')
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="task_attachments"
+    )
+    file = models.FileField(upload_to="task_attachments/%Y/%m/%d/")
     file_name = models.CharField(max_length=255)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -256,3 +252,18 @@ class TaskAttachment(models.Model):
 
     def __str__(self):
         return self.file_name
+
+    def save(self, *args, **kwargs):
+        try:
+            old_obj = TaskAttachment.objects.get(pk=self.pk)
+            if old_obj.file and old_obj.file != self.file:
+                old_obj.file.delete(save=False)
+        except TaskAttachment.DoesNotExist:
+            pass
+        super().save(*args, **kwargs)
+
+
+@receiver(post_delete, sender=TaskAttachment)
+def delete_task_attachment_on_delete(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

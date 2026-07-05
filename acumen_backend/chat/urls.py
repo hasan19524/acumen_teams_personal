@@ -18,6 +18,10 @@ from .views import (
     MessageDeleteView,
     ReactionToggleView,
     MessageMarkReadView,
+    MessageHideView,
+    MarkChannelReadView,
+    ChannelClearView,
+    ChannelDeleteView,
 )
 
 urlpatterns = [
@@ -26,6 +30,21 @@ urlpatterns = [
     path(
         "<int:workspace_id>/channels/<int:channel_id>/members/",
         ChannelMemberManageView.as_view(),
+    ),
+    path(
+        "<int:workspace_id>/channels/<int:channel_id>/read/",
+        MarkChannelReadView.as_view(),
+        name="mark_channel_read",
+    ),
+    path(
+        "<int:workspace_id>/channels/<int:channel_id>/clear/",
+        ChannelClearView.as_view(),
+        name="clear_channel",
+    ),
+    path(
+        "<int:workspace_id>/channels/<int:channel_id>/delete/",
+        ChannelDeleteView.as_view(),
+        name="delete_channel",
     ),
     # DMs
     path("<int:workspace_id>/dms/", DMListCreateView.as_view()),
@@ -57,6 +76,11 @@ urlpatterns = [
     path(
         "<int:workspace_id>/messages/<int:message_id>/read/",
         MessageMarkReadView.as_view(),
+    ),
+    path(
+        "<int:workspace_id>/messages/<int:message_id>/hide/",
+        MessageHideView.as_view(),
+        name="hide_message",
     ),
     # Users
     path("<int:workspace_id>/users/", WorkspaceUsersView.as_view()),

@@ -1,11 +1,22 @@
-// features/chat/components/RightPanel.tsx
 "use client";
 
-import { X, Users, FileText, Image, Pin, Search } from "lucide-react";
+import { useState } from "react";
+import {
+  X,
+  Users,
+  FileText,
+  Image as ImageIcon,
+  Search,
+  UserPlus,
+  Inbox,
+} from "lucide-react";
 import { T } from "../design/tokens";
 import { Channel } from "../types/channel";
 import { Message } from "../types/message";
 import { resolveFileUrl } from "../utils/rendering";
+import { sendGroupInvite } from "../services/channelService";
+import Avatar from "@/components/Avatar";
+import { useProfileStore } from "@/features/dashboard/store/profileStore";
 
 interface RightPanelProps {
   channel: Channel | null;
@@ -19,6 +30,8 @@ interface RightPanelProps {
     items: Array<{ url: string; type: string; name: string }>,
     index: number,
   ) => void;
+  workspaceUsers: Array<{ id: number; username: string; full_name: string }>;
+  onMembersUpdated: () => void;
 }
 
 export function RightPanel({
@@ -30,7 +43,13 @@ export function RightPanel({
   setActiveTab,
   onClose,
   onGalleryOpen,
+  workspaceUsers,
 }: RightPanelProps) {
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [search, setSearch] = useState("");
+  const [addingId, setAddingId] = useState<number | null>(null);
+  const openProfile = useProfileStore((s) => s.openProfile);
+
   const allAttachments = messages.flatMap((m) => m.attachments || []);
   const mediaAtts = allAttachments.filter(
     (att) =>
@@ -46,15 +65,44 @@ export function RightPanel({
   const tabs = [
     { key: "members", label: "Members", icon: Users },
     { key: "files", label: "Files", icon: FileText },
-    { key: "media", label: "Media", icon: Image },
-    { key: "pinned", label: "Pinned", icon: Pin },
+    { key: "media", label: "Media", icon: ImageIcon },
   ];
+
+  const handleAddMember = async (userId: number) => {
+    if (!channel) return;
+    setAddingId(userId);
+    try {
+      await sendGroupInvite(channel.id, userId);
+      alert("Invitation sent successfully!");
+      setShowAddMember(false);
+    } catch (err: any) {
+      // FIX: Clean up error message so it doesn't show raw JSON
+      let errorMsg = "Failed to send invite.";
+      if (err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          errorMsg = parsed.error || parsed.detail || errorMsg;
+        } catch {
+          errorMsg = err.message;
+        }
+      }
+      alert(errorMsg);
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const availableUsers = workspaceUsers.filter(
+    (u) =>
+      !members.some((m) => m.user_id === u.id) &&
+      (u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+        u.username?.toLowerCase().includes(search.toLowerCase())),
+  );
 
   return (
     <aside
+      className="relative w-full md:w-[320px] h-full"
       style={{
-        width: 320,
-        height: "100vh",
         background: T.bgSidebar,
         borderLeft: `1px solid ${T.border}`,
         display: "flex",
@@ -70,6 +118,7 @@ export function RightPanel({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexShrink: 0,
         }}
       >
         <h3
@@ -80,7 +129,7 @@ export function RightPanel({
             color: T.textPrimary,
           }}
         >
-          Channel Info
+          Info
         </h3>
         <button
           onClick={onClose}
@@ -144,59 +193,177 @@ export function RightPanel({
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px" }}>
         {activeTab === "members" && (
           <div>
-            {members.length === 0 ? (
-              <EmptyState text="No members found." />
-            ) : (
-              members.map((m) => {
-                const isOnline = onlineUsers.some((u) => u.id === m.user_id);
-                return (
-                  <div
-                    key={m.id}
+            {!showAddMember ? (
+              <>
+                {channel?.channel_type === "private_group" && (
+                  <button
+                    onClick={() => setShowAddMember(true)}
                     style={{
+                      width: "100%",
+                      padding: "10px",
+                      marginBottom: 12,
+                      borderRadius: T.radiusSm,
+                      border: `1px dashed ${T.borderHover}`,
+                      background: "transparent",
+                      color: T.accentHover,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
-                      padding: "8px 12px",
-                      borderRadius: T.radiusSm,
-                      marginBottom: 2,
-                      transition: "background 0.1s",
-                      cursor: "pointer",
+                      justifyContent: "center",
+                      gap: 8,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = T.bgHover)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    <div style={{ position: "relative", flexShrink: 0 }}>
+                    <UserPlus size={14} /> Add Members
+                  </button>
+                )}
+
+                {members.length === 0 ? (
+                  <EmptyState text="No members found." />
+                ) : (
+                  members.map((m) => {
+                    const isOnline = onlineUsers.some(
+                      (u) => u.id === m.user_id,
+                    );
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => openProfile(m)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "8px 12px",
+                          borderRadius: T.radiusSm,
+                          marginBottom: 2,
+                          transition: "background 0.1s",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = T.bgHover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        <Avatar
+                          user={m}
+                          name={m.full_name || m.username}
+                          size="sm"
+                        />
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              color: T.textPrimary,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {m.full_name || m.username}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: isOnline ? T.success : T.textMuted,
+                              fontWeight: isOnline ? 600 : 400,
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {isOnline ? "Active Now" : m.role}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </>
+            ) : (
+              <div>
+                <div style={{ position: "relative", marginBottom: 12 }}>
+                  <Search
+                    size={14}
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      left: 12,
+                      color: T.textMuted,
+                    }}
+                  />
+                  <input
+                    placeholder="Search members..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px 8px 32px",
+                      borderRadius: T.radiusSm,
+                      border: `1px solid ${T.border}`,
+                      background: T.bgInputField,
+                      color: T.textPrimary,
+                      fontSize: 13,
+                      outline: "none",
+                    }}
+                  />
+                </div>
+                {availableUsers.length === 0 ? (
+                  <EmptyState text="No users available to add." />
+                ) : (
+                  availableUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        borderRadius: T.radiusSm,
+                        marginBottom: 2,
+                        background: T.bgHover,
+                      }}
+                    >
                       <div
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <Avatar
+                          user={u}
+                          name={u.full_name || u.username}
+                          size="sm"
+                        />
+                        <span style={{ fontSize: 13, color: T.textPrimary }}>
+                          {u.full_name || u.username}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleAddMember(u.id)}
+                        disabled={addingId === u.id}
+                        style={{
                           background: T.accent,
+                          border: "none",
                           color: "#fff",
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontWeight: 600,
-                          fontSize: 12,
+                          opacity: addingId === u.id ? 0.5 : 1,
                         }}
                       >
-                        {m.username.charAt(0).toUpperCase()}
-                      </div>
-                      {isOnline && (
-                        <div style={{ position: "absolute", bottom: 0, right: 0, width: 9, height: 9, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgSidebar}` }} />
-                      )}
+                        <UserPlus size={14} />
+                      </button>
                     </div>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {m.full_name || m.username}
-                      </div>
-                      <div style={{ fontSize: 11, color: isOnline ? T.success : T.textMuted, fontWeight: isOnline ? 600 : 400 }}>
-                        {isOnline ? "Active Now" : (m.role === "admin" ? "Admin" : "Offline")}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+                  ))
+                )}
+              </div>
             )}
           </div>
         )}
@@ -337,10 +504,6 @@ export function RightPanel({
             )}
           </div>
         )}
-
-        {activeTab === "pinned" && (
-          <EmptyState text="No pinned messages yet." />
-        )}
       </div>
     </aside>
   );
@@ -359,7 +522,7 @@ function EmptyState({ text }: { text: string }) {
         textAlign: "center",
       }}
     >
-      <Search size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+      <Inbox size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
       <p style={{ fontSize: 13, margin: 0 }}>{text}</p>
     </div>
   );

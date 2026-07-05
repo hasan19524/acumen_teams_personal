@@ -35,6 +35,8 @@ class WorkspaceService:
 
         TeamMembership.objects.create(team=general, user=owner, is_active=True)
         TeamMembership.objects.create(team=management, user=owner, is_active=True, is_leader=True)
+        # FIX: Add owner to Unassigned team so they can see the Unassigned chat
+        TeamMembership.objects.create(team=unassigned, user=owner, is_active=True)
 
         # 2. Create System Chats (Organization -> Communication)
         general_chat = Channel.objects.create(
@@ -56,6 +58,17 @@ class WorkspaceService:
             created_by=owner,
         )
         ChannelMember.objects.create(channel=mgmt_chat, user=owner, role="admin")
+
+        # 3. Create Unassigned Team Chat (So it shows up in the Chat Sidebar)
+        unassigned_chat = Channel.objects.create(
+            name="Unassigned",
+            slug=f"unassigned-{workspace.id}",
+            channel_type="team",
+            workspace=workspace,
+            team=unassigned, # Link to the Unassigned team
+            created_by=owner,
+        )
+        ChannelMember.objects.create(channel=unassigned_chat, user=owner, role="admin")
 
         return workspace
 
@@ -106,6 +119,23 @@ class WorkspaceService:
         )
         ChannelMember.objects.update_or_create(
             channel=general_chat,
+            user=user,
+            defaults={"role": "member", "is_active": True, "left_at": None},
+        )
+
+        # Synchronize Unassigned Chat
+        unassigned_chat, _ = Channel.objects.get_or_create(
+            slug=f"unassigned-{workspace.id}",
+            defaults={
+                "name": "Unassigned",
+                "channel_type": "team",
+                "workspace": workspace,
+                "team": unassigned,
+                "created_by": workspace.owner,
+            }
+        )
+        ChannelMember.objects.update_or_create(
+            channel=unassigned_chat,
             user=user,
             defaults={"role": "member", "is_active": True, "left_at": None},
         )
@@ -311,41 +341,15 @@ class TeamService:
     def promote_leader(team, user):
         from chat.models import Channel, ChannelMember
 
-        # Demote all current leaders of this team (except the new leader)
-        TeamMembership.objects.filter(
-            team=team, is_leader=True, is_active=True
-        ).exclude(user=user).update(is_leader=False)
+        # FIX: Allow multiple leaders. We no longer demote existing leaders.
+        # TeamMembership.objects.filter(
+        #     team=team, is_leader=True, is_active=True
+        # ).exclude(user=user).update(is_leader=False)
 
         TeamMembership.objects.update_or_create(
             team=team,
             user=user,
             defaults={"is_active": True, "is_leader": True, "left_at": None},
-        )
-
-        # Add to Management Team (Use get_or_create to prevent 500 errors on legacy workspaces)
-        management, _ = Team.objects.get_or_create(
-            workspace=team.workspace, 
-            team_type=TeamType.MANAGEMENT,
-            defaults={"name": "Management"}
-        )
-        TeamMembership.objects.update_or_create(
-            team=management, user=user, defaults={"is_active": True, "left_at": None}
-        )
-
-        # Synchronize Management Chat
-        mgmt_chat, _ = Channel.objects.get_or_create(
-            slug=f"management-{team.workspace.id}",
-            defaults={
-                "name": "Management",
-                "channel_type": "official",
-                "workspace": team.workspace,
-                "created_by": user
-            }
-        )
-        ChannelMember.objects.update_or_create(
-            channel=mgmt_chat,
-            user=user,
-            defaults={"role": "admin", "is_active": True, "left_at": None},
         )
 
     @staticmethod
@@ -362,14 +366,25 @@ class TeamService:
         ).exists()
 
         if not still_leads:
-            management = Team.objects.get(
-                workspace=team.workspace, team_type=TeamType.MANAGEMENT
+            management, _ = Team.objects.get_or_create(
+                workspace=team.workspace, 
+                team_type=TeamType.MANAGEMENT,
+                defaults={"name": "Management"}
             )
             TeamMembership.objects.filter(
                 team=management, user=user, is_active=True
             ).update(is_active=False, left_at=timezone.now())
 
-            mgmt_chat = Channel.objects.get(slug=f"management-{team.workspace.id}")
+            mgmt_chat, _ = Channel.objects.get_or_create(
+                slug=f"management-{team.workspace.id}",
+                defaults={
+                    "name": "Management",
+                    "channel_type": "official",
+                    "workspace": team.workspace,
+                    "team": management, # FIX: Link channel to Management team
+                    "created_by": user
+                }
+            )
             ChannelMember.objects.filter(
                 channel=mgmt_chat, user=user, is_active=True
             ).update(is_active=False, left_at=timezone.now())

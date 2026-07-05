@@ -1,10 +1,8 @@
-// features/teams/components/CreateTeamModal.tsx
 "use client";
 
 import { useState } from "react";
 import { X, Plus, Lock, Globe, Loader2, Search, Check } from "lucide-react";
 import { tk, Member } from "../lib";
-import { workspaceService } from "@/features/workspace/workspaceService";
 
 interface CreateTeamModalProps {
   showModal: boolean;
@@ -42,8 +40,6 @@ export function CreateTeamModal({
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
-    
-    // Pass member_ids directly. The backend CreateTeamView will add them instantly.
     await onCreate({
       name,
       description,
@@ -52,8 +48,6 @@ export function CreateTeamModal({
       color,
       member_ids: selectedMembers,
     });
-
-    // Reset form on success
     setName("");
     setDescription("");
     setLeaderId("");
@@ -65,117 +59,74 @@ export function CreateTeamModal({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)",
-        zIndex: 100,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
-      }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex justify-center items-center p-4"
       onClick={onClose}
     >
       <div
-        className="modal-fade"
-        style={{
-          background: tk.surface,
-          border: `1px solid ${tk.border}`,
-          borderRadius: 12,
-          width: "100%",
-          maxWidth: 480,
-          padding: 24,
-          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-        }}
+        className="bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-md p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 700,
-              color: tk.textPrimary,
-            }}
-          >
-            Create New Team
-          </h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-bold text-white">Create New Team</h2>
           <button
             onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: tk.textMuted,
-              cursor: "pointer",
-            }}
+            className="bg-transparent border-none text-[#7A86A7] cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Name & Color */}
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Team Name</label>
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                Team Name
+              </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Engineering"
                 autoFocus
-                style={inputStyle}
+                className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
               />
             </div>
-            <div style={{ display: "flex", gap: 6, paddingBottom: 2 }}>
+            <div className="flex gap-1.5 pb-1 flex-wrap">
               {PRESET_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => setColor(c)}
+                  className="w-7 h-7 rounded-md cursor-pointer transition-all"
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
                     border: `2px solid ${color === c ? "#FFFFFF" : "transparent"}`,
                     background: c,
-                    cursor: "pointer",
-                    transition: "border-color 0.2s",
                   }}
                 />
               ))}
             </div>
           </div>
 
-          {/* Description */}
           <div>
-            <label style={labelStyle}>Description</label>
+            <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+              Description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="What does this team do?"
-              style={{ ...inputStyle, resize: "vertical" }}
+              className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2] resize-y"
             />
           </div>
 
-          {/* Leader & Visibility */}
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label style={labelStyle}>Team Leader</label>
+              <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                Team Leader
+              </label>
               <select
                 value={leaderId}
                 onChange={(e) => setLeaderId(e.target.value)}
-                style={inputStyle}
+                className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
               >
                 <option value="">Select a leader...</option>
                 {users.map((u) => (
@@ -186,45 +137,19 @@ export function CreateTeamModal({
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Visibility</label>
-              <div style={{ display: "flex", gap: 8 }}>
+              <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                Visibility
+              </label>
+              <div className="flex gap-2">
                 <button
                   onClick={() => setIsPrivate(false)}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 8,
-                    border: `1px solid ${!isPrivate ? tk.brand : tk.border}`,
-                    background: !isPrivate ? tk.brand : "transparent",
-                    color: !isPrivate ? "#fff" : tk.textSecondary,
-                    fontWeight: 600,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                  }}
+                  className={`flex-1 p-2.5 rounded-lg border font-semibold text-sm cursor-pointer flex items-center justify-center gap-1.5 ${!isPrivate ? "bg-[#4B1587] border-[#4B1587] text-white" : "border-[#2A3A5C] text-[#B7C0D8]"}`}
                 >
                   <Globe size={14} /> Public
                 </button>
                 <button
                   onClick={() => setIsPrivate(true)}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 8,
-                    border: `1px solid ${isPrivate ? tk.brand : tk.border}`,
-                    background: isPrivate ? tk.brand : "transparent",
-                    color: isPrivate ? "#fff" : tk.textSecondary,
-                    fontWeight: 600,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                  }}
+                  className={`flex-1 p-2.5 rounded-lg border font-semibold text-sm cursor-pointer flex items-center justify-center gap-1.5 ${isPrivate ? "bg-[#4B1587] border-[#4B1587] text-white" : "border-[#2A3A5C] text-[#B7C0D8]"}`}
                 >
                   <Lock size={14} /> Private
                 </button>
@@ -232,58 +157,74 @@ export function CreateTeamModal({
             </div>
           </div>
 
-          {/* Members Selection (Single Modal Flow) */}
           <div>
-            <label style={labelStyle}>Add Members (Optional)</label>
-            <div style={{ position: "relative", marginBottom: 12 }}>
-              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: tk.textMuted, pointerEvents: "none" }} />
+            <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+              Add Members (Optional)
+            </label>
+            <div className="relative mb-3">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A86A7] pointer-events-none"
+              />
               <input
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 placeholder="Search members to add..."
-                style={{ width: "100%", padding: "10px 14px 10px 36px", borderRadius: 8, border: `1px solid ${tk.border}`, background: tk.bg, color: tk.textPrimary, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                className="w-full p-2.5 pl-9 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
               />
             </div>
-            <div style={{ maxHeight: 180, overflowY: "auto", border: `1px solid ${tk.border}`, borderRadius: 8, background: tk.bg }}>
-              {users.filter(u => u.full_name.toLowerCase().includes(memberSearch.toLowerCase()) || u.username.toLowerCase().includes(memberSearch.toLowerCase())).map(u => (
-                <div key={u.user_id} onClick={() => setSelectedMembers(prev => prev.includes(u.user_id) ? prev.filter(id => id !== u.user_id) : [...prev, u.user_id])} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", cursor: "pointer", borderBottom: `1px solid ${tk.border}` }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 4, border: `1px solid ${selectedMembers.includes(u.user_id) ? tk.brand : tk.border}`, background: selectedMembers.includes(u.user_id) ? tk.brand : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {selectedMembers.includes(u.user_id) && <Check size={14} color="#fff" />}
+            <div className="max-h-44 overflow-y-auto border border-[#2A3A5C] rounded-lg bg-[#081325]">
+              {users
+                .filter(
+                  (u) =>
+                    u.full_name
+                      .toLowerCase()
+                      .includes(memberSearch.toLowerCase()) ||
+                    u.username
+                      .toLowerCase()
+                      .includes(memberSearch.toLowerCase()),
+                )
+                .map((u) => (
+                  <div
+                    key={u.user_id}
+                    onClick={() =>
+                      setSelectedMembers((prev) =>
+                        prev.includes(u.user_id)
+                          ? prev.filter((id) => id !== u.user_id)
+                          : [...prev, u.user_id],
+                      )
+                    }
+                    className="flex items-center gap-2.5 p-2.5 cursor-pointer border-b border-[#2A3A5C] last:border-0 hover:bg-[#172440]"
+                  >
+                    <div
+                      className="w-5 h-5 rounded border flex items-center justify-center"
+                      style={{
+                        border: `1px solid ${selectedMembers.includes(u.user_id) ? "#4B1587" : "#2A3A5C"}`,
+                        background: selectedMembers.includes(u.user_id)
+                          ? "#4B1587"
+                          : "transparent",
+                      }}
+                    >
+                      {selectedMembers.includes(u.user_id) && (
+                        <Check size={14} color="#fff" />
+                      )}
+                    </div>
+                    <span className="text-sm text-white">
+                      {u.full_name || u.username}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 14, color: tk.textPrimary }}>{u.full_name || u.username}</span>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
-          {/* Submit */}
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || isCreating}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 8,
-              border: "none",
-              background: !name.trim() ? tk.border : tk.brand,
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: !name.trim() ? "not-allowed" : "pointer",
-              opacity: !name.trim() ? 0.6 : 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
+            className="w-full p-3 rounded-lg border-none bg-[#4B1587] text-white font-bold text-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreating ? (
               <>
-                <Loader2
-                  size={16}
-                  style={{ animation: "spin 1s linear infinite" }}
-                />{" "}
-                Creating...
+                <Loader2 size={16} className="animate-spin" /> Creating...
               </>
             ) : (
               <>
@@ -296,24 +237,3 @@ export function CreateTeamModal({
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  color: tk.textMuted,
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  display: "block",
-  marginBottom: 6,
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 8,
-  border: `1px solid ${tk.border}`,
-  background: tk.bg,
-  color: tk.textPrimary,
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-};

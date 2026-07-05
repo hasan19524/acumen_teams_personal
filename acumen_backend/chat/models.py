@@ -337,18 +337,29 @@ class Report(models.Model):
 # ── File Attachments ────────────────────────────────────────────────────────
 
 
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
 def attachment_upload_path(instance, filename):
     """
-    Secure path: media/uploads/workspace_id/channel_id/message_id/uuid.ext
-    Uses UUID to prevent path manipulation, collisions, and unsafe characters.
+    Secure path: chat/<category>/workspace_id/channel_id/uuid.ext
+    Automatically sorts files into folders based on their MIME type.
     """
-    # Extract the file extension from the original filename
     ext = filename.split(".")[-1].lower() if "." in filename else "bin"
-
-    # Generate a safe, unique filename
     safe_filename = f"{uuid.uuid4()}.{ext}"
-
-    return f"uploads/{instance.message.channel.workspace_id}/{instance.message.channel_id}/{instance.message.id}/{safe_filename}"
+    
+    # Categorize by file_type for cleaner S3 organization
+    file_type = instance.file_type
+    if 'image' in file_type:
+        category = 'images'
+    elif 'video' in file_type:
+        category = 'videos'
+    elif 'audio' in file_type:
+        category = 'voice'
+    else:
+        category = 'files'
+        
+    return f"chat/{category}/{instance.message.channel.workspace_id}/{instance.message.channel_id}/{safe_filename}"
 
 
 class MessageAttachment(models.Model):
@@ -369,6 +380,12 @@ class MessageAttachment(models.Model):
 
     def __str__(self):
         return self.original_filename
+
+# Auto-delete file from S3 when the attachment database record is deleted
+@receiver(post_delete, sender=MessageAttachment)
+def delete_attachment_on_delete(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
 
 
 # ── Reactions ────────────────────────────────────────────────────────────────
@@ -415,3 +432,20 @@ class MessageRead(models.Model):
 
     def __str__(self):
         return f"{self.user} read message {self.message.id} at {self.read_at}"
+class HiddenMessage(models.Model):
+    """
+    Tracks messages hidden by a specific user ("Delete for Me").
+    This ensures the backend is the source of truth for message visibility.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hidden_messages")
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="hidden_by")
+    hidden_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "message")
+        indexes = [
+            models.Index(fields=["user", "message"]),
+        ]
+
+    def __str__(self):
+        return f"User {self.user_id} hid Message {self.message_id}"

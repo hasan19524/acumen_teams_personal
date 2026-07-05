@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "channels",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "storages", # ADDED FOR S3
     "accounts",
     "workspaces",
     "notifications",
@@ -36,6 +37,8 @@ INSTALLED_APPS = [
     "attendance",
     "tasks",
     "announcements",
+    "support",
+    "upload",
 ]
 
 MIDDLEWARE = [
@@ -171,9 +174,48 @@ CHANNEL_LAYERS = {
 # ── Media & File Upload Configuration ────────────────────────────────────
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
-# Allow up to 50MB uploads (matches file_service.py limits)
+# Allow up to 50MB uploads
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+
+# Amazon S3 Storage Configuration (Production)
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
+
+if AWS_STORAGE_BUCKET_NAME:
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600
+    
+    # Tell browser to cache the image for 1 year (immutable)
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=31536000, public",
+    }
+
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+
+else:
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"

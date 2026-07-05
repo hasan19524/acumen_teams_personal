@@ -1,7 +1,7 @@
 // features/chat/components/MessageList.tsx
 "use client";
 
-import { RefObject } from "react";
+import { useState, RefObject } from "react";
 import {
   Send,
   Loader2,
@@ -13,21 +13,21 @@ import {
   Check,
   MoreVertical,
   AlertCircle,
-  FileText,
-  Download,
+  Trash2,
 } from "lucide-react";
 import { T } from "../design/tokens";
 import { Message } from "../types/message";
 import { Channel } from "../types/channel";
 import { isGrouped } from "../utils/grouping";
-import { renderMessageContent, resolveFileUrl } from "../utils/rendering";
+import { renderMessageContent } from "../utils/rendering";
+import Avatar from "@/components/Avatar";
+import { MessageAttachments } from "./MessageAttachments";
 
 const formatDateSeparator = (dateStr: string) => {
   const date = new Date(dateStr);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-
   if (date.toDateString() === today.toDateString()) return "Today";
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString(undefined, {
@@ -37,14 +37,18 @@ const formatDateSeparator = (dateStr: string) => {
   });
 };
 
-const isWithin30Min = (createdAt: string) => {
-  const diff = (Date.now() - new Date(createdAt).getTime()) / 60000; // minutes
-  return diff <= 30;
-};
-
+const isWithin30Min = (createdAt: string) =>
+  (Date.now() - new Date(createdAt).getTime()) / 60000 <= 30;
 const isUnread = (msg: Message, myUserId: number) => {
   if (msg.sender?.id === myUserId || msg.is_deleted) return false;
   return !msg.reads?.some((r: any) => r.user?.id === myUserId);
+};
+
+const isEmojiOnly = (text: string) => {
+  if (!text) return false;
+  const noSpaces = text.replace(/\s/g, "");
+  if (noSpaces.length === 0 || noSpaces.length > 8) return false;
+  return /^[\p{Extended_Pictographic}]+$/u.test(noSpaces);
 };
 
 interface MessageListProps {
@@ -69,251 +73,13 @@ interface MessageListProps {
   onCopy: (msg: Message) => void;
   onEdit: (msg: Message) => void;
   onEnterSelectMode: (msgId: number) => void;
-  onDeleteForMe: (msgId: number) => void;
-  onDeleteForEveryone: (msgId: number) => void;
   setDeleteModalMsgId: (id: number | null) => void;
   onGalleryOpen: (
     items: Array<{ url: string; type: string; name: string }>,
     index: number,
   ) => void;
   onToggleReaction: (messageId: number, emoji: string) => void;
-  onMarkRead: (messageId: number) => void;
   typingUsers?: { id: number; username: string }[];
-}
-
-function renderAttachments(
-  msg: Message,
-  displayText: string,
-  onGalleryOpen: (
-    items: Array<{ url: string; type: string; name: string }>,
-    index: number,
-  ) => void,
-) {
-  if (!msg.attachments || msg.attachments.length === 0) return null;
-
-  const mediaAtts = msg.attachments.filter(
-    (att) =>
-      att.file_type?.startsWith("image/") ||
-      att.file_type?.startsWith("video/"),
-  );
-  const fileAtts = msg.attachments.filter((att) => !mediaAtts.includes(att));
-
-  return (
-    <>
-      {fileAtts.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            marginTop: displayText ? 8 : 0,
-          }}
-        >
-          {fileAtts.map((att) => (
-            <div
-              key={att.id}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                borderRadius: T.radiusSm,
-                padding: 8,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                transition: "background 0.12s",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-              }}
-            >
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: T.radiusXs,
-                  background: T.accentMuted,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <FileText size={16} style={{ color: T.accentHover }} />
-              </div>
-              <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: T.fontSizeSm,
-                    color: T.textPrimary,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {att.original_filename}
-                </div>
-                <div
-                  style={{
-                    fontSize: T.fontSizeXs,
-                    color: T.textMuted,
-                    marginTop: 2,
-                  }}
-                >
-                  {(att.file_size / 1024).toFixed(1)} KB
-                </div>
-              </div>
-              <a
-                href={resolveFileUrl(att.file_url)}
-                download={att.original_filename}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  color: T.textMuted,
-                  padding: 8,
-                  borderRadius: T.radiusSm,
-                  transition: "color 0.12s",
-                  display: "flex",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = T.textPrimary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = T.textMuted;
-                }}
-              >
-                <Download size={16} />
-              </a>
-            </div>
-          ))}
-        </div>
-      )}
-      {mediaAtts.length > 0 && (
-        <div
-          style={{
-            marginTop: displayText || fileAtts.length > 0 ? 8 : 0,
-            display: "grid",
-            gridTemplateColumns: mediaAtts.length === 1 ? "1fr" : "1fr 1fr",
-            gap: 4,
-            maxWidth: T.mediaGridMax,
-            borderRadius: T.radiusXs,
-            overflow: "hidden",
-          }}
-        >
-          {mediaAtts.slice(0, mediaAtts.length === 3 ? 3 : 4).map((att, i) => {
-            const fileUrl = resolveFileUrl(att.file_url);
-            const isVideo = att.file_type?.startsWith("video/");
-            const isLastAndHasMore = mediaAtts.length > 4 && i === 3;
-            return (
-              <div
-                key={att.id}
-                style={{
-                  position: "relative",
-                  cursor: "pointer",
-                  gridColumn:
-                    mediaAtts.length === 3 && i === 0 ? "1 / -1" : undefined,
-                  overflow: "hidden",
-                }}
-                onClick={() => {
-                  const items = mediaAtts.map((a) => ({
-                    url: resolveFileUrl(a.file_url),
-                    type: a.file_type || "",
-                    name: a.original_filename || "",
-                  }));
-                  onGalleryOpen(items, i);
-                }}
-              >
-                {isVideo && fileUrl ? (
-                  <div style={{ position: "relative" }}>
-                    <video
-                      src={fileUrl}
-                      style={{
-                        width: "100%",
-                        height: T.imageHeight,
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                      muted
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "rgba(0,0,0,0.25)",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: "50%",
-                          background: "rgba(0,0,0,0.6)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <svg
-                          width="16"
-                          height="18"
-                          viewBox="0 0 14 16"
-                          fill="none"
-                        >
-                          <path d="M2 1.5L12 8L2 14.5V1.5Z" fill="white" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                ) : fileUrl ? (
-                  <img
-                    src={fileUrl}
-                    alt={att.original_filename}
-                    style={{
-                      width: "100%",
-                      height: T.imageHeight,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                ) : null}
-                {isLastAndHasMore && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background: "rgba(0,0,0,0.55)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 20,
-                      fontWeight: 600,
-                    }}
-                  >
-                    +{mediaAtts.length - 4}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-}
-
-function isEmojiOnly(text: string) {
-  if (!text) return false;
-  const noSpaces = text.replace(/\s/g, "");
-  if (noSpaces.length === 0 || noSpaces.length > 8) return false;
-  return /^[\p{Extended_Pictographic}]+$/u.test(noSpaces);
 }
 
 export function MessageList({
@@ -341,12 +107,14 @@ export function MessageList({
   setDeleteModalMsgId,
   onGalleryOpen,
   onToggleReaction,
-  onMarkRead,
   typingUsers,
 }: MessageListProps) {
   const channelMessages = selectedChannel
     ? messages[selectedChannel.id] || []
     : [];
+  const [menuPos, setMenuPos] = useState<{ top?: string; bottom?: string }>({
+    bottom: "100%",
+  });
 
   return (
     <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -373,7 +141,6 @@ export function MessageList({
             gap: 0,
           }}
         >
-          {/* Load older indicator */}
           {selectedChannel && pagination[selectedChannel.id]?.hasOlder && (
             <div
               style={{
@@ -443,12 +210,11 @@ export function MessageList({
                 }
 
                 const isSelected = selectedMsgIds.has(msg.id);
+                const currentUnread = isUnread(msg, myUserId);
                 const prevMsgUnread = prevMsg
                   ? isUnread(prevMsg, myUserId)
                   : false;
-                const currentUnread = isUnread(msg, myUserId);
                 const showUnreadDivider = currentUnread && !prevMsgUnread;
-
                 const hasMedia = msg.attachments?.some(
                   (a) =>
                     a.file_type?.startsWith("image/") ||
@@ -528,26 +294,36 @@ export function MessageList({
                       </div>
                     )}
 
-                    {/* Message Row Wrapper */}
                     <div
                       id={`msg-${msg.id}`}
                       className="message-row"
-                      onClick={() => {
-                        if (isSelectMode) onToggleMessageSelection(msg.id);
+                      onClick={() =>
+                        isSelectMode && onToggleMessageSelection(msg.id)
+                      }
+                      onDoubleClick={(e) => {
+                        if (!isSelectMode && !msg.is_deleted) {
+                          e.stopPropagation();
+                          onReply(msg);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        if (!msg.is_deleted && msg._status !== "pending") {
+                          e.preventDefault();
+                          onSetActiveMenuMsgId(msg.id);
+                        }
                       }}
                       style={{
                         display: "flex",
                         justifyContent: mine ? "flex-end" : "flex-start",
                         alignItems: "flex-end",
                         gap: T.gapSm,
-                        marginTop: grouped ? 2 : 10, // Tighter spacing
+                        marginTop: grouped ? 2 : 10,
                         cursor: isSelectMode ? "pointer" : "default",
                         background: isSelected ? T.accentMuted : "transparent",
                         borderRadius: T.radiusSm,
                         padding: "2px 4px",
                       }}
                     >
-                      {/* Select Mode Checkbox */}
                       {isSelectMode && (
                         <div
                           style={{
@@ -578,7 +354,6 @@ export function MessageList({
                         </div>
                       )}
 
-                      {/* Avatar */}
                       {!mine && (
                         <div
                           style={{
@@ -590,29 +365,19 @@ export function MessageList({
                           }}
                         >
                           {!grouped ? (
-                            <div
-                              style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: "50%",
-                                background:
-                                  "linear-gradient(135deg,#4f46e5,#7c3aed)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: "#fff",
-                              }}
-                            >
-                              {displayName.charAt(0).toUpperCase()}
-                            </div>
+                            <Avatar
+                              user={msg.sender || selectedChannel?.dm_partner}
+                              name={
+                                msg.sender?.username ||
+                                selectedChannel?.dm_partner?.username
+                              }
+                              size="chat"
+                            />
                           ) : null}
                         </div>
                       )}
                       {mine && <div style={{ width: 28, flexShrink: 0 }} />}
 
-                      {/* Content Column (Bubble + Meta) */}
                       <div
                         style={{
                           display: "flex",
@@ -634,7 +399,6 @@ export function MessageList({
                             {displayName}
                           </div>
                         )}
-
                         <div
                           style={{
                             display: "flex",
@@ -643,7 +407,6 @@ export function MessageList({
                             flexDirection: mine ? "row-reverse" : "row",
                           }}
                         >
-                          {/* Bubble */}
                           <div
                             style={{
                               padding:
@@ -662,7 +425,6 @@ export function MessageList({
                               boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                           >
-                            {/* Reply Preview */}
                             {resolvedReplyTo &&
                               typeof resolvedReplyTo === "object" && (
                                 <div
@@ -732,7 +494,6 @@ export function MessageList({
                                 </div>
                               )}
 
-                            {/* Text Content */}
                             {displayText && (
                               <div
                                 style={{
@@ -760,9 +521,13 @@ export function MessageList({
                               </div>
                             )}
 
-                            {renderAttachments(msg, displayText, onGalleryOpen)}
+                            <MessageAttachments
+                              msg={msg}
+                              displayText={displayText}
+                              onGalleryOpen={onGalleryOpen}
+                              mine={mine}
+                            />
 
-                            {/* Upload progress */}
                             {msg._status === "pending" &&
                               msg._progress !== undefined &&
                               msg._progress < 100 && (
@@ -801,8 +566,6 @@ export function MessageList({
                               </div>
                             )}
 
-                            {/* Timestamp (Inside Bubble - Bottom Right) */}
-                            {/* If it's media only, overlay it. Otherwise, put it below text. */}
                             {hasMedia && !displayText ? (
                               <span
                                 style={{
@@ -817,7 +580,10 @@ export function MessageList({
                                   zIndex: 5,
                                 }}
                               >
-                                {msg.created_time}
+                                {new Date(msg.created_at).toLocaleTimeString(
+                                  [],
+                                  { hour: "2-digit", minute: "2-digit" },
+                                )}
                               </span>
                             ) : (
                               <div
@@ -838,11 +604,15 @@ export function MessageList({
                                     edited
                                   </span>
                                 )}
-                                <span>{msg.created_time}</span>
+                                <span>
+                                  {new Date(msg.created_at).toLocaleTimeString(
+                                    [],
+                                    { hour: "2-digit", minute: "2-digit" },
+                                  )}
+                                </span>
                               </div>
                             )}
 
-                            {/* Reactions Display */}
                             {msg.reactions && msg.reactions.length > 0 && (
                               <div
                                 style={{
@@ -916,7 +686,6 @@ export function MessageList({
                             )}
                           </div>
 
-                          {/* Menu trigger */}
                           {showMenu && (
                             <div
                               className="msg-menu-trigger"
@@ -934,6 +703,13 @@ export function MessageList({
                                 className="msg-menu-btn"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  if (window.innerHeight - rect.bottom < 250) {
+                                    setMenuPos({ bottom: "100%", top: "auto" });
+                                  } else {
+                                    setMenuPos({ top: "100%", bottom: "auto" });
+                                  }
                                   onSetActiveMenuMsgId(
                                     activeMenuMsgId === msg.id ? null : msg.id,
                                   );
@@ -951,16 +727,6 @@ export function MessageList({
                                   justifyContent: "center",
                                   transition: "all 0.1s",
                                 }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background =
-                                    T.bgHoverStrong;
-                                  e.currentTarget.style.color = T.textSecondary;
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background =
-                                    "transparent";
-                                  e.currentTarget.style.color = T.textMuted;
-                                }}
                               >
                                 <MoreVertical size={14} />
                               </button>
@@ -971,8 +737,9 @@ export function MessageList({
                                   onClick={(e) => e.stopPropagation()}
                                   style={{
                                     position: "absolute",
-                                    top: "auto",
-                                    bottom: 30,
+                                    ...menuPos,
+                                    marginTop: "4px",
+                                    marginBottom: "4px",
                                     right: mine ? -4 : "auto",
                                     left: mine ? "auto" : 0,
                                     background: T.bgMenu,
@@ -1047,6 +814,12 @@ export function MessageList({
                                           },
                                         ]
                                       : []),
+                                    {
+                                      icon: <Trash2 size={14} />,
+                                      label: "Delete",
+                                      action: () => setDeleteModalMsgId(msg.id),
+                                      danger: true,
+                                    },
                                   ].map((item, i, arr) => {
                                     const isLast =
                                       i === arr.length - 1 && item.danger;
@@ -1080,16 +853,6 @@ export function MessageList({
                                             transition: "background 0.08s",
                                             fontWeight: 500,
                                           }}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.background =
-                                              item.danger
-                                                ? T.dangerHover
-                                                : T.bgHoverStrong;
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.background =
-                                              "transparent";
-                                          }}
                                         >
                                           {item.icon}
                                           <span>{item.label}</span>
@@ -1103,7 +866,6 @@ export function MessageList({
                           )}
                         </div>
 
-                        {/* Seen Receipt (Outside Bubble - Below) */}
                         {mine &&
                           !msg.is_deleted &&
                           msg._status !== "pending" &&
@@ -1201,15 +963,7 @@ export function MessageList({
                 marginLeft: 44,
               }}
             >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
-                  flexShrink: 0,
-                }}
-              />
+              <Avatar user={typingUsers[0]} size="chat" />
               <div
                 style={{
                   background: T.surface,
@@ -1227,13 +981,7 @@ export function MessageList({
                   <span></span>
                   <span></span>
                 </div>
-                <style>{`
-                  .typing-dots-bubble { display: flex; gap: 4px; align-items: center; }
-                  .typing-dots-bubble span { width: 6px; height: 6px; border-radius: "50%"; background: ${T.textMuted}; animation: typingBounce 1.4s infinite ease-in-out both; }
-                  .typing-dots-bubble span:nth-child(1) { animation-delay: -0.32s; }
-                  .typing-dots-bubble span:nth-child(2) { animation-delay: -0.16s; }
-                  @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
-                `}</style>
+                <style>{`.typing-dots-bubble { display: flex; gap: 4px; align-items: center; } .typing-dots-bubble span { width: 6px; height: 6px; border-radius: "50%"; background: ${T.textMuted}; animation: typingBounce 1.4s infinite ease-in-out both; } .typing-dots-bubble span:nth-child(1) { animation-delay: -0.32s; } .typing-dots-bubble span:nth-child(2) { animation-delay: -0.16s; } @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }`}</style>
               </div>
             </div>
           )}
@@ -1241,14 +989,8 @@ export function MessageList({
         </div>
       </div>
 
-      <style>{`
-        @keyframes msgFadeIn { 
-          from { opacity: 0; transform: translateY(8px); } 
-          to { opacity: 1; transform: translateY(0); } 
-        }
-      `}</style>
+      <style>{`@keyframes msgFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
-      {/* Scroll to bottom */}
       {!isAtBottom && (
         <button
           onClick={onScrollToBottom}

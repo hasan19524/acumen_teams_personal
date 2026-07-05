@@ -1,4 +1,3 @@
-// features/teams/components/InviteManager.tsx
 "use client";
 
 import { useState } from "react";
@@ -9,7 +8,6 @@ import {
   Copy,
   CheckCircle2,
   Loader2,
-  Mail,
 } from "lucide-react";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import { tk, Team } from "../lib";
@@ -25,7 +23,6 @@ export function InviteManager({
   onClose,
   teams,
 }: InviteManagerProps) {
-  // Form State for Username/Email
   const [inviteType, setInviteType] = useState<"user" | "link">("user");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -35,7 +32,6 @@ export function InviteManager({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // State for Link/QR
   const [linkRole, setLinkRole] = useState("member");
   const [linkExpiry, setLinkExpiry] = useState(96);
   const [generatedLink, setGeneratedLink] = useState("");
@@ -71,14 +67,15 @@ export function InviteManager({
     setLinkLoading(true);
     setGeneratedLink("");
     setLinkCopied(false);
+    setError("");
     try {
       const data = await workspaceService.generateInviteLink({
         role: linkRole,
         expires_hours: linkExpiry,
       });
       if (data.invite_url) setGeneratedLink(data.invite_url);
-    } catch {
-      setError("Failed to generate link");
+    } catch (err: any) {
+      setError(err.message || "Failed to generate link");
     } finally {
       setLinkLoading(false);
     }
@@ -86,186 +83,82 @@ export function InviteManager({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)",
-        zIndex: 200,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
-      }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex justify-center items-center p-4"
       onClick={onClose}
     >
       <div
-        className="modal-fade"
-        style={{
-          background: tk.surface,
-          border: `1px solid ${tk.border}`,
-          borderRadius: 12,
-          width: "100%",
-          maxWidth: 520,
-          maxHeight: "90vh",
-          overflowY: "auto",
-          padding: 24,
-          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-        }}
+        className="bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 700,
-              color: tk.textPrimary,
-            }}
-          >
-            Invite Center
-          </h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-bold text-white">Invite Center</h2>
           <button
             onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: tk.textMuted,
-              cursor: "pointer",
-            }}
+            className="bg-transparent border-none text-[#7A86A7] cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: 4,
-            background: tk.bg,
-            borderRadius: 8,
-            padding: 4,
-            marginBottom: 24,
-          }}
-        >
+        <div className="flex gap-1 bg-[#081325] rounded-lg p-1 mb-6">
           <button
             onClick={() => setInviteType("user")}
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: 6,
-              border: "none",
-              background: inviteType === "user" ? tk.brand : "transparent",
-              color: inviteType === "user" ? "#fff" : tk.textSecondary,
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
+            className={`flex-1 p-2.5 rounded-md font-semibold text-sm cursor-pointer flex items-center justify-center gap-1.5 ${inviteType === "user" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
           >
             <UserPlus size={14} /> By User
           </button>
           <button
             onClick={() => setInviteType("link")}
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: 6,
-              border: "none",
-              background: inviteType === "link" ? tk.brand : "transparent",
-              color: inviteType === "link" ? "#fff" : tk.textSecondary,
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
+            className={`flex-1 p-2.5 rounded-md font-semibold text-sm cursor-pointer flex items-center justify-center gap-1.5 ${inviteType === "link" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
           >
             <LinkIcon size={14} /> Link / QR
           </button>
         </div>
 
         {error && (
-          <div
-            style={{
-              color: tk.primary,
-              fontSize: 13,
-              marginBottom: 16,
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </div>
+          <div className="text-[#E31E24] text-sm mb-4 text-center">{error}</div>
         )}
         {success && (
-          <div
-            style={{
-              color: tk.success,
-              fontSize: 13,
-              marginBottom: 16,
-              textAlign: "center",
-            }}
-          >
+          <div className="text-[#1FA463] text-sm mb-4 text-center">
             {success}
           </div>
         )}
 
-        {/* User Invite Form */}
         {inviteType === "user" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-              }}
-            >
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label style={labelStyle}>Username</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Username
+                </label>
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="john_doe"
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 />
               </div>
               <div>
-                <label style={labelStyle}>Email (Optional)</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Email (Optional)
+                </label>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="john@acumen.app"
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 />
               </div>
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-              }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label style={labelStyle}>Role</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Role
+                </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 >
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
@@ -273,11 +166,13 @@ export function InviteManager({
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Assign to Team</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Assign to Team
+                </label>
                 <select
                   value={teamId}
                   onChange={(e) => setTeamId(e.target.value)}
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 >
                   <option value="">None (Unassigned)</option>
                   {teams.map((t) => (
@@ -291,30 +186,11 @@ export function InviteManager({
             <button
               onClick={handleInviteUser}
               disabled={loading}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 8,
-                border: "none",
-                background: tk.brand,
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                opacity: loading ? 0.6 : 1,
-              }}
+              className="w-full p-3 rounded-lg border-none bg-[#4B1587] text-white font-bold text-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {loading ? (
                 <>
-                  <Loader2
-                    size={16}
-                    style={{ animation: "spin 1s linear infinite" }}
-                  />{" "}
-                  Inviting...
+                  <Loader2 size={16} className="animate-spin" /> Inviting...
                 </>
               ) : (
                 <>
@@ -325,22 +201,17 @@ export function InviteManager({
           </div>
         )}
 
-        {/* Link & QR Form */}
         {inviteType === "link" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-              }}
-            >
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label style={labelStyle}>Role</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Role
+                </label>
                 <select
                   value={linkRole}
                   onChange={(e) => setLinkRole(e.target.value)}
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 >
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
@@ -348,11 +219,13 @@ export function InviteManager({
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Expires In</label>
+                <label className="text-[10px] font-bold text-[#7A86A7] uppercase tracking-wider mb-1.5 block">
+                  Expires In
+                </label>
                 <select
                   value={linkExpiry}
                   onChange={(e) => setLinkExpiry(Number(e.target.value))}
-                  style={inputStyle}
+                  className="w-full p-2.5 rounded-lg border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none focus:border-[#5DADE2]"
                 >
                   <option value={24}>1 Day</option>
                   <option value={96}>4 Days</option>
@@ -364,30 +237,11 @@ export function InviteManager({
             <button
               onClick={handleGenerateLink}
               disabled={linkLoading}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 8,
-                border: "none",
-                background: tk.brand,
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                opacity: linkLoading ? 0.6 : 1,
-              }}
+              className="w-full p-3 rounded-lg border-none bg-[#4B1587] text-white font-bold text-sm cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {linkLoading ? (
                 <>
-                  <Loader2
-                    size={16}
-                    style={{ animation: "spin 1s linear infinite" }}
-                  />{" "}
-                  Generating...
+                  <Loader2 size={16} className="animate-spin" /> Generating...
                 </>
               ) : (
                 <>
@@ -397,45 +251,16 @@ export function InviteManager({
             </button>
 
             {generatedLink && (
-              <div
-                style={{
-                  marginTop: 8,
-                  display: "grid",
-                  gridTemplateColumns: "1fr 140px",
-                  gap: 16,
-                  alignItems: "center",
-                  background: tk.bg,
-                  padding: 16,
-                  borderRadius: 8,
-                  border: `1px solid ${tk.border}`,
-                }}
-              >
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4 items-center bg-[#081325] p-4 rounded-lg border border-[#2A3A5C]">
                 <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: tk.textMuted,
-                      marginBottom: 8,
-                      textTransform: "uppercase",
-                    }}
-                  >
+                  <div className="text-[11px] text-[#7A86A7] mb-2 uppercase">
                     Invite Link
                   </div>
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
-                  >
+                  <div className="flex gap-2 items-center">
                     <input
                       readOnly
                       value={generatedLink}
-                      style={{
-                        flex: 1,
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        border: `1px solid ${tk.border}`,
-                        background: "transparent",
-                        color: tk.success,
-                        fontSize: 11,
-                      }}
+                      className="flex-1 p-2 rounded-md border border-[#2A3A5C] bg-transparent text-[#1FA463] text-[11px] outline-none"
                     />
                     <button
                       onClick={() => {
@@ -443,18 +268,9 @@ export function InviteManager({
                         setLinkCopied(true);
                         setTimeout(() => setLinkCopied(false), 2000);
                       }}
+                      className="p-2 rounded-md border-none text-white cursor-pointer font-semibold text-[11px] flex items-center gap-1"
                       style={{
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        border: "none",
                         background: linkCopied ? tk.success : tk.surfaceHover,
-                        color: "#fff",
-                        cursor: "pointer",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
                       }}
                     >
                       {linkCopied ? (
@@ -469,22 +285,11 @@ export function InviteManager({
                     </button>
                   </div>
                 </div>
-                <div
-                  style={{
-                    background: "#fff",
-                    padding: 4,
-                    borderRadius: 8,
-                    width: 140,
-                    height: 140,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
+                <div className="bg-white p-1 rounded-lg w-32 h-32 flex items-center justify-center mx-auto sm:mx-0">
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(generatedLink)}`}
                     alt="QR Code"
-                    style={{ width: 130, height: 130 }}
+                    className="w-full h-full"
                   />
                 </div>
               </div>
@@ -495,24 +300,3 @@ export function InviteManager({
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  color: tk.textMuted,
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  display: "block",
-  marginBottom: 6,
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 8,
-  border: `1px solid ${tk.border}`,
-  background: tk.bg,
-  color: tk.textPrimary,
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-};

@@ -32,8 +32,10 @@ export type Channel = {
   dm_partner: UserMini | null;
   is_member_active: boolean;
   is_pending: boolean; // True if private group awaiting minimum members
+  is_request_pending?: boolean; // True if DM request sent but not accepted
   last_message?: string | null;
   last_message_time?: string | null;
+  last_message_sender?: string | null;
   unread_count?: number;
 };
 

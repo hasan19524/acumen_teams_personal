@@ -24,6 +24,7 @@ from .models import (
     DMRequest,
     Block,
     Report,
+    HiddenMessage,
 )
 from .serializers import (
     ChannelSerializer,
@@ -82,6 +83,7 @@ class ChannelListCreateView(APIView):
                 member_count=Count("members", filter=Q(members__is_active=True)),
                 last_message_content=Subquery(last_msg_sq.values("content")[:1]),
                 last_message_created=Subquery(last_msg_sq.values("created_at")[:1]),
+                last_message_sender=Subquery(last_msg_sq.values("sender__username")[:1]),
                 unread_count=Coalesce(
                     Subquery(unread_sq, output_field=IntegerField()), 0
                 ),
@@ -89,34 +91,58 @@ class ChannelListCreateView(APIView):
             .distinct()
         )
 
-        if membership.role in ("owner", "admin"):
-            # Admins see all official + standard team channels, plus private groups they are members of
-            channels = (
-                Channel.objects.filter(workspace=membership.workspace, is_dm=False)
-                .filter(
-                    Q(channel_type="official")
-                    | Q(channel_type="team", team__team_type=TeamType.STANDARD)
-                    | Q(members__user=request.user, members__is_active=True)
-                )
-                .exclude(team__team_type=TeamType.UNASSIGNED)
-                .select_related("created_by", "team")
-                .annotate(
-                    member_count=Count("members", filter=Q(members__is_active=True)),
-                    last_message_content=Subquery(last_msg_sq.values("content")[:1]),
-                    last_message_created=Subquery(last_msg_sq.values("created_at")[:1]),
-                    unread_count=Coalesce(
-                        Subquery(unread_sq, output_field=IntegerField()), 0
-                    ),
-                )
-                .distinct()
-                .order_by("name")
+        from django.db.models import F
+        from workspaces.models import TeamMembership, TeamType
+
+        # ── SELF-HEALING: Ensure the "Unassigned" team chat channel exists ──
+        unassigned_team = Team.objects.filter(workspace=membership.workspace, team_type=TeamType.UNASSIGNED).first()
+        if unassigned_team:
+            unassigned_chat, created = Channel.objects.get_or_create(
+                slug=f"unassigned-{membership.workspace.id}",
+                defaults={
+                    "name": "Unassigned",
+                    "channel_type": "official", # Changed to official system channel
+                    "workspace": membership.workspace,
+                    "team": unassigned_team,
+                    "created_by": membership.workspace.owner
+                }
             )
-        else:
-            # Members and guests only see channels they are explicitly members of
-            # (But still hide Unassigned just in case they were somehow added)
-            channels = base_qs.exclude(team__team_type=TeamType.UNASSIGNED).order_by(
-                "name"
+            # If we just created it, add ALL workspace members to this chat so they can see it
+            if created:
+                for ws_mem in membership.workspace.memberships.filter(is_active=True):
+                    ChannelMember.objects.get_or_create(
+                        channel=unassigned_chat,
+                        user=ws_mem.user,
+                        defaults={"role": "member", "is_active": True}
+                    )
+
+        # Get IDs of teams the user is actively a member of (including Unassigned)
+        user_team_ids = TeamMembership.objects.filter(
+            user=request.user, is_active=True
+        ).values_list("team_id", flat=True)
+
+        # FIX: Show Official channels, channels they are explicitly members of, 
+        # AND channels belonging to teams they are a member of.
+        channels = (
+            Channel.objects.filter(workspace=membership.workspace, is_dm=False)
+            .filter(
+                Q(channel_type="official") |
+                Q(members__user=request.user, members__is_active=True) |
+                Q(team_id__in=user_team_ids, channel_type="team")
             )
+            .select_related("created_by", "team")
+            .annotate(
+                member_count=Count("members", filter=Q(members__is_active=True)),
+                last_message_content=Subquery(last_msg_sq.values("content")[:1]),
+                last_message_created=Subquery(last_msg_sq.values("created_at")[:1]),
+                last_message_sender=Subquery(last_msg_sq.values("sender__username")[:1]),
+                unread_count=Coalesce(
+                    Subquery(unread_sq, output_field=IntegerField()), 0
+                ),
+            )
+            .distinct()
+            .order_by(F("last_message_created").desc(nulls_last=True), "name")
+        )
 
         serializer = ChannelSerializer(channels, many=True)
         return Response(serializer.data)
@@ -147,6 +173,27 @@ class ChannelListCreateView(APIView):
             channel_type=channel_type,
             team=team,
         )
+
+        # SLACK MODEL: Send pending invites instead of force-adding members
+        if channel_type == "private_group":
+            member_ids = request.data.get("member_ids", [])
+            from workspaces.models import PrivateGroupInvite
+            from datetime import timedelta
+            expires_at = timezone.now() + timedelta(hours=24)
+            for mid in member_ids:
+                try:
+                    target_user = User.objects.get(id=mid)
+                    if target_user != request.user:
+                        PrivateGroupInvite.objects.get_or_create(
+                            channel=channel,
+                            inviter=request.user,
+                            invitee=target_user,
+                            workspace=membership.workspace,
+                            defaults={"status": "pending", "expires_at": expires_at}
+                        )
+                except User.DoesNotExist:
+                    pass
+
         return Response(ChannelSerializer(channel).data, status=status.HTTP_201_CREATED)
 
 
@@ -163,18 +210,19 @@ class ChannelMemberManageView(APIView):
         )
         auth.require_channel_access(channel_id)
 
+        from .serializers import UserMiniSerializer
         members = (
             ChannelMember.objects.filter(channel=channel, is_active=True)
-            .select_related("user")
-            .values("id", "user_id", "user__username", "user__first_name", "user__last_name", "role", "joined_at")
+            .select_related("user", "user__profile")
         )
         data = [
             {
-                "id": m["id"],
-                "user_id": m["user_id"],
-                "username": m["user__username"],
-                "full_name": f"{m['user__first_name']} {m['user__last_name']}".strip(),
-                "role": m["role"],
+                "id": m.id,
+                "user_id": m.user.id,
+                "username": m.user.username,
+                "full_name": m.user.get_full_name() or m.user.username,
+                "role": m.role,
+                "profile_image": UserMiniSerializer(m.user, context={"request": request}).data.get("profile_image"),
             }
             for m in members
         ]
@@ -318,9 +366,18 @@ class MessageListView(APIView):
 
         limit, offset = min(max(limit, 1), 100), max(offset, 0)
         total_count = Message.objects.filter(channel_id=channel_id).count()
+        
+        # FIX: If 'latest=true' is passed, calculate the offset server-side
+        # This allows the frontend to fetch the latest messages in a single request
+        if request.GET.get("latest", "false").lower() == "true":
+            offset = max(0, total_count - limit)
 
+        # Exclude messages hidden by the requesting user ("Delete for Me")
+        hidden_ids = HiddenMessage.objects.filter(user=request.user).values_list("message_id", flat=True)
+        
         messages = (
             Message.objects.filter(channel_id=channel_id)
+            .exclude(id__in=hidden_ids)
             .select_related("sender", "parent_message", "parent_message__sender")
             .prefetch_related(
                 "attachments",
@@ -335,7 +392,11 @@ class MessageListView(APIView):
 
         return Response(
             {
-                "results": MessageSerializer(messages, many=True).data,
+                "results": MessageSerializer(
+                    messages, 
+                    many=True, 
+                    context={"request": request}
+                ).data,
                 "offset": offset,
                 "limit": limit,
                 "total": total_count,
@@ -395,6 +456,8 @@ class SendMessageView(APIView):
         )
 
 
+from django.db.models import Exists, OuterRef
+
 class WorkspaceUsersView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -403,20 +466,54 @@ class WorkspaceUsersView(APIView):
         auth = ChatAuthService(request.user, workspace=workspace)
         membership = auth.require_workspace_membership()
 
+        # FIX: Use ChannelMember to accurately check if an ACTIVE DM exists between the two users
+        # If a user deletes/leaves a chat, is_active=False, so they should appear in search again.
+        dm_exists_sq = ChannelMember.objects.filter(
+            channel__is_dm=True,
+            channel__workspace=workspace,
+            user=request.user,
+            is_active=True
+        ).filter(
+            channel__members__user_id=OuterRef("user_id"),
+            channel__members__is_active=True
+        ).values("id")[:1]
+
+        # Check for ANY pending request between the two users (in either direction)
+        req_sent_sq = DMRequest.objects.filter(
+            sender=request.user,
+            receiver=OuterRef("user_id"),
+            workspace=workspace,
+            status="pending"
+        ).values("id")[:1]
+        
+        req_received_sq = DMRequest.objects.filter(
+            sender=OuterRef("user_id"),
+            receiver=request.user,
+            workspace=workspace,
+            status="pending"
+        ).values("id")[:1]
+
         memberships = (
             WorkspaceMembership.objects.filter(
                 workspace=membership.workspace, is_active=True
             )
             .exclude(user=request.user)
             .select_related("user")
+            .annotate(
+                has_dm=Exists(dm_exists_sq),
+                pending_req_sent=Exists(req_sent_sq),
+                pending_req_received=Exists(req_received_sq)
+            )
         )
+        
+        from .serializers import UserMiniSerializer
         return Response(
             [
                 {
-                    "id": m.user.id,
-                    "username": m.user.username,
-                    "full_name": f"{m.user.first_name} {m.user.last_name}".strip(),
+                    **UserMiniSerializer(m.user, context={"request": request}).data,
                     "role": m.role,
+                    "has_dm": m.has_dm,
+                    "has_pending_request": m.pending_req_sent or m.pending_req_received
                 }
                 for m in memberships
             ]
@@ -1009,6 +1106,16 @@ class ReactionToggleView(APIView):
             return Response(serializer.data, status=201)
 
 
+class MessageHideView(APIView):
+    """Persists a 'Delete for Me' action in the backend database."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, workspace_id, message_id):
+        message = get_object_or_404(Message, id=message_id, channel__workspace_id=workspace_id)
+        HiddenMessage.objects.get_or_create(user=request.user, message=message)
+        return Response({"detail": "Message hidden successfully."}, status=status.HTTP_200_OK)
+
+
 class MessageMarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1043,3 +1150,87 @@ class MessageMarkReadView(APIView):
             )
             return Response(serializer.data, status=201)
         return Response({"status": "already_read"}, status=200)
+
+class MarkChannelReadView(APIView):
+    """Marks all unread messages in a channel as read for the requesting user."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, workspace_id, channel_id):
+        workspace = get_object_or_404(Workspace, id=workspace_id)
+        auth = ChatAuthService(request.user, workspace=workspace)
+        auth.require_channel_access(channel_id)
+
+        # Find all unread messages in this channel
+        unread_messages = Message.objects.filter(
+            channel_id=channel_id
+        ).exclude(sender=request.user).exclude(reads__user=request.user)
+
+        # Bulk create read receipts
+        reads_to_create = [
+            MessageRead(message=msg, user=request.user)
+            for msg in unread_messages
+        ]
+        if reads_to_create:
+            MessageRead.objects.bulk_create(reads_to_create, ignore_conflicts=True)
+
+        # Emit WS event to all of the user's connected clients to sync unread count to 0
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{request.user.id}",
+            {
+                "type": "chat_message",
+                "event": "channel.read",
+                "data": {"channel_id": channel_id}
+            }
+        )
+        return Response({"detail": "Channel marked as read."}, status=200)
+    
+class ChannelClearView(APIView):
+    """Clears all messages in a channel by soft-deleting them."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, workspace_id, channel_id):
+        workspace = get_object_or_404(Workspace, id=workspace_id)
+        auth = ChatAuthService(request.user, workspace=workspace)
+        auth.require_channel_access(channel_id)
+        
+        # Soft delete all messages in this channel
+        Message.objects.filter(channel_id=channel_id).update(
+            is_deleted=True, content="", edited_at=timezone.now()
+        )
+        
+        # Broadcast WS event to clear messages for everyone in the channel
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"chat_{channel_id}",
+            {
+                "type": "chat_message", 
+                "event": "channel.cleared", 
+                "data": {"channel_id": channel_id}
+            }
+        )
+        return Response({"detail": "Chat cleared successfully."}, status=200)
+
+
+class ChannelDeleteView(APIView):
+    """
+    'Deletes' a chat for the requesting user by setting their membership to inactive.
+    This preserves the chat history for other members (like leaving a chat in Slack/WhatsApp).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, workspace_id, channel_id):
+        workspace = get_object_or_404(Workspace, id=workspace_id)
+        auth = ChatAuthService(request.user, workspace=workspace)
+        channel = get_object_or_404(Channel, id=channel_id, workspace=workspace)
+        
+        # Only allow deleting/leaving private groups or DMs
+        if channel.channel_type not in ("dm", "private_group"):
+            return Response({"error": "Cannot delete this channel type"}, status=403)
+            
+        # Remove the requesting user from the channel (they 'leave' it)
+        ChannelMember.objects.filter(
+            channel=channel, user=request.user, is_active=True
+        ).update(is_active=False, left_at=timezone.now())
+            
+        return Response({"detail": "Chat deleted successfully."}, status=200)

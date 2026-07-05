@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { Task, TaskPriority, TaskStatus, TaskAnalytics, WorkspaceMember } from "@/features/tasks/types/task";
 import { useTaskStore } from "@/features/tasks/store/taskStore";
 import { X, Archive } from "lucide-react";
+import Avatar from "@/components/Avatar";
 
 // ── Acumen Design System Tokens ───────────────────────────────────────
 const tk = {
@@ -246,7 +247,7 @@ export function TaskUI(props: TaskUIProps) {
                     <h3 style={{ margin: "0 0 18px", fontSize: 14 }}>Recent Activity</h3>
                     {recentActivity.length === 0 ? <div style={{ color: tk.textTer, fontSize: 13 }}>No recent activity.</div> : recentActivity.map(act => (
                       <div key={act.id} style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: tk.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>{act.performed_by_details?.full_name?.charAt(0) || "S"}</div>
+                        <Avatar user={act.performed_by_details} name={act.performed_by_details?.full_name} size="sm" />
                         <div><span style={{ fontSize: 12, color: tk.textSec }}><b>{act.performed_by_details?.full_name || "System"}</b> {act.detail} <span style={{ color: tk.purple }}>{act.taskTitle}</span></span><div style={{ fontSize: 10, color: tk.textTer }}>{timeAgo(act.created_at)}</div></div>
                       </div>
                     ))}
@@ -455,7 +456,7 @@ export function TaskUI(props: TaskUIProps) {
                   <div>
                     {selectedTask.activities?.length === 0 ? <div style={{ color: tk.textTer }}>No activity yet.</div> : selectedTask.activities?.map(act => (
                       <div key={act.id} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: tk.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center" }}>{act.performed_by_details?.full_name?.charAt(0) || "S"}</div>
+                        <Avatar user={act.performed_by_details} name={act.performed_by_details?.full_name} size="sm" />
                         <div><span style={{ fontSize: 13, color: tk.textSec }}><b>{act.performed_by_details?.full_name || "System"}</b> {act.detail}</span><div style={{ fontSize: 11, color: tk.textTer }}>{timeAgo(act.created_at)}</div></div>
                       </div>
                     ))}
@@ -553,7 +554,7 @@ export function TaskUI(props: TaskUIProps) {
                         <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
                           {props.filteredMembers.map(m => (
                             <div key={m.id} className="ac-hover" onClick={() => props.setFormAssignTo(String(m.id))} style={{ background: props.formAssignTo === String(m.id) ? "rgba(168,85,247,0.1)" : tk.glass, border: `1px solid ${props.formAssignTo === String(m.id) ? tk.purple : tk.border}`, borderRadius: 10, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: "50%", background: tk.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{m.full_name?.charAt(0) || "?"}</div>
+                              <Avatar user={m} name={m.full_name} size="md" />
                               <div><div style={{ fontSize: 13, fontWeight: 600 }}>{m.full_name}</div><div style={{ fontSize: 11, color: tk.textTer }}>@{m.username}</div></div>
                             </div>
                           ))}

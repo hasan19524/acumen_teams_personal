@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   UserPlus,
@@ -17,6 +18,7 @@ import {
   MoreHorizontal,
   Shield,
   Link as LinkIcon,
+  Crown,
 } from "lucide-react";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import {
@@ -30,12 +32,16 @@ import { TeamCard } from "@/features/teams/components/TeamCard";
 import { TeamDrawer } from "@/features/teams/components/TeamDrawer";
 import { CreateTeamModal } from "@/features/teams/components/CreateTeamModal";
 import { AddMemberModal } from "@/features/teams/components/AddMemberModal";
-import { MemberDrawer } from "@/features/teams/components/MemberDrawer";
+import { useProfileStore } from "@/features/dashboard/store/profileStore";
 import { InviteManager } from "@/features/teams/components/InviteManager";
+import { useAuth } from "@/hooks/useAuth";
+import Avatar from "@/components/Avatar";
 
 type Tab = "teams" | "members" | "invites";
 
 export default function TeamPage() {
+  const router = useRouter();
+  const { refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("teams");
   const [search, setSearch] = useState("");
 
@@ -66,13 +72,15 @@ export default function TeamPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [confirmDeleteTeam, setConfirmDeleteTeam] = useState<Team | null>(null);
+  const [showLeadersModal, setShowLeadersModal] = useState(false);
 
-  // Member Drawer State
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  // Member Drawer & Actions State
+  const openProfile = useProfileStore((s) => s.openProfile);
   const [confirmAction, setConfirmAction] = useState<{
     type: string;
     user: Member;
   } | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   const isAdmin = myRole === "owner" || myRole === "admin";
 
@@ -83,7 +91,7 @@ export default function TeamPage() {
         await Promise.all([
           workspaceService.getMembers(),
           workspaceService.getTeams(),
-          null, // Skip channels fetch for now as it's not used in this view
+          null,
           workspaceService.getStats(),
           import("@/features/chat/services/inviteService").then((m) =>
             m.loadInviteCounts(),
@@ -96,7 +104,6 @@ export default function TeamPage() {
       setMyUsername(localStorage.getItem("username") || "");
       setInviteCounts(countsData);
 
-      // Fetch active workspace invite links for the Invites tab
       if (statsData?.role === "owner" || statsData?.role === "admin") {
         try {
           const linkData = await workspaceService.getActiveInvites();
@@ -164,7 +171,6 @@ export default function TeamPage() {
         color: editColor,
       });
 
-      // Check if leader changed
       const currentLeader = users.find((u) =>
         selectedTeam.leaders.includes(u.username),
       );
@@ -208,14 +214,46 @@ export default function TeamPage() {
     }
   };
 
+  const handlePromoteLeader = async (userId: number) => {
+    if (!selectedTeam) return;
+    try {
+      await workspaceService.promoteTeamLeader(selectedTeam.id, userId);
+      await fetchAllData();
+      await refreshUser(); // Sync global state instantly
+    } catch (err: any) {
+      alert(err.message || "Failed to promote leader");
+    }
+  };
+
+  const handleDemoteLeader = async (userId: number) => {
+    if (!selectedTeam) return;
+    try {
+      await workspaceService.demoteTeamLeader(selectedTeam.id, userId);
+      await fetchAllData();
+      await refreshUser(); // Sync global state instantly
+    } catch (err: any) {
+      alert(err.message || "Failed to demote leader");
+    }
+  };
+
   const handleAddMember = async (userId: number) => {
     if (!selectedTeam) return;
     try {
       await workspaceService.moveTeam(userId, selectedTeam.id);
-      await fetchAllData(); // Wait for refresh
+      await fetchAllData();
       setShowAddMemberModal(false);
     } catch (err: any) {
-      alert(err.message || "Failed to add member to team.");
+      // Fix: Clean up raw Django JSON response if it exists
+      let errorMsg = "Failed to add member to team.";
+      if (err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          errorMsg = parsed.error || parsed.detail || errorMsg;
+        } catch {
+          errorMsg = err.message;
+        }
+      }
+      alert(errorMsg);
     }
   };
 
@@ -237,8 +275,15 @@ export default function TeamPage() {
     }
   };
 
-  const RoleBadge = ({ role }: { role: string }) => {
-    const s = getRoleBadgeStyle(role);
+  const RoleBadge = ({
+    role,
+    isLeader = false,
+  }: {
+    role: string;
+    isLeader?: boolean;
+  }) => {
+    const displayRole = isLeader && role === "member" ? "leader" : role;
+    const s = getRoleBadgeStyle(displayRole);
     return (
       <span
         style={{
@@ -251,7 +296,7 @@ export default function TeamPage() {
           textTransform: "capitalize",
         }}
       >
-        {role}
+        {displayRole}
       </span>
     );
   };
@@ -271,7 +316,6 @@ export default function TeamPage() {
         .skeleton { background: linear-gradient(90deg, ${tk.surface} 25%, ${tk.surfaceHover} 50%, ${tk.surface} 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
         .member-row:hover { background: ${tk.surfaceHover} !important; }
       `}</style>
-
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         {/* HEADER */}
         <div
@@ -374,8 +418,10 @@ export default function TeamPage() {
           <SummaryCard
             label="Leaders"
             value={isLoading ? "..." : (statsData?.total_leaders ?? 0)}
-            icon={UserPlus}
+            icon={Shield}
             color={tk.success}
+            onClick={() => !isLoading && setShowLeadersModal(true)}
+            interactive={!isLoading}
           />
         </div>
 
@@ -491,7 +537,6 @@ export default function TeamPage() {
                     setEditDesc(t.description || "");
                     setIsEditPrivate(t.is_private);
                     setEditColor(t.color || "#4B1587");
-                    // Find the user_id of the current leader
                     const currentLeader = users.find((u) =>
                       t.leaders.includes(u.username),
                     );
@@ -507,14 +552,7 @@ export default function TeamPage() {
         )}
 
         {activeTab === "members" && (
-          <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
+          <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl">
             <div
               style={{
                 display: "grid",
@@ -560,116 +598,154 @@ export default function TeamPage() {
                 }
               />
             ) : (
-              filteredUsers.map((u, i) => (
-                <div
-                  key={u.user_id || i}
-                  className="member-row"
-                  onClick={() => setSelectedMember(u)}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr 40px",
-                    padding: "12px 16px",
-                    borderBottom:
-                      i !== filteredUsers.length - 1
-                        ? `1px solid ${tk.border}`
-                        : "none",
-                    alignItems: "center",
-                    transition: "background 0.15s",
-                    cursor: "pointer",
-                  }}
-                >
+              filteredUsers.map((u, i) => {
+                const isLeader = u.teams.some((t: any) => t.is_leader);
+                return (
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}
+                    key={u.user_id || i}
+                    className="member-row grid grid-cols-2 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b border-[#2A3A5C] last:border-0 items-center transition-colors cursor-pointer relative"
+                    onClick={() => openProfile(u)}
                   >
                     <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: `linear-gradient(135deg, ${tk.brand}, ${tk.brandLight})`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: 600,
-                        fontSize: 13,
-                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 12 }}
                     >
-                      {(u.full_name || u.username || "U")
-                        .charAt(0)
-                        .toUpperCase()}
+                      <Avatar
+                        user={u}
+                        src={u.profile_image}
+                        name={u.full_name || u.username}
+                        size="sm"
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>
+                          {u.full_name || u.username}
+                        </div>
+                        <div style={{ fontSize: 12, color: tk.textMuted }}>
+                          @{u.username}
+                        </div>
+                      </div>
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>
-                        {u.full_name || u.username}
-                      </div>
-                      <div style={{ fontSize: 12, color: tk.textMuted }}>
-                        @{u.username}
-                      </div>
+                      <RoleBadge role={u.role} isLeader={isLeader} />
                     </div>
-                  </div>
-                  <div>
-                    <RoleBadge role={u.role} />
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {u.teams && u.teams.length > 0 ? (
-                      u.teams.map((t) => (
-                        <span
-                          key={t.id}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {u.teams && u.teams.length > 0 ? (
+                        u.teams.map((t) => (
+                          <span
+                            key={t.id}
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              background: tk.bg,
+                              borderRadius: 4,
+                              color: tk.textSecondary,
+                            }}
+                          >
+                            {t.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: 12, color: tk.textMuted }}>
+                          Unassigned
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: tk.success,
+                        }}
+                      />
+                      <span style={{ fontSize: 13, color: tk.textSecondary }}>
+                        Active
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: tk.textSecondary }}>
+                      {new Date(u.joined_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </div>
+                    <div
+                      style={{ display: "flex", justifyContent: "center" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isAdmin && (
+                        <button
+                          onClick={() =>
+                            setOpenMenuId(
+                              openMenuId === u.user_id ? null : u.user_id,
+                            )
+                          }
                           style={{
-                            fontSize: 10,
-                            padding: "2px 6px",
-                            background: tk.bg,
-                            borderRadius: 4,
-                            color: tk.textSecondary,
+                            background: "transparent",
+                            border: "none",
+                            color: tk.textMuted,
+                            cursor: "pointer",
                           }}
                         >
-                          {t.name}
-                        </span>
-                      ))
-                    ) : (
-                      <span style={{ fontSize: 12, color: tk.textMuted }}>
-                        Unassigned
-                      </span>
-                    )}
+                          <MoreHorizontal size={18} />
+                        </button>
+                      )}
+                      {openMenuId === u.user_id && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 40,
+                            right: 10,
+                            background: tk.surface,
+                            border: `1px solid ${tk.borderHover}`,
+                            borderRadius: 8,
+                            zIndex: 20,
+                            width: 180,
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              setConfirmAction({ type: "role", user: u });
+                              setOpenMenuId(null);
+                            }}
+                            style={menuBtnStyle}
+                          >
+                            Change Role
+                          </button>
+                          <button
+                            onClick={() => {
+                              setConfirmAction({ type: "move", user: u });
+                              setOpenMenuId(null);
+                            }}
+                            style={menuBtnStyle}
+                          >
+                            Move Team
+                          </button>
+                          <div
+                            style={{
+                              height: 1,
+                              background: tk.border,
+                              margin: "4px 0",
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              setConfirmAction({ type: "remove", user: u });
+                              setOpenMenuId(null);
+                            }}
+                            style={{ ...menuBtnStyle, color: tk.primary }}
+                          >
+                            Remove Member
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: tk.success,
-                      }}
-                    />
-                    <span style={{ fontSize: 13, color: tk.textSecondary }}>
-                      Active
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 13, color: tk.textSecondary }}>
-                    {new Date(u.joined_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "center" }}>
-                    {isAdmin && (
-                      <button
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: tk.textMuted,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <MoreHorizontal size={18} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -715,7 +791,6 @@ export default function TeamPage() {
                 <Plus size={14} /> Generate New
               </button>
             </div>
-
             {activeLinks.length === 0 ? (
               <div
                 style={{
@@ -770,7 +845,6 @@ export default function TeamPage() {
           </div>
         )}
       </div>
-
       {/* MODALS & DRAWERS */}
       <CreateTeamModal
         showModal={showCreateModal}
@@ -814,39 +888,143 @@ export default function TeamPage() {
         onDelete={() => setConfirmDeleteTeam(selectedTeam)}
         onRemoveMember={handleRemoveMember}
         onAddMemberClick={() => setShowAddMemberModal(true)}
+        onPromote={handlePromoteLeader}
+        onDemote={handleDemoteLeader}
       />
-      <MemberDrawer
-        member={selectedMember}
-        myRole={myRole}
-        onClose={() => setSelectedMember(null)}
-        onRemoveMember={(userId) => {
-          setConfirmAction({
-            type: "remove",
-            user: users.find((u) => u.user_id === userId)!,
-          });
-          setSelectedMember(null);
-        }}
-        onMoveTeam={(userId) => {
-          setConfirmAction({
-            type: "move",
-            user: users.find((u) => u.user_id === userId)!,
-          });
-          setSelectedMember(null);
-        }}
-        onChangeRole={(userId) => {
-          setConfirmAction({
-            type: "role",
-            user: users.find((u) => u.user_id === userId)!,
-          });
-          setSelectedMember(null);
-        }}
-      />
+      
       <InviteManager
         showModal={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         teams={teams}
       />
-
+      {/* LEADERS DIRECTORY MODAL */}
+      {showLeadersModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+          onClick={() => setShowLeadersModal(false)}
+        >
+          <div
+            style={{
+              background: tk.surface,
+              border: `1px solid ${tk.borderHover}`,
+              borderRadius: 12,
+              width: "100%",
+              maxWidth: 500,
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: `1px solid ${tk.border}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Shield size={18} color={tk.success} /> Leaders Directory
+              </h3>
+              <button
+                onClick={() => setShowLeadersModal(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: tk.textMuted,
+                  cursor: "pointer",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 20 }}>
+              {["owner", "admin", "member"].map((role) => {
+                const roleUsers = users.filter(
+                  (u) =>
+                    u.role === role &&
+                    (role !== "member" ||
+                      u.teams.some((t: any) => t.is_leader)),
+                );
+                if (roleUsers.length === 0) return null;
+                return (
+                  <div key={role} style={{ marginBottom: 20 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: tk.textMuted,
+                        textTransform: "uppercase",
+                        marginBottom: 8,
+                      }}
+                    >
+                      {role === "member" ? "Team Leaders" : role + "s"}
+                    </div>
+                    {roleUsers.map((u) => (
+                      <div
+                        key={u.user_id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "8px 0",
+                        }}
+                      >
+                        <Avatar
+                          user={u}
+                          name={u.full_name || u.username}
+                          size="sm"
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: tk.textPrimary,
+                            }}
+                          >
+                            {u.full_name || u.username}
+                          </div>
+                          <div style={{ fontSize: 12, color: tk.textMuted }}>
+                            @{u.username}{" "}
+                            {u.teams.length > 0 &&
+                              `• Leads: ${u.teams
+                                .filter((t: any) => t.is_leader)
+                                .map((t: any) => t.name)
+                                .join(", ")}`}
+                          </div>
+                        </div>
+                        <RoleBadge
+                          role={u.role}
+                          isLeader={u.teams.some((t: any) => t.is_leader)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       {/* MEMBER ACTION MODALS */}
       {confirmAction && (
         <div
@@ -972,7 +1150,6 @@ export default function TeamPage() {
                 >
                   <option value="admin">Admin</option>
                   <option value="member">Member</option>
-                  <option value="guest">Guest</option>
                 </select>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
@@ -1017,75 +1194,10 @@ export default function TeamPage() {
                 </div>
               </div>
             )}
-            {confirmAction.type === "move" && (
-              <div>
-                <select
-                  id="team-select"
-                  defaultValue=""
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: `1px solid ${tk.border}`,
-                    background: tk.bg,
-                    color: tk.textPrimary,
-                    marginBottom: 20,
-                  }}
-                >
-                  <option value="">Unassigned</option>
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: `1px solid ${tk.border}`,
-                      background: "transparent",
-                      color: tk.textSecondary,
-                      cursor: "pointer",
-                    }}
-                    onClick={() => setConfirmAction(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: "none",
-                      background: tk.brand,
-                      color: "#fff",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => {
-                      const teamId = (
-                        document.getElementById(
-                          "team-select",
-                        ) as HTMLSelectElement
-                      ).value;
-                      handleMemberAction(
-                        "move",
-                        confirmAction.user.user_id,
-                        teamId,
-                      );
-                    }}
-                  >
-                    Move
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Move Team action removed from global Member Drawer to prevent logic flaws */}
           </div>
         </div>
       )}
-
       {/* DELETE CONFIRMATION */}
       {confirmDeleteTeam && (
         <div
@@ -1177,15 +1289,45 @@ export default function TeamPage() {
   );
 }
 
+const menuBtnStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 12px",
+  background: "transparent",
+  border: "none",
+  color: tk.textSecondary,
+  fontSize: 13,
+  width: "100%",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
 // Sub Components
-const SummaryCard = ({ label, value, icon: Icon, color }: any) => (
+const SummaryCard = ({
+  label,
+  value,
+  icon: Icon,
+  color,
+  onClick,
+  interactive,
+}: any) => (
   <div
+    onClick={onClick}
     style={{
       background: tk.surface,
       border: `1px solid ${tk.border}`,
       borderRadius: 12,
       padding: 20,
+      cursor: interactive ? "pointer" : "default",
+      transition: "border-color 0.2s",
     }}
+    onMouseEnter={(e) =>
+      interactive && (e.currentTarget.style.borderColor = tk.borderHover)
+    }
+    onMouseLeave={(e) =>
+      interactive && (e.currentTarget.style.borderColor = tk.border)
+    }
   >
     <div
       style={{

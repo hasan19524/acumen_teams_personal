@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 import uuid
 from django.db.models import Q
+from accounts.models import validate_image_file
 
 
 class Workspace(models.Model):
@@ -12,8 +13,11 @@ class Workspace(models.Model):
         User, on_delete=models.CASCADE, related_name="owned_workspaces"
     )
     description = models.TextField(blank=True)
-    logo = models.URLField(blank=True)
+    logo = models.ImageField(upload_to="workspace/", blank=True, null=True, validators=[validate_image_file])
     created_at = models.DateTimeField(auto_now_add=True)
+    pending_delete = models.BooleanField(default=False)
+    deletion_requested_at = models.DateTimeField(null=True, blank=True)
+    deletion_at = models.DateTimeField(null=True, blank=True)
     unassigned_team = models.OneToOneField(
         "Team",
         on_delete=models.SET_NULL,
@@ -26,6 +30,16 @@ class Workspace(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # Delete old logo from S3 if it's being replaced
+        try:
+            old_obj = Workspace.objects.get(pk=self.pk)
+            if old_obj.logo and old_obj.logo != self.logo:
+                old_obj.logo.delete(save=False)
+        except Workspace.DoesNotExist:
+            pass
+        
+        super().save(*args, **kwargs)
 
 class TeamType(models.TextChoices):
     STANDARD = "standard", "Standard"

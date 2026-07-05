@@ -24,6 +24,7 @@ export type Member = {
   teams: { id: number; name: string }[];
   team: string;
   joined_at: string;
+  profile_image?: string | null;
 };
 
 // O(1) Grouping Logic to eliminate N+1 frontend filtering

@@ -4,8 +4,14 @@ import { apiFetch } from "@/lib/api";
 import { getWorkspaceId } from "@/lib/auth";
 import { Channel, CreateChannelPayload } from "../types/channel";
 import { Message } from "../types/message";
+import { useAvatarStore } from "@/lib/stores/avatarStore";
 
 function parseRawMessage(msg: any): Message {
+  // Feed sender data into global avatar cache
+  if (msg.sender) {
+    useAvatarStore.getState().upsertUser(msg.sender);
+  }
+
   return {
     id: msg.id,
     channel: msg.channel,
@@ -83,6 +89,11 @@ export async function createChannel(
 }
 
 function parseRawChannel(raw: any): Channel {
+  // Feed DM partner data into global avatar cache
+  if (raw.dm_partner) {
+    useAvatarStore.getState().upsertUser(raw.dm_partner);
+  }
+
   return {
     id: raw.id,
     name: raw.name,
@@ -107,6 +118,7 @@ function parseRawChannel(raw: any): Channel {
     // NEW: Map the sidebar fields from the backend
     last_message: raw.last_message || null,
     last_message_time: raw.last_message_time || null,
+    last_message_sender: raw.last_message_sender || null,
     unread_count: raw.unread_count || 0,
   };
 }
@@ -121,26 +133,23 @@ export async function loadMessages(
   pagination: { nextOffset: number; hasOlder: boolean };
 }> {
   const wsId = getWorkspaceId();
-  const countRes = await apiFetch(
-    `/api/chat/${wsId}/messages/${channelId}/?limit=1&offset=0`,
-  );
-  const countData = await countRes.json();
-  const total = countData.total || 0;
-  const initialOffset = Math.max(0, total - limit);
-
+  // FIX: Use 'latest=true' to let the backend calculate the offset.
+  // This eliminates the need for a separate count request, cutting load time in half.
   const res = await apiFetch(
-    `/api/chat/${wsId}/messages/${channelId}/?limit=${limit}&offset=${initialOffset}`,
+    `/api/chat/${wsId}/messages/${channelId}/?latest=true&limit=${limit}`,
   );
   const data = await res.json();
   const rawMessages = Array.isArray(data.results) ? data.results : [];
   const parsed = rawMessages.map(parseRawMessage);
   const enriched = enrichReplyTo(parsed);
 
+  const currentOffset = data.offset || 0;
+
   return {
     messages: enriched,
     pagination: {
-      nextOffset: Math.max(0, initialOffset - limit),
-      hasOlder: initialOffset > 0,
+      nextOffset: Math.max(0, currentOffset - limit),
+      hasOlder: currentOffset > 0,
     },
   };
 }
@@ -238,6 +247,22 @@ export async function markMessageRead(messageId: number) {
   return res.json();
 }
 
+export async function hideMessageForMe(messageId: number): Promise<void> {
+  const wsId = getWorkspaceId();
+  const res = await apiFetch(`/api/chat/${wsId}/messages/${messageId}/hide/`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to hide message");
+}
+
+export async function markChannelRead(channelId: number): Promise<void> {
+  const wsId = getWorkspaceId();
+  if (!wsId) return;
+  await apiFetch(`/api/chat/${wsId}/channels/${channelId}/read/`, {
+    method: "POST",
+  });
+}
+
 // ── DM APIs ────────────────────────────────────────────────────────────
 
 export async function loadDMs(): Promise<Channel[]> {
@@ -254,9 +279,18 @@ export async function loadDMs(): Promise<Channel[]> {
 
 export async function getChannelMembers(channelId: number): Promise<any[]> {
   const wsId = getWorkspaceId();
-  const res = await apiFetch(`/api/chat/${wsId}/channels/${channelId}/members/`);
+  const res = await apiFetch(
+    `/api/chat/${wsId}/channels/${channelId}/members/`,
+  );
   if (!res.ok) throw new Error("Failed to fetch channel members");
-  return res.json();
+  const data = await res.json();
+
+  // Feed channel member data into global avatar cache
+  if (Array.isArray(data)) {
+    useAvatarStore.getState().upsertUsers(data);
+  }
+
+  return data;
 }
 
 export async function getWorkspaceUsers(): Promise<
@@ -265,5 +299,63 @@ export async function getWorkspaceUsers(): Promise<
   const wsId = getWorkspaceId();
   const res = await apiFetch(`/api/chat/${wsId}/users/`);
   if (!res.ok) throw new Error("Failed to fetch workspace users");
-  return res.json();
+  const data = await res.json();
+
+  // Feed workspace user data into global avatar cache
+  if (Array.isArray(data)) {
+    useAvatarStore.getState().upsertUsers(data);
+  }
+
+  return data;
+}
+
+export async function clearChat(channelId: number): Promise<void> {
+  const wsId = getWorkspaceId();
+  if (!wsId) return;
+  const res = await apiFetch(`/api/chat/${wsId}/channels/${channelId}/clear/`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to clear chat");
+}
+
+export async function deleteChat(channelId: number): Promise<void> {
+  const wsId = getWorkspaceId();
+  if (!wsId) return;
+  const res = await apiFetch(
+    `/api/chat/${wsId}/channels/${channelId}/delete/`,
+    {
+      method: "DELETE",
+    },
+  );
+  if (!res.ok) throw new Error("Failed to delete chat");
+}
+
+export async function addChannelMember(
+  channelId: number,
+  userId: number,
+): Promise<void> {
+  const wsId = getWorkspaceId();
+  if (!wsId) return;
+  const res = await apiFetch(
+    `/api/chat/${wsId}/channels/${channelId}/members/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to add member");
+}
+
+export async function sendGroupInvite(
+  channelId: number,
+  userId: number,
+): Promise<void> {
+  const wsId = getWorkspaceId();
+  if (!wsId) return;
+  // Use the existing workspaces endpoint for group invites
+  const res = await apiFetch(`/api/workspaces/${wsId}/groups/invite/`, {
+    method: "POST",
+    body: JSON.stringify({ channel_id: channelId, user_ids: [userId] }),
+  });
+  if (!res.ok) throw new Error("Failed to send group invite");
 }

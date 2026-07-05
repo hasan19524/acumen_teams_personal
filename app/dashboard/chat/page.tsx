@@ -1,8 +1,9 @@
-// app/dashboard/chat/page.tsx
-
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
+import { MessageSquare, Loader2 } from "lucide-react";
 import { useChatPage } from "@/features/chat/hooks/useChatPage";
+import { useFileUpload } from "@/features/chat/hooks/useFileUpload";
 import { ChatSidebar } from "@/features/chat/components/ChatSidebar";
 import { ChatHeader } from "@/features/chat/components/ChatHeader";
 import { ChatInput } from "@/features/chat/components/ChatInput";
@@ -14,17 +15,79 @@ import { T } from "@/features/chat/design/tokens";
 
 export default function ChatPage() {
   const chat = useChatPage();
+  const { uploadFiles } = useFileUpload(chat.selectedChannel?.id || null);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const deltaX = e.clientX - (handleMouseDown as any).startX;
+    const newWidth = (handleMouseDown as any).startWidth + deltaX;
+    if (newWidth > 250 && newWidth < 500) {
+      setSidebarWidth(newWidth);
+    }
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "default";
+  }, [handleMouseMove]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    (handleMouseDown as any).startX = e.clientX;
+    (handleMouseDown as any).startWidth = sidebarWidth;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+  }, [handleMouseMove, handleMouseUp, sidebarWidth]);
+
+  // FIX: Added clear/delete handlers here so the ChatHeader has access to them
+  const handleClearChat = async () => {
+    if (!chat.selectedChannel) return;
+    if (!confirm("Are you sure you want to clear all messages in this chat? This cannot be undone.")) return;
+    try {
+      const { clearChat } = await import("@/features/chat/services/channelService");
+      await clearChat(chat.selectedChannel.id);
+      const { useChatStore } = await import("@/features/chat/store/chatStore");
+      useChatStore.getState().setMessages(chat.selectedChannel.id, []);
+    } catch (err) {
+      alert("Failed to clear chat.");
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (!chat.selectedChannel) return;
+    if (!confirm("Are you sure you want to delete this chat? It will be removed from your sidebar.")) return;
+    try {
+      const { deleteChat } = await import("@/features/chat/services/channelService");
+      await deleteChat(chat.selectedChannel.id);
+      const { useChatStore } = await import("@/features/chat/store/chatStore");
+      useChatStore.getState().removeChannel(chat.selectedChannel.id);
+      useChatStore.getState().selectChannel(null);
+      chat.refreshWorkspaceUsers();
+    } catch (err) {
+      alert("Failed to delete chat.");
+    }
+  };
 
   if (!chat.authChecked || chat.isInitialLoading) {
     return (
-      <main style={{ height: "100vh", display: "flex", background: T.bgApp, color: T.textPrimary, overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
-        <aside style={{ width: T.sidebarWidth, background: T.bgSidebar, borderRight: `1px solid ${T.border}`, padding: T.gapLg, display: "flex", flexDirection: "column", gap: T.gapMd }}>
-          <div className="shimmer" style={{ height: 30, borderRadius: T.radiusSm, background: T.surfaceHover }} />
-          <div className="shimmer" style={{ height: 40, borderRadius: T.radiusMd, background: T.surfaceHover }} />
-          <div style={{ marginTop: T.gapLg, display: "flex", flexDirection: "column", gap: T.gapSm }}>
-            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
-            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
-            <div className="shimmer" style={{ height: 50, borderRadius: T.radiusSm, background: T.surfaceHover }} />
+      <main style={{ height: "100%", display: "flex", background: T.bgApp, color: T.textPrimary, overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
+        <aside style={{ width: 320, background: T.bgSidebar, borderRight: `1px solid ${T.border}`, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="shimmer" style={{ height: 30, borderRadius: 8, background: T.surfaceHover }} />
+          <div className="shimmer" style={{ height: 40, borderRadius: 12, background: T.surfaceHover }} />
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="shimmer" style={{ height: 50, borderRadius: 8, background: T.surfaceHover }} />
+            <div className="shimmer" style={{ height: 50, borderRadius: 8, background: T.surfaceHover }} />
+            <div className="shimmer" style={{ height: 50, borderRadius: 8, background: T.surfaceHover }} />
           </div>
         </aside>
         <section style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
@@ -47,7 +110,7 @@ export default function ChatPage() {
   return (
     <main
       style={{
-        height: "100vh",
+        height: "100%", 
         display: "flex",
         background: T.bgApp,
         color: T.textPrimary,
@@ -74,119 +137,163 @@ export default function ChatPage() {
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
       `}</style>
 
-      <ChatSidebar
-        search={chat.search}
-        setSearch={chat.setSearch}
-        filteredChats={chat.filteredChats}
-        selectedChannel={chat.selectedChannel}
-        selectChannel={chat.selectChannel}
-        showNewChannel={chat.showNewChannel}
-        setShowNewChannel={chat.setShowNewChannel}
-        newChannelName={chat.newChannelName}
-        setNewChannelName={chat.setNewChannelName}
-        newChannelType={chat.newChannelType}
-        setNewChannelType={chat.setNewChannelType}
-        newChannelTeamId={chat.newChannelTeamId}
-        setNewChannelTeamId={chat.setNewChannelTeamId}
-        newChannelMemberIds={chat.newChannelMemberIds}
-        setNewChannelMemberIds={chat.setNewChannelMemberIds}
-        newChannelDMUserId={chat.newChannelDMUserId}
-        setNewChannelDMUserId={chat.setNewChannelDMUserId}
-        newChannelDMMessage={chat.newChannelDMMessage}
-        setNewChannelDMMessage={chat.setNewChannelDMMessage}
-        workspaceUsers={chat.workspaceUsers}
-        userTeams={chat.userTeams}
-        onCreateChannel={chat.handleCreateChannel}
+      {/* Mobile Responsive Wrapper: Shows Sidebar OR Chat */}
+      <div className={`${chat.selectedChannel ? "hidden md:flex" : "flex"}`} style={{ width: isMobile ? "100%" : `${sidebarWidth}px`, flexShrink: 0 }}>
+        <ChatSidebar
+          width="100%"
+          search={chat.search}
+          setSearch={chat.setSearch}
+          filteredChats={chat.filteredChats}
+          selectedChannel={chat.selectedChannel}
+          selectChannel={chat.selectChannel}
+          showNewChannel={chat.showNewChannel}
+          setShowNewChannel={chat.setShowNewChannel}
+          newChannelName={chat.newChannelName}
+          setNewChannelName={chat.setNewChannelName}
+          newChannelType={chat.newChannelType}
+          setNewChannelType={chat.setNewChannelType}
+          newChannelTeamId={chat.newChannelTeamId}
+          setNewChannelTeamId={chat.setNewChannelTeamId}
+          newChannelMemberIds={chat.newChannelMemberIds}
+          setNewChannelMemberIds={chat.setNewChannelMemberIds}
+          workspaceUsers={chat.workspaceUsers}
+          userTeams={chat.userTeams}
+          onCreateChannel={chat.handleCreateChannel}
+          onStartDMRequest={chat.handleStartDMRequest}
+          onRefreshWorkspaceUsers={chat.refreshWorkspaceUsers}
+        />
+      </div>
+
+      {/* Desktop Resize Handle (Seamless) */}
+      <div
+        className="hidden md:flex cursor-col-resize items-center justify-center"
+        style={{ width: "2px", flexShrink: 0, background: T.border, transition: "background 0.2s" }}
+        onMouseDown={handleMouseDown}
+        onMouseEnter={(e) => (e.currentTarget.style.background = T.accentHover)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = T.border)}
       />
 
       <section
+        className={`${chat.selectedChannel ? "flex" : "hidden md:flex"} w-full md:flex-1`}
         style={{
           display: "flex",
           flexDirection: "column",
-          flex: 1,
           background: T.bgApp,
-          height: "100vh",
-          maxHeight: "100vh",
+          height: "100%", 
+          maxHeight: "100%",
           overflow: "hidden",
+          minHeight: 0, 
         }}
       >
-        <ChatHeader
-          selectedChannel={chat.selectedChannel}
-          wsState={chat.wsState}
-          isSelectMode={chat.isSelectMode}
-          selectedCount={chat.selectedMsgIds.size}
-          onExitSelectMode={chat.exitSelectMode}
-          onCopySelected={chat.handleCopySelected}
-          onBulkDelete={() => chat.setShowBulkDeleteModal(true)}
-          typingUsers={
-            chat.selectedChannel
-              ? chat.typingUsers[chat.selectedChannel.id]
-              : []
-          }
-          onTogglePanel={() => chat.setShowRightPanel(!chat.showRightPanel)}
-        />
+        {chat.selectedChannel ? (
+          <>
+            <ChatHeader
+              selectedChannel={chat.selectedChannel}
+              isSelectMode={chat.isSelectMode}
+              selectedCount={chat.selectedMsgIds.size}
+              onExitSelectMode={chat.exitSelectMode}
+              onCopySelected={chat.handleCopySelected}
+              onBulkDelete={() => chat.setShowBulkDeleteModal(true)}
+              typingUsers={
+                chat.selectedChannel
+                  ? chat.typingUsers[chat.selectedChannel.id]
+                  : []
+              }
+              onTogglePanel={() => chat.setShowRightPanel(!chat.showRightPanel)}
+              onBack={() => chat.selectChannel(null)} 
+              onClearChat={handleClearChat}
+              onDeleteChat={handleDeleteChat}
+            />
 
-        <MessageList
-          selectedChannel={chat.selectedChannel}
-          messages={chat.messages}
-          pagination={chat.pagination}
-          myUserId={chat.myUserId}
-          isLoadingOlder={chat.isLoadingOlder}
-          isAtBottom={chat.isAtBottom}
-          isSelectMode={chat.isSelectMode}
-          selectedMsgIds={chat.selectedMsgIds}
-          activeMenuMsgId={chat.activeMenuMsgId}
-          copiedMsgId={chat.copiedMsgId}
-          bottomRef={chat.bottomRef}
-          messagesContainerRef={chat.messagesContainerRef}
-          onScroll={chat.handleScroll}
-          onScrollToBottom={chat.scrollToBottom}
-          onScrollToMessage={chat.scrollToMessage}
-          onToggleMessageSelection={chat.toggleMessageSelection}
-          onSetActiveMenuMsgId={chat.setActiveMenuMsgId}
-          onReply={chat.handleReply}
-          onCopy={chat.handleCopy}
-          onEdit={chat.handleEditMessage}
-          onEnterSelectMode={chat.enterSelectMode}
-          onDeleteForMe={chat.handleDeleteForMe}
-          onDeleteForEveryone={chat.handleDeleteForEveryone}
-          setDeleteModalMsgId={chat.setDeleteModalMsgId}
-          onGalleryOpen={(items, index) => {
-            chat.setGalleryItems(items);
-            chat.setGalleryIndex(index);
-          }}
-          onToggleReaction={chat.handleToggleReaction}
-          onMarkRead={chat.handleMarkRead}
-          typingUsers={
-            chat.selectedChannel ? chat.typingUsers[chat.selectedChannel.id] : []
-          }
-        />
+            <MessageList
+              selectedChannel={chat.selectedChannel}
+              messages={chat.messages}
+              pagination={chat.pagination}
+              myUserId={chat.myUserId}
+              isLoadingOlder={chat.isLoadingOlder}
+              isAtBottom={chat.isAtBottom}
+              isSelectMode={chat.isSelectMode}
+              selectedMsgIds={chat.selectedMsgIds}
+              activeMenuMsgId={chat.activeMenuMsgId}
+              copiedMsgId={chat.copiedMsgId}
+              bottomRef={chat.bottomRef}
+              messagesContainerRef={chat.messagesContainerRef}
+              onScroll={chat.handleScroll}
+              onScrollToBottom={chat.scrollToBottom}
+              onScrollToMessage={chat.scrollToMessage}
+              onToggleMessageSelection={chat.toggleMessageSelection}
+              onSetActiveMenuMsgId={chat.setActiveMenuMsgId}
+              onReply={chat.handleReply}
+              onCopy={chat.handleCopy}
+              onEdit={chat.handleEditMessage}
+              onEnterSelectMode={chat.enterSelectMode}
+              setDeleteModalMsgId={chat.setDeleteModalMsgId}
+              onGalleryOpen={(items, index) => {
+                chat.setGalleryItems(items);
+                chat.setGalleryIndex(index);
+              }}
+              onToggleReaction={chat.handleToggleReaction}
+              typingUsers={
+                chat.selectedChannel ? chat.typingUsers[chat.selectedChannel.id] : []
+              }
+            />
 
-        <ChatInput
-          messageInput={chat.messageInput}
-          setMessageInput={chat.setMessageInput}
-          replyingTo={chat.replyingTo}
-          setReplyingTo={chat.setReplyingTo}
-          pendingFiles={chat.pendingFiles}
-          setPendingFiles={chat.setPendingFiles}
-          wsState={chat.wsState}
-          isReady={chat.isReady}
-          sending={chat.sending}
-          onSend={chat.handleSend}
-          onGalleryOpen={(items, index) => {
-            chat.setGalleryItems(items);
-            chat.setGalleryIndex(index);
-          }}
-          showEmojiPicker={chat.showEmojiPicker}
-          setShowEmojiPicker={chat.setShowEmojiPicker}
-          handleEmojiClick={chat.handleEmojiClick}
-          onTyping={chat.handleTyping}
-          isDMPending={chat.selectedChannel?.is_pending}
-          isDMReceiver={chat.selectedChannel?.channel_type === "dm" && (chat.selectedChannel as any)?.created_by !== chat.myUserId}
-          onAcceptDM={chat.handleAcceptDM}
-          onBlockDM={chat.handleBlockDM}
-          workspaceUsers={chat.workspaceUsers}
-        />
+            {/* DM Request Waiting Banner */}
+            {(chat.selectedChannel as any)?.is_request_pending && (
+              <div style={{
+                padding: "12px 20px",
+                background: "rgba(59, 130, 246, 0.1)",
+                borderTop: `1px solid ${T.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                color: T.accentHover,
+                fontSize: 13,
+                fontWeight: 500,
+              }}>
+                <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                Waiting for response. Your message has been sent as a conversation request.
+              </div>
+            )}
+
+            <ChatInput
+              messageInput={chat.messageInput}
+              setMessageInput={chat.setMessageInput}
+              replyingTo={chat.replyingTo}
+              setReplyingTo={chat.setReplyingTo}
+              pendingFiles={chat.pendingFiles}
+              setPendingFiles={chat.setPendingFiles}
+              wsState={chat.wsState}
+              isReady={chat.isReady}
+              sending={chat.sending}
+              onSend={chat.handleSend}
+              onSendVoice={(file) => uploadFiles([file])}
+              onGalleryOpen={(items, index) => {
+                chat.setGalleryItems(items);
+                chat.setGalleryIndex(index);
+              }}
+              showEmojiPicker={chat.showEmojiPicker}
+              setShowEmojiPicker={chat.setShowEmojiPicker}
+              handleEmojiClick={chat.handleEmojiClick}
+              onTyping={chat.handleTyping}
+              isDMPending={chat.selectedChannel?.is_pending}
+              isDMReceiver={chat.selectedChannel?.channel_type === "dm" && (chat.selectedChannel as any)?.created_by !== chat.myUserId}
+              onAcceptDM={chat.handleAcceptDM}
+              onBlockDM={chat.handleBlockDM}
+              workspaceUsers={chat.workspaceUsers}
+              isDisabled={(chat.selectedChannel as any)?.is_request_pending}
+              isTemp={(chat.selectedChannel as any)?.is_temp}
+            />
+          </>
+        ) : (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: T.textMuted, gap: "16px" }}>
+            <MessageSquare size={48} strokeWidth={1.5} style={{ opacity: 0.3 }} />
+            <div style={{ fontSize: "16px", fontWeight: "500", color: T.textSecondary }}>Select a conversation</div>
+            <div style={{ fontSize: "13px" }}>Choose a chat from the sidebar to start messaging</div>
+          </div>
+        )}
       </section>
 
       {chat.activeThread && (
@@ -202,19 +309,25 @@ export default function ChatPage() {
       )}
 
       {chat.showRightPanel && (
-        <RightPanel
-          channel={chat.selectedChannel}
-          members={chat.channelMembers}
-          onlineUsers={chat.onlineUsers}
-          messages={chat.messages[chat.selectedChannel?.id || 0] || []}
-          activeTab={chat.rightPanelTab}
-          setActiveTab={chat.setRightPanelTab}
-          onClose={() => chat.setShowRightPanel(false)}
-          onGalleryOpen={(items, index) => {
-            chat.setGalleryItems(items);
-            chat.setGalleryIndex(index);
-          }}
-        />
+        <div className="fixed inset-0 z-[60] md:relative md:z-auto md:flex">
+          {/* Mobile Backdrop */}
+          <div className="absolute inset-0 bg-black/60 md:hidden" onClick={() => chat.setShowRightPanel(false)} />
+          <RightPanel
+            channel={chat.selectedChannel}
+            members={chat.channelMembers}
+            onlineUsers={chat.onlineUsers}
+            messages={chat.messages[chat.selectedChannel?.id || 0] || []}
+            activeTab={chat.rightPanelTab}
+            setActiveTab={chat.setRightPanelTab}
+            onClose={() => chat.setShowRightPanel(false)}
+            onGalleryOpen={(items, index) => {
+              chat.setGalleryItems(items);
+              chat.setGalleryIndex(index);
+            }}
+            workspaceUsers={chat.workspaceUsers}
+            onMembersUpdated={chat.fetchChannelMembers}
+          />
+        </div>
       )}
 
       <ChatModals

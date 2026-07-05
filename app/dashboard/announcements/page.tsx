@@ -204,15 +204,7 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: tk.bg,
-        color: tk.textPrimary,
-        fontFamily: "'Inter', sans-serif",
-        padding: "40px 24px",
-      }}
-    >
+    <main className="h-full bg-[#081325] text-white font-sans flex flex-col overflow-hidden">
       <style>{`
         @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .drawer-slide { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -221,261 +213,103 @@ export default function AnnouncementsPage() {
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .shimmer-bg { background: linear-gradient(90deg, ${tk.surface} 25%, ${tk.surfaceHover} 50%, ${tk.surface} 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${tk.border}; border-radius: 3px; }
-        .ann-card { transition: all 0.2s ease; } .ann-card:hover { background: ${tk.surfaceHover}; border-color: ${tk.borderHover}; transform: translateX(4px); }
       `}</style>
 
-            {/* PREMIUM LAYOUT WRAPPER */}
-      <div
-        style={{
-          maxWidth: "960px",
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: "24px",
-        }}
-      >
-        {/* HEADER */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
+      {/* =========================================
+          1. LOCKED TOP SECTION (No Scroll)
+      ========================================== */}
+      <div className="flex-shrink-0 p-4 sm:p-6 lg:p-8 border-b border-[#2A3A5C]/50">
+        <div className="max-w-5xl mx-auto">
+          {/* HEADER */}
+          <div className="flex justify-between items-center gap-4 mb-6">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Announcements</h1>
+              <p className="text-sm text-[#B7C0D8] mt-1">Stay updated with company news and updates.</p>
+            </div>
+            {canPost && (
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setInitialData(null);
+                  setShowModal(true);
+                }}
+                className="h-10 px-4 sm:px-5 rounded-lg bg-[#4B1587] text-white font-semibold text-sm flex items-center gap-2 flex-shrink-0 hover:brightness-110 transition-all"
+              >
+                <Plus size={16} /> 
+                <span className="hidden sm:inline">Create Announcement</span>
+                <span className="sm:hidden">Create</span>
+              </button>
+            )}
+          </div>
+
+          {/* CONTROLS */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7A86A7] pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search announcements..."
+                className="w-full p-2.5 pl-10 rounded-lg border border-[#2A3A5C] bg-[#172440] text-white text-sm outline-none focus:border-[#5DADE2] transition-colors"
+              />
+            </div>
+            <div className="flex gap-1 bg-[#172440] p-1 rounded-lg border border-[#2A3A5C] flex-shrink-0 self-stretch sm:self-auto">
+              <button
+                onClick={() => setActiveTab("all")}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "all" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setActiveTab("archive")}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "archive" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+              >
+                Archive
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================
+          2. SCROLLABLE LOWER SECTION
+      ========================================== */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 lg:p-8 pt-6">
+        <div className="max-w-5xl mx-auto">
+          {/* FEED */}
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "24px",
-                fontWeight: 700,
-                letterSpacing: "-0.4px",
-              }}
-            >
-              Announcements
-            </h1>
-            <p
-              style={{
-                margin: "6px 0 0",
-                color: tk.textSecondary,
-                fontSize: "14px",
-              }}
-            >
-              Stay updated with company news and updates.
-            </p>
-          </div>
-          {canPost && (
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setInitialData(null);
-                setShowModal(true);
-              }}
-              style={{
-                height: "40px",
-                padding: "0 20px",
-                borderRadius: "8px",
-                border: "none",
-                background: tk.brand,
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: "14px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexShrink: 0,
-                boxShadow: `0 4px 12px ${tk.brand}40`,
-                transition: "filter 0.2s",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.filter = "brightness(1.1)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.filter = "brightness(1)")
-              }
-            >
-              <Plus size={16} /> Create Announcement
-            </button>
-          )}
-        </div>
-
-        {/* CONTROLS */}
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute",
-                left: 14,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: tk.textMuted,
-                pointerEvents: "none",
-              }}
-            />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search announcements..."
-              style={{
-                width: "100%",
-                padding: "10px 16px 10px 40px",
-                borderRadius: "8px",
-                border: `1px solid ${tk.border}`,
-                background: tk.surface,
-                color: tk.textPrimary,
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor = tk.brandLight)
-              }
-              onBlur={(e) => (e.currentTarget.style.borderColor = tk.border)}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 2,
-              background: tk.surface,
-              padding: 4,
-              borderRadius: "8px",
-              border: `1px solid ${tk.border}`,
-              flexShrink: 0,
-            }}
-          >
-            <button
-              onClick={() => setActiveTab("all")}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "6px",
-                border: "none",
-                background: activeTab === "all" ? tk.brand : "transparent",
-                color: activeTab === "all" ? "#fff" : tk.textSecondary,
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "background 0.2s",
-              }}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActiveTab("archive")}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "6px",
-                border: "none",
-                background: activeTab === "archive" ? tk.brand : "transparent",
-                color: activeTab === "archive" ? "#fff" : tk.textSecondary,
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "background 0.2s",
-              }}
-            >
-              Archive
-            </button>
-          </div>
-        </div>
-
-        {/* FEED */}
-        <div>
           {loading ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="shimmer-bg"
-                  style={{
-                    height: 92,
-                    borderRadius: "10px",
-                    border: `1px solid ${tk.border}`,
-                  }}
-                />
+                <div key={i} className="shimmer-bg h-24 rounded-xl border border-[#2A3A5C]"></div>
               ))}
             </div>
           ) : announcements.length === 0 ? (
-            <div
-              style={{
-                padding: 48,
-                textAlign: "center",
-                color: tk.textMuted,
-                background: tk.surface,
-                border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
+            <div className="p-12 text-center text-[#7A86A7] bg-[#172440] border border-[#2A3A5C] rounded-xl flex flex-col items-center gap-3">
               {searchQuery ? (
                 <>
-                  <Search size={28} style={{ opacity: 0.4 }} />
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 15,
-                      color: tk.textSecondary,
-                    }}
-                  >
-                    No announcements matched "{searchQuery}"
-                  </div>
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: tk.brandLight,
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      textDecoration: "underline",
-                    }}
-                  >
+                  <Search size={28} className="opacity-40" />
+                  <div className="font-semibold text-base text-[#B7C0D8]">No announcements matched "{searchQuery}"</div>
+                  <button onClick={() => setSearchQuery("")} className="bg-transparent border-none text-[#5DADE2] cursor-pointer text-sm font-semibold underline">
                     Clear search
                   </button>
                 </>
               ) : activeTab === "archive" ? (
                 <>
-                  <Archive size={32} style={{ opacity: 0.4 }} />
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 15,
-                      color: tk.textSecondary,
-                    }}
-                  >
-                    Archive is empty
-                  </div>
-                  <div style={{ fontSize: "13px" }}>
-                    Expired announcements will appear here.
-                  </div>
+                  <Archive size={32} className="opacity-40" />
+                  <div className="font-semibold text-base text-[#B7C0D8]">Archive is empty</div>
+                  <div className="text-sm">Expired announcements will appear here.</div>
                 </>
               ) : (
                 <>
-                  <Bell size={32} style={{ opacity: 0.4 }} />
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 15,
-                      color: tk.textSecondary,
-                    }}
-                  >
-                    No Announcements
-                  </div>
-                  <div style={{ fontSize: "13px" }}>
-                    Check back later for updates.
-                  </div>
+                  <Bell size={32} className="opacity-40" />
+                  <div className="font-semibold text-base text-[#B7C0D8]">No Announcements</div>
+                  <div className="text-sm">Check back later for updates.</div>
                 </>
               )}
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="flex flex-col gap-3">
               {announcements.map((item) => (
                 <AnnouncementCard
                   key={item.id}
@@ -486,6 +320,7 @@ export default function AnnouncementsPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* MODAL */}
@@ -512,113 +347,26 @@ export default function AnnouncementsPage() {
 
       {/* DELETE CONFIRMATION */}
       {confirmDeleteId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(6px)",
-            zIndex: 200,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 20,
-          }}
-          onClick={() => setConfirmDeleteId(null)}
-        >
-          <div
-            className="modal-fade"
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: "12px",
-              width: "100%",
-              maxWidth: "400px",
-              padding: 28,
-              boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  background: `${tk.primary}15`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 16,
-                }}
-              >
-                <AlertTriangle size={24} color={tk.primary} />
+        <div className="fixed inset-0 z-[200] flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDeleteId(null)}>
+          <div className="modal-fade bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                <AlertTriangle size={24} className="text-[#E31E24]" />
               </div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>
-                Delete Announcement?
-              </h3>
-              <p
-                style={{
-                  margin: "0 0 24px",
-                  color: tk.textSecondary,
-                  fontSize: 14,
-                  lineHeight: 1.5,
-                }}
-              >
-                This action cannot be undone. This announcement will be
-                permanently deleted.
+              <h3 className="text-lg font-bold mb-2">Delete Announcement?</h3>
+              <p className="text-sm text-[#B7C0D8] mb-6 leading-relaxed">
+                This action cannot be undone. This announcement will be permanently deleted.
               </p>
-              <div style={{ display: "flex", gap: 12, width: "100%" }}>
+              <div className="flex gap-3 w-full">
                 <button
                   onClick={() => setConfirmDeleteId(null)}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: "8px",
-                    border: `1px solid ${tk.border}`,
-                    background: "transparent",
-                    color: tk.textSecondary,
-                    fontWeight: 600,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    transition: "background 0.2s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = tk.bg)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
+                  className="flex-1 py-3 rounded-lg border border-[#2A3A5C] bg-transparent text-[#B7C0D8] font-semibold text-sm hover:bg-[#081325] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDelete}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: tk.primary,
-                    color: "#fff",
-                    fontWeight: 600,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    transition: "filter 0.2s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1.1)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1)")
-                  }
+                  className="flex-1 py-3 rounded-lg bg-[#E31E24] text-white font-semibold text-sm hover:brightness-110 transition-all"
                 >
                   Delete
                 </button>

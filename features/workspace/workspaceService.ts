@@ -1,6 +1,7 @@
 // features/workspace/workspaceService.ts
 import { apiFetch } from "@/lib/api";
 import { getWorkspaceId } from "@/lib/auth";
+import { useAvatarStore } from "@/lib/stores/avatarStore";
 
 // ── Rate Limit Handler ──────────────────────────────────────────────────
 let isRateLimited = false;
@@ -16,10 +17,11 @@ async function fetchWithRateLimit(
   }
 
   const res = await fetchFn();
-  
+
   if (res.status === 429) {
     isRateLimited = true;
-    const { useNotificationStore } = await import("@/features/notification/store/notificationStore");
+    const { useNotificationStore } =
+      await import("@/features/notification/store/notificationStore");
     useNotificationStore.getState().addNotification({
       notification_type: "rate_limit",
       notification_id: String(Date.now()),
@@ -30,12 +32,12 @@ async function fetchWithRateLimit(
         avatar_url: null,
       },
     } as any);
-    
+
     // Wait 10 seconds before allowing any new requests
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     isRateLimited = false;
   }
-  
+
   return res;
 }
 
@@ -51,18 +53,26 @@ export const workspaceService = {
   getMembers: async () => {
     const wsId = getWorkspaceId();
     if (!wsId) return [];
-    const res = await fetchWithRateLimit(() => apiFetch(`/api/workspaces/${wsId}/members/`));
+    const res = await fetchWithRateLimit(() =>
+      apiFetch(`/api/workspaces/${wsId}/members/`),
+    );
     if (!res.ok) {
       console.warn(`getMembers rate limited or failed`);
       return [];
     }
-    return res.json();
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      useAvatarStore.getState().upsertUsers(data);
+    }
+    return data;
   },
 
   getTeams: async () => {
     const wsId = getWorkspaceId();
     if (!wsId) return [];
-    const res = await fetchWithRateLimit(() => apiFetch(`/api/workspaces/${wsId}/teams/`));
+    const res = await fetchWithRateLimit(() =>
+      apiFetch(`/api/workspaces/${wsId}/teams/`),
+    );
     if (!res.ok) {
       console.warn(`getTeams rate limited or failed`);
       return [];
@@ -138,14 +148,17 @@ export const workspaceService = {
     return res.json();
   },
 
-    getActiveInvites: async () => {
+  getActiveInvites: async () => {
     // Independent users don't have a workspace_id, so we use the /me/ endpoint
     const res = await apiFetch(`/api/workspaces/invites/me/`);
     if (!res.ok) return { items: [] };
     return res.json();
   },
 
-  respondWorkspaceInvite: async (inviteId: number, status: "accepted" | "rejected") => {
+  respondWorkspaceInvite: async (
+    inviteId: number,
+    status: "accepted" | "rejected",
+  ) => {
     const res = await apiFetch(`/api/workspaces/invites/${inviteId}/respond/`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
@@ -156,7 +169,7 @@ export const workspaceService = {
     }
     return res.json();
   },
-  
+
   generateInviteLink: async (payload: {
     role: string;
     expires_hours: number;
@@ -166,7 +179,10 @@ export const workspaceService = {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Failed to generate invite link");
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || "Failed to generate invite link");
+    }
     return res.json();
   },
 
@@ -207,7 +223,15 @@ export const workspaceService = {
     return res.json();
   },
 
-  updateTeam: async (teamId: number, payload: { name?: string; description?: string; is_private?: boolean; color?: string; }) => {
+  updateTeam: async (
+    teamId: number,
+    payload: {
+      name?: string;
+      description?: string;
+      is_private?: boolean;
+      color?: string;
+    },
+  ) => {
     const wsId = getWorkspaceId();
     const res = await apiFetch(`/api/workspaces/${wsId}/teams/${teamId}/`, {
       method: "PATCH",
@@ -227,12 +251,30 @@ export const workspaceService = {
 
   promoteTeamLeader: async (teamId: number, userId: number) => {
     const wsId = getWorkspaceId();
-    const res = await apiFetch(`/api/workspaces/${wsId}/teams/${teamId}/members/${userId}/promote/`, {
-      method: "POST",
-    });
+    const res = await apiFetch(
+      `/api/workspaces/${wsId}/teams/${teamId}/members/${userId}/promote/`,
+      {
+        method: "POST",
+      },
+    );
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.error || "Failed to promote leader");
+    }
+    return res.json();
+  },
+
+  demoteTeamLeader: async (teamId: number, userId: number) => {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(
+      `/api/workspaces/${wsId}/teams/${teamId}/members/${userId}/demote/`,
+      {
+        method: "POST",
+      },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || "Failed to demote leader");
     }
     return res.json();
   },
@@ -247,7 +289,9 @@ export const workspaceService = {
   getMyAttendance: async () => {
     const wsId = getWorkspaceId();
     if (!wsId) return {};
-    const res = await fetchWithRateLimit(() => apiFetch(`/api/attendance/${wsId}/me/`));
+    const res = await fetchWithRateLimit(() =>
+      apiFetch(`/api/attendance/${wsId}/me/`),
+    );
     if (!res.ok) {
       console.warn(`getMyAttendance rate limited or failed`);
       return {};
@@ -326,6 +370,31 @@ export const workspaceService = {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Failed to update config");
+    return res.json();
+  },
+
+  getWorkspaceSettings: async () => {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/workspaces/${wsId}/settings/`);
+    if (!res.ok) throw new Error("Failed to fetch workspace settings");
+    return res.json();
+  },
+
+  scheduleDeletion: async () => {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/workspaces/${wsId}/schedule-deletion/`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to schedule deletion");
+    return res.json();
+  },
+
+  cancelDeletion: async () => {
+    const wsId = getWorkspaceId();
+    const res = await apiFetch(`/api/workspaces/${wsId}/cancel-deletion/`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to cancel deletion");
     return res.json();
   },
 };
