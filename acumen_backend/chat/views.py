@@ -939,7 +939,7 @@ class FileUploadView(APIView):
                 },
             )
         except Exception as e:
-            logger.error(f"Failed to broadcast file upload via WS: {e}")
+            logger.error(f"Failed to broadcast file upload via WS: {e}", exc_info=True)
         return Response(serializer.data, status=201)
 
 

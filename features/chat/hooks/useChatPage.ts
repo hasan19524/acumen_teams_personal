@@ -754,10 +754,34 @@ export function useChatPage() {
     const reqId = (selectedChannel as any)?.dm_request_id;
     if (!reqId) return;
     try {
-      await respondDMRequest(reqId, { status: "accepted" });
-      // The WebSocket will broadcast the channel update, removing `is_pending`
-      // We can also force a local update for instant feedback
-      if (selectedChannel) selectChannel(selectedChannel.id); 
+      const result = await respondDMRequest(reqId, { status: "accepted" });
+      // Backend returns the real dm_channel_id after acceptance.
+      // We must replace the pending channel in the store with the real one
+      // and switch to it so messaging is fully unlocked.
+      const realChannelId = result.dm_channel_id;
+      if (realChannelId && selectedChannel) {
+        // Reload DMs from server to get the fresh real channel
+        const freshDMs = await loadDMs();
+        const realChannel = freshDMs.find((c) => c.id === realChannelId);
+        if (realChannel) {
+          // Remove temp/pending channel, add real one
+          useChatStore.getState().removeChannel(selectedChannel.id);
+          useChatStore.getState().addChannel(realChannel);
+          selectChannel(realChannelId);
+        } else {
+          // Fallback: just unlock the existing channel
+          useChatStore.getState().updateChannel(selectedChannel.id, {
+            is_pending: false,
+            id: realChannelId,
+          });
+          selectChannel(realChannelId);
+        }
+      } else {
+        // No channel ID returned — just unlock in place
+        if (selectedChannel) {
+          useChatStore.getState().updateChannel(selectedChannel.id, { is_pending: false });
+        }
+      }
     } catch (error) {
       console.error("Failed to accept DM:", error);
     }

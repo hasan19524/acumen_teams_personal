@@ -119,11 +119,11 @@ def all_teams(request, workspace_id):
     if not membership:
         return Response({"error": "Not authorized"}, status=403)
 
-    # Exclude "General" and "Unassigned" system teams from the Teams grid.
-    # FIX: Also exclude by name to catch legacy teams with wrong team_type
+    # Exclude only "General" from the Teams grid (it's a workspace channel, not an org team).
+    # "Unassigned" IS shown because it's an organizational system team.
     base_qs = Team.objects.filter(workspace_id=workspace_id).exclude(
-        team_type__in=[TeamType.GENERAL, TeamType.UNASSIGNED]
-    ).exclude(name__iexact="Unassigned").exclude(name__iexact="General")
+        team_type=TeamType.GENERAL
+    ).exclude(name__iexact="General")
     # RBAC FIX: Admins/Owners see all. Members see teams they are active members of OR lead.
     if membership.role in ("owner", "admin"):
         teams = base_qs

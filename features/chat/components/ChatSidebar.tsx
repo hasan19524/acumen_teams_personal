@@ -89,7 +89,7 @@ const formatChatTime = (isoString: string | null | undefined) => {
 
 function ChannelIcon({ chat }: { chat: Channel }) {
   switch (chat.channel_type) {
-    case "official":
+    case "official": // intentional fallthrough for system/official channels
       return (
         <div style={{ width: 38, height: 38, borderRadius: T.radiusSm, background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Building2 size={18} color="#fff" />

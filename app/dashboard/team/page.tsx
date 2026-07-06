@@ -98,7 +98,13 @@ export default function TeamPage() {
           ),
         ]);
       setUsers(Array.isArray(membersData) ? membersData : []);
-      setTeams(Array.isArray(teamsData) ? teamsData : []);
+      // Filter: Team page shows custom teams + Unassigned system team, NOT General
+      const filtered = Array.isArray(teamsData)
+        ? teamsData.filter(
+            (t: Team) => t.team_type !== "general" && t.name?.toLowerCase() !== "general"
+          )
+        : [];
+      setTeams(filtered);
       setStatsData(statsData);
       if (statsData?.role) setMyRole(statsData.role);
       setMyUsername(localStorage.getItem("username") || "");

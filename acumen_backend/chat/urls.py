@@ -61,6 +61,7 @@ urlpatterns = [
     # Messages
     path("<int:workspace_id>/messages/<int:channel_id>/", MessageListView.as_view()),
     path("<int:workspace_id>/send/", SendMessageView.as_view()),
+    path("<int:workspace_id>/messages/", SendMessageView.as_view()),
     path("<int:workspace_id>/upload/", FileUploadView.as_view()),
     path(
         "<int:workspace_id>/messages/<int:message_id>/edit/", MessageEditView.as_view()

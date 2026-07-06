@@ -14,7 +14,11 @@ export type Team = {
   created_at: string;
   member_count: number;
   leaders: string[];
+  team_type: "standard" | "general" | "unassigned" | "management";
 };
+
+export const isSystemTeam = (team: Team): boolean =>
+  team.team_type === "unassigned" || team.team_type === "general";
 
 export type Member = {
   user_id: number;
