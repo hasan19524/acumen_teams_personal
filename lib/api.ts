@@ -11,9 +11,26 @@ export function invalidateCache() {
   apiCache.clear();
 }
 
+function clearAuthAndRedirect() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("username");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("workspace_id");
+    // Redirect to login if not already there
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+  }
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   const refresh = localStorage.getItem("refresh");
-  if (!refresh) return null;
+  if (!refresh) {
+    clearAuthAndRedirect();
+    return null;
+  }
 
   try {
     const res = await fetch(`${API_URL}/api/token/refresh/`, {
@@ -27,13 +44,11 @@ async function refreshAccessToken(): Promise<string | null> {
       localStorage.setItem("token", data.access);
       return data.access;
     } else {
-      localStorage.removeItem("token");
-      localStorage.removeItem("refresh");
-      localStorage.removeItem("username");
-      localStorage.removeItem("workspace_id");
+      clearAuthAndRedirect();
       return null;
     }
   } catch {
+    clearAuthAndRedirect();
     return null;
   }
 }
@@ -88,7 +103,7 @@ export async function apiFetch(
       {
         status: 503,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 
@@ -102,6 +117,11 @@ export async function apiFetch(
           Authorization: `Bearer ${newToken}`,
         },
       });
+
+      // If the retry ALSO fails with 401, force logout
+      if (res.status === 401) {
+        clearAuthAndRedirect();
+      }
     }
   }
 
@@ -118,4 +138,3 @@ export async function apiFetch(
 
   return res;
 }
-

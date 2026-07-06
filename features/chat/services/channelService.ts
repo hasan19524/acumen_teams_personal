@@ -94,7 +94,7 @@ function parseRawChannel(raw: any): Channel {
     useAvatarStore.getState().upsertUser(raw.dm_partner);
   }
 
-  return {
+  const parsed: Channel = {
     id: raw.id,
     name: raw.name,
     slug: raw.slug || "",
@@ -121,6 +121,12 @@ function parseRawChannel(raw: any): Channel {
     last_message_sender: raw.last_message_sender || null,
     unread_count: raw.unread_count || 0,
   };
+  
+  if (raw.is_dm && parsed.is_pending) {
+    console.warn(`[parseRawChannel] DM channel ${parsed.id} (${parsed.name}) has is_pending=true`);
+  }
+  
+  return parsed;
 }
 
 // ── Message APIs ────────────────────────────────────────────────────────
@@ -269,8 +275,20 @@ export async function loadDMs(): Promise<Channel[]> {
   const wsId = getWorkspaceId();
   if (!wsId) return [];
   const res = await apiFetch(`/api/chat/${wsId}/dms/`);
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.error("[loadDMs] API call failed:", res.status, res.statusText);
+    return [];
+  }
   const data = await res.json();
+  if (Array.isArray(data) && data.length > 0) {
+    console.log("[loadDMs] Raw backend response:", data.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      is_pending: c.is_pending,
+      channel_type: c.channel_type,
+      dm_partner: c.dm_partner?.username
+    })));
+  }
   return Array.isArray(data)
     ? data.map((item: any) => parseRawChannel(item))
     : [];

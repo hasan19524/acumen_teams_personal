@@ -753,37 +753,70 @@ export function useChatPage() {
   const handleAcceptDM = useCallback(async () => {
     const reqId = (selectedChannel as any)?.dm_request_id;
     if (!reqId) return;
+    
     try {
+      // 1. Accept the DM request on backend
       const result = await respondDMRequest(reqId, { status: "accepted" });
-      // Backend returns the real dm_channel_id after acceptance.
-      // We must replace the pending channel in the store with the real one
-      // and switch to it so messaging is fully unlocked.
-      const realChannelId = result.dm_channel_id;
-      if (realChannelId && selectedChannel) {
-        // Reload DMs from server to get the fresh real channel
-        const freshDMs = await loadDMs();
-        const realChannel = freshDMs.find((c) => c.id === realChannelId);
-        if (realChannel) {
-          // Remove temp/pending channel, add real one
-          useChatStore.getState().removeChannel(selectedChannel.id);
-          useChatStore.getState().addChannel(realChannel);
-          selectChannel(realChannelId);
-        } else {
-          // Fallback: just unlock the existing channel
+      console.log("[DM Accept] Backend response:", result);
+      
+      if (!result.dm_channel_id) {
+        console.error("[DM Accept] No dm_channel_id in response");
+        return;
+      }
+
+      // 2. Reload BOTH channels and DMs to get the fresh real channel
+      console.log("[DM Accept] Reloading channels from server...");
+      const [freshChannels, freshDMs] = await Promise.all([
+        loadChannels(),
+        loadDMs()
+      ]);
+      
+      const allFresh = [...freshChannels, ...freshDMs];
+      console.log("[DM Accept] Fresh channels loaded:", allFresh.map((c) => ({ 
+        id: c.id, 
+        name: c.name, 
+        is_pending: c.is_pending 
+      })));
+      
+      const realChannel = allFresh.find((c) => c.id === result.dm_channel_id);
+      
+      if (!realChannel) {
+        console.error("[DM Accept] Real DM channel not found. Requested ID:", result.dm_channel_id);
+        // FALLBACK: At least clear is_pending on the selected channel
+        if (selectedChannel) {
           useChatStore.getState().updateChannel(selectedChannel.id, {
             is_pending: false,
-            id: realChannelId,
+            is_request_pending: false,
           });
-          selectChannel(realChannelId);
+          console.log("[DM Accept] Fallback: Cleared flags on old channel");
         }
-      } else {
-        // No channel ID returned — just unlock in place
-        if (selectedChannel) {
-          useChatStore.getState().updateChannel(selectedChannel.id, { is_pending: false });
-        }
+        return;
       }
+
+      // 3. Replace entire channel list with fresh data
+      useChatStore.getState().setChannels(allFresh);
+      console.log("[DM Accept] Replaced channel list in store");
+      
+      // 4. Remove the old pending channel if it's different
+      if (selectedChannel && selectedChannel.id !== result.dm_channel_id) {
+        useChatStore.getState().removeChannel(selectedChannel.id);
+        console.log("[DM Accept] Removed old pending channel:", selectedChannel.id);
+      }
+      
+      // 5. Switch to real channel
+      selectChannel(result.dm_channel_id);
+      console.log("[DM Accept] Switched to real DM channel:", result.dm_channel_id);
+      
     } catch (error) {
-      console.error("Failed to accept DM:", error);
+      console.error("[DM Accept] Failed:", error);
+      // On error, at least try to unlock the channel in place
+      if (selectedChannel) {
+        useChatStore.getState().updateChannel(selectedChannel.id, {
+          is_pending: false,
+          is_request_pending: false,
+        });
+        console.log("[DM Accept] Error fallback: Cleared flags on channel");
+      }
     }
   }, [selectedChannel, selectChannel]);
 
