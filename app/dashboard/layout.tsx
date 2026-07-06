@@ -36,6 +36,14 @@ const ALLOWED_WITHOUT_WORKSPACE = [
   "/dashboard/settings",
 ];
 
+// Independent users mobile nav items
+const INDEPENDENT_NAV_ITEMS = [
+  { name: "Home", href: "/dashboard", icon: Home },
+  { name: "Invitations", href: "/dashboard/invites", icon: Mail },
+  { name: "Clock", href: "/dashboard/clock", icon: Clock },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+];
+
 // Items inside the "More" menu
 const MORE_ITEMS = [
   { label: "Announcements", path: "/dashboard/announcements", icon: Megaphone },
@@ -323,7 +331,30 @@ export default function DashboardLayout({
         </div>
       )}
 
-      {/* 5. MOBILE "MORE" NATIVE POPOVER */}
+      {/* 5. INDEPENDENT MOBILE BOTTOM NAV */}
+      {!hideBottomNav && isIndependent && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#081325] border-t border-[#2A3A5C] flex justify-around items-center h-16 z-40 px-1">
+          {INDEPENDENT_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <button
+                key={item.name}
+                onClick={() => router.push(item.href)}
+                className="flex flex-col items-center p-1.5 transition-colors w-1/4"
+                style={{ color: active ? "#5DADE2" : "#B7C0D8" }}
+              >
+                <Icon size={20} />
+                <span className="text-[9px] mt-1 font-semibold whitespace-nowrap">
+                  {item.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 6. MOBILE "MORE" NATIVE POPOVER */}
       {showMoreSheet && !isIndependent && (
         <>
           <div

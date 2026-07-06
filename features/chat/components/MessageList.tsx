@@ -25,6 +25,7 @@ import { MessageAttachments } from "./MessageAttachments";
 
 const formatDateSeparator = (dateStr: string) => {
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return ""; // FIX: Prevent crash if date is invalid
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -37,8 +38,11 @@ const formatDateSeparator = (dateStr: string) => {
   });
 };
 
-const isWithin30Min = (createdAt: string) =>
-  (Date.now() - new Date(createdAt).getTime()) / 60000 <= 30;
+const isWithin30Min = (createdAt: string) => {
+  const time = new Date(createdAt).getTime();
+  if (isNaN(time)) return false; // FIX: Prevent crash
+  return (Date.now() - time) / 60000 <= 30;
+};
 const isUnread = (msg: Message, myUserId: number) => {
   if (msg.sender?.id === myUserId || msg.is_deleted) return false;
   return !msg.reads?.some((r: any) => r.user?.id === myUserId);
@@ -175,8 +179,8 @@ export function MessageList({
                 const prevMsg = index > 0 ? allMsgs[index - 1] : null;
                 const showDateSeparator =
                   !prevMsg ||
-                  new Date(prevMsg.created_at).toDateString() !==
-                    new Date(msg.created_at).toDateString();
+                  new Date(prevMsg.created_at || Date.now()).toDateString() !==
+                    new Date(msg.created_at || Date.now()).toDateString();
                 const isLastMine =
                   mine &&
                   (index === allMsgs.length - 1 ||
@@ -580,7 +584,7 @@ export function MessageList({
                                   zIndex: 5,
                                 }}
                               >
-                                {new Date(msg.created_at).toLocaleTimeString(
+                                {new Date(msg.created_at || Date.now()).toLocaleTimeString(
                                   [],
                                   { hour: "2-digit", minute: "2-digit" },
                                 )}
@@ -605,7 +609,7 @@ export function MessageList({
                                   </span>
                                 )}
                                 <span>
-                                  {new Date(msg.created_at).toLocaleTimeString(
+                                  {new Date(msg.created_at || Date.now()).toLocaleTimeString(
                                     [],
                                     { hour: "2-digit", minute: "2-digit" },
                                   )}
@@ -878,10 +882,10 @@ export function MessageList({
                                 (r: any) => r.user?.id !== myUserId,
                               ) || msg.reads[0];
                             if (!otherRead || !otherRead.read_at) return null;
+                            const readTime = new Date(otherRead.read_at).getTime();
+                            if (isNaN(readTime)) return null;
                             const diffMin = Math.floor(
-                              (Date.now() -
-                                new Date(otherRead.read_at).getTime()) /
-                                60000,
+                              (Date.now() - readTime) / 60000,
                             );
                             let text = "Seen";
                             if (diffMin < 1) text = "Seen just now";
