@@ -17,6 +17,8 @@ import {
 import { tk } from "@/lib/tokens";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 type FilterTab = "all" | "unread" | "read";
 
@@ -168,6 +170,14 @@ export default function NotificationsPage() {
         }}
       >
         <div style={{ maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => router.push("/dashboard")}
+            className="mb-4 -ml-2"
+          >
+            <ArrowLeft size={20} />
+          </Button>
           {/* HEADER */}
           <div style={{ marginBottom: "32px" }}>
             <h1

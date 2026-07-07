@@ -79,6 +79,7 @@ export default function TeamPage() {
     user: Member;
   } | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: string; bottom?: string }>({ top: "100%" });
 
   const isAdmin = myRole === "owner" || myRole === "admin";
 
@@ -110,10 +111,10 @@ export default function TeamPage() {
 
       if (statsData?.role === "owner" || statsData?.role === "admin") {
         try {
-          const linkData = await workspaceService.getActiveInvites();
-          setActiveLinks(linkData.items || []);
+          const sentData = await workspaceService.getSentInvites();
+          setActiveLinks(sentData.items || []);
         } catch (e) {
-          console.error("Failed to fetch invite links");
+          console.error("Failed to fetch sent invites");
         }
       }
     } catch (err) {
@@ -306,7 +307,7 @@ export default function TeamPage() {
 
   return (
     <main
-      className="min-h-full w-full"
+      className="w-full"
       style={{
         background: tk.bg,
         color: tk.textPrimary,
@@ -474,7 +475,7 @@ export default function TeamPage() {
 
         {activeTab === "members" && (
           <div
-            className="rounded-xl border overflow-hidden"
+            className="rounded-xl border overflow-visible"
             style={{ background: tk.surface, borderColor: tk.border }}
           >
             {/* Desktop Header */}
@@ -520,11 +521,11 @@ export default function TeamPage() {
                 return (
                   <div
                     key={u.user_id || i}
-                    className="member-row grid grid-cols-2 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b last:border-0 items-center cursor-pointer relative"
+                    className="member-row grid grid-cols-[1fr_auto] md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b last:border-0 items-center cursor-pointer relative"
                     style={{ borderColor: tk.border }}
                     onClick={() => openProfile(u)}
                   >
-                    <div className="flex items-center gap-3 col-span-2 md:col-span-1">
+                    <div className="flex items-center gap-3">
                       <Avatar
                         user={u}
                         src={u.profile_image}
@@ -592,16 +593,23 @@ export default function TeamPage() {
                       })}
                     </div>
                     <div
-                      className="flex justify-end"
+                      className="flex justify-end relative"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {isAdmin && (
                         <button
-                          onClick={() =>
+                          onClick={(e) => {
+                            // FIX: Calculate if menu should open up or down
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            if (window.innerHeight - rect.bottom < 200) {
+                              setMenuPos({ bottom: "100%", top: "auto" });
+                            } else {
+                              setMenuPos({ top: "100%", bottom: "auto" });
+                            }
                             setOpenMenuId(
                               openMenuId === u.user_id ? null : u.user_id,
-                            )
-                          }
+                            );
+                          }}
                           className="p-1"
                           style={{ color: tk.textMuted }}
                         >
@@ -609,13 +617,16 @@ export default function TeamPage() {
                         </button>
                       )}
                       {openMenuId === u.user_id && (
-                        <div
-                          className="absolute top-10 right-2 z-20 w-48 rounded-lg shadow-2xl border"
-                          style={{
-                            background: tk.surface,
-                            borderColor: tk.borderHover,
-                          }}
-                        >
+                        <>
+                          <div className="fixed inset-0 z-20" onClick={() => setOpenMenuId(null)} />
+                          <div
+                            className="absolute right-0 z-30 w-48 rounded-lg shadow-2xl border mt-2 mb-2"
+                            style={{
+                              ...menuPos,
+                              background: tk.surface,
+                              borderColor: tk.borderHover,
+                            }}
+                          >
                           <button
                             onClick={() => {
                               setConfirmAction({ type: "role", user: u });
@@ -647,7 +658,8 @@ export default function TeamPage() {
                           >
                             Remove Member
                           </button>
-                        </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -666,45 +678,47 @@ export default function TeamPage() {
               className="flex justify-between items-center p-4 border-b"
               style={{ borderColor: tk.border }}
             >
-              <h3 className="text-base font-bold">Active Invite Links</h3>
+              <h3 className="text-base font-bold">Pending Invitations & Links</h3>
               <button
                 onClick={() => setShowInviteModal(true)}
                 className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
                 style={{ background: tk.brand, color: "#fff" }}
               >
-                <Plus size={14} /> Generate New
+                <Plus size={14} /> Invite User
               </button>
             </div>
             {activeLinks.length === 0 ? (
               <div className="p-10 text-center" style={{ color: tk.textMuted }}>
-                No active invite links. Click "Generate New" to invite someone.
+                No pending invitations or active links. Click "Invite User" to add someone.
               </div>
             ) : (
-              activeLinks.map((link, i) => (
+              activeLinks.map((invite) => (
                 <div
-                  key={link.id}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border-b last:border-0 text-sm"
+                  key={invite.id}
+                  className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 border-b last:border-0 text-sm items-center"
                   style={{ borderColor: tk.border, color: tk.textSecondary }}
                 >
                   <div className="flex items-center gap-2">
-                    <LinkIcon size={14} color={tk.brandLight} />
-                    <span
-                      className="font-medium"
-                      style={{ color: tk.textPrimary }}
-                    >
-                      {link.role_to_assign}
+                    {invite.type === "Link" ? (
+                      <LinkIcon size={16} color={tk.brandLight} />
+                    ) : (
+                      <Users size={16} color={tk.brandLight} />
+                    )}
+                    <span className="font-medium truncate" style={{ color: tk.textPrimary }}>
+                      {invite.invitee_name}
                     </span>
                   </div>
-                  <div>
-                    Uses: {link.use_count}/
-                    {link.max_uses === 0 ? "∞" : link.max_uses}
-                  </div>
-                  <div>By: {link.created_by}</div>
+                  <div className="capitalize">{invite.role}</div>
+                  {invite.type === "Link" ? (
+                    <div>Uses: {invite.use_count}/{invite.max_uses === 0 ? "∞" : invite.max_uses}</div>
+                  ) : (
+                    <div className="capitalize">{invite.status}</div>
+                  )}
                   <div
-                    className="font-semibold"
-                    style={{ color: link.is_valid ? tk.success : tk.textMuted }}
+                    className="font-semibold capitalize"
+                    style={{ color: invite.is_valid ? tk.success : tk.textMuted }}
                   >
-                    {link.is_valid ? "Active" : "Expired"}
+                    {invite.type === "Link" ? (invite.is_valid ? "Active" : "Expired") : (invite.status === "pending" ? "Waiting" : invite.status)}
                   </div>
                 </div>
               ))

@@ -4,15 +4,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import {
-  ArrowLeft,
   Building2,
   Calendar,
   Users,
   Shield,
   Hash,
   FileText,
+  ArrowLeft,
+  Mail,
 } from "lucide-react";
+
 import Avatar from "@/components/Avatar";
+import { Button } from "@/components/ui/button";
 
 const tk = {
   bg: "#081325",
@@ -39,18 +42,10 @@ export default function WorkspaceProfilePage() {
   const canManage = user?.role === "owner" || user?.role === "admin";
 
   const statCards = [
-    {
-      label: "Total Members",
-      value: stats?.total_members ?? 0,
-      icon: Users,
-      color: tk.brandLight,
-    },
-    {
-      label: "Total Teams",
-      value: stats?.total_teams ?? 0,
-      icon: Building2,
-      color: "#1FA463",
-    },
+    { label: "Total Members", value: stats?.total_members ?? 0, icon: Users, color: tk.brandLight },
+    { label: "Total Teams", value: stats?.total_teams ?? 0, icon: Building2, color: "#1FA463" },
+    { label: "Total Leaders", value: stats?.total_leaders ?? 0, icon: Shield, color: "#F5B041" },
+    { label: "Pending Invites", value: stats?.open_invites ?? 0, icon: Mail, color: "#E31E24" },
   ];
 
   const infoItems = [
@@ -61,7 +56,6 @@ export default function WorkspaceProfilePage() {
       value: `@${user?.workspace_owner}`,
       icon: Shield,
     },
-    { label: "Your Role", value: user?.role, icon: Users, capitalize: true },
     {
       label: "Created Date",
       value: user?.workspace_created_at
@@ -87,14 +81,15 @@ export default function WorkspaceProfilePage() {
         fontFamily: "'Inter', sans-serif",
       }}
     >
-      <div className="max-w-6xl mx-auto">
-        <button
+      <div className="w-full max-w-7xl mx-auto">
+        <Button 
+          variant="ghost" 
+          size="icon" 
           onClick={() => router.push("/dashboard")}
-          className="flex items-center gap-2 text-sm font-medium mb-8 hover:underline"
-          style={{ color: tk.textSecondary }}
+          className="mb-4 -ml-2"
         >
-          <ArrowLeft size={16} /> Back to Dashboard
-        </button>
+          <ArrowLeft size={20} />
+        </Button>
 
         {/* Identity Header (Compact) */}
         <div className="flex items-center gap-5 mb-8">
@@ -118,7 +113,7 @@ export default function WorkspaceProfilePage() {
         </div>
 
         {/* Statistics Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-8 max-w-md">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {statCards.map((stat) => (
             <div
               key={stat.label}
@@ -202,9 +197,7 @@ export default function WorkspaceProfilePage() {
                         >
                           {item.label}
                         </p>
-                        <p
-                          className={`text-sm font-semibold ${item.capitalize ? "capitalize" : ""}`}
-                        >
+                        <p className="text-sm font-semibold">
                           {item.value}
                         </p>
                       </div>

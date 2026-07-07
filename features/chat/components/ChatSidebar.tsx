@@ -1056,67 +1056,68 @@ export function ChatSidebar({
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: `0 ${T.gapSm}` }}>
-        {/* List Header: Messages & Requests Tabs */}
-        <div
+      {/* List Header: Messages & Requests Tabs (Static) */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "12px 12px 8px",
+          borderBottom: `1px solid ${T.border}`,
+          marginBottom: 8,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={() => setShowRequestsList(false)}
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "12px 12px 8px",
-            borderBottom: `1px solid ${T.border}`,
-            marginBottom: 8,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            color: !showRequestsList ? T.textPrimary : T.textMuted,
+            textTransform: "uppercase",
           }}
         >
-          <button
-            onClick={() => setShowRequestsList(false)}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 11,
-              fontWeight: 700,
-              color: !showRequestsList ? T.textPrimary : T.textMuted,
-              textTransform: "uppercase",
-            }}
-          >
-            Messages
-          </button>
-          <button
-            onClick={() => setShowRequestsList(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              color: showRequestsList ? T.textPrimary : T.accentHover,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            Requests
-            {(receivedRequests.length > 0 || groupInvites.length > 0) && (
-              <span
-                style={{
-                  background: T.accent,
-                  color: "#fff",
-                  borderRadius: "50%",
-                  minWidth: 16,
-                  height: 16,
-                  fontSize: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {receivedRequests.length + groupInvites.length}
-              </span>
-            )}
-          </button>
-        </div>
+          Messages
+        </button>
+        <button
+          onClick={() => setShowRequestsList(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "transparent",
+            border: "none",
+            color: showRequestsList ? T.textPrimary : T.accentHover,
+            cursor: "pointer",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          Requests
+          {(receivedRequests.length > 0 || groupInvites.length > 0) && (
+            <span
+              style={{
+                background: T.accent,
+                color: "#fff",
+                borderRadius: "50%",
+                minWidth: 16,
+                height: 16,
+                fontSize: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {receivedRequests.length + groupInvites.length}
+            </span>
+          )}
+        </button>
+      </div>
 
+      <div style={{ flex: 1, overflowY: "auto", padding: `0 ${T.gapSm} 80px ${T.gapSm}` }}>
         {showRequestsList ? (
           <div style={{ padding: "8px 12px" }}>
             {receivedRequests.length === 0 ? (

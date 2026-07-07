@@ -79,16 +79,6 @@ export default function DashboardTopbar({
               style={{ color: tk.brandLight }}
             />
           </h1>
-          {user?.company_name && (
-            <button
-              onClick={() => router.push("/dashboard/workspace")}
-              className="flex items-center gap-1.5 mt-1 text-xs font-medium transition-colors hover:underline"
-              style={{ color: tk.textMuted }}
-            >
-              <Building2 size={12} /> {user.company_name}{" "}
-              <ChevronDown size={12} />
-            </button>
-          )}
         </div>
         <div className="relative">
           <button

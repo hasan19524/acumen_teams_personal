@@ -148,9 +148,10 @@ export const workspaceService = {
     return res.json();
   },
 
-  getActiveInvites: async () => {
-    // Independent users don't have a workspace_id, so we use the /me/ endpoint
-    const res = await apiFetch(`/api/workspaces/invites/me/`);
+  getSentInvites: async () => {
+    const wsId = getWorkspaceId();
+    if (!wsId) return { items: [] };
+    const res = await apiFetch(`/api/workspaces/${wsId}/invites/sent/`);
     if (!res.ok) return { items: [] };
     return res.json();
   },

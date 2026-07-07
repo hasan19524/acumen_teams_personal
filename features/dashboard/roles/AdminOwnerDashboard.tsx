@@ -115,7 +115,7 @@ export default function AdminOwnerDashboard() {
 
   return (
     <main
-      className="min-h-full relative"
+      className="relative"
       style={{
         background: tk.bg,
         color: tk.textPrimary,
@@ -138,7 +138,7 @@ export default function AdminOwnerDashboard() {
       <div className="bg-orb-1" />
       <div className="bg-orb-2" />
 
-      <section className="relative z-10 flex flex-col p-4 md:p-6 lg:p-8 pb-24 md:pb-8 overflow-x-hidden">
+      <section className="relative z-10 flex flex-col p-4 md:p-6 lg:p-8 pb-4 md:pb-8 overflow-x-hidden">
         <DashboardTopbar
           user={user}
           todayString={todayString}

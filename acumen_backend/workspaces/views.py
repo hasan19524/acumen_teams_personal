@@ -1336,6 +1336,30 @@ class PrivateGroupInviteRespondView(WorkspaceBaseView):
         )
 
 
+class SentWorkspaceInvitesView(WorkspaceBaseView):
+    """Returns all sent direct invites and active link invites for the workspace."""
+    def get(self, request, workspace_id):
+        workspace = self.get_workspace()
+        # FIX: Exclude accepted invites so the list only shows pending/expired/rejected
+        invites = WorkspaceInvite.objects.filter(workspace=workspace).exclude(status="accepted").order_by("-created_at")
+        
+        items = []
+        for inv in invites:
+            items.append({
+                "id": inv.id,
+                "type": "Link" if inv.invitee is None else "Direct",
+                "invitee_name": (inv.invitee.get_full_name() or inv.invitee.username) if inv.invitee else "Anyone with link",
+                "invitee_username": inv.invitee.username if inv.invitee else None,
+                "role": inv.role_to_assign,
+                "status": inv.status, # pending, expired, rejected
+                "use_count": inv.use_count,
+                "max_uses": inv.max_uses,
+                "expires_at": inv.expires_at.isoformat() if inv.expires_at else None,
+                "created_at": inv.created_at.isoformat(),
+                "is_valid": inv.is_valid(),
+            })
+        return Response({"items": items})
+
 class CleanupPendingGroupsView(WorkspaceBaseView):
     required_permission = "manage_channels"
 

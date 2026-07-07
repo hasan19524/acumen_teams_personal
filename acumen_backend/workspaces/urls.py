@@ -120,6 +120,11 @@ urlpatterns = [
         views.CleanupPendingGroupsView.as_view(),
         name="cleanup_groups",
     ),
+    path(
+        "<int:workspace_id>/invites/sent/",
+        views.SentWorkspaceInvitesView.as_view(),
+        name="sent_invites",
+    ),
     # Independent User Invitation Routes
     path(
         "invites/me/", 
