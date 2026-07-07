@@ -51,6 +51,8 @@ export const getRoleBadgeStyle = (role: string) => {
       return { bg: "rgba(168,85,247,0.15)", color: "#c084fc" };
     case "admin":
       return { bg: "rgba(59,130,246,0.15)", color: "#60a5fa" };
+    case "leader": // Added for UI display when a member is a team leader
+      return { bg: "rgba(245, 176, 65, 0.15)", color: tk.warning };
     case "guest":
       return { bg: "rgba(255,255,255,0.05)", color: "#64748b" };
     default:

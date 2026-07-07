@@ -257,7 +257,7 @@ export default function DashboardLayout({
           <div
             className={`flex-1 ${!isChatRoute ? "overflow-y-auto" : ""} overflow-x-hidden dashboard-scroll w-full`}
           >
-            <div className={`${!isChatRoute ? "pb-20 md:pb-0" : ""} h-full`}>
+            <div className={`${!isChatRoute ? "pb-20 md:pb-0 min-h-full" : "h-full flex flex-col"}`}>
               {children}
             </div>
           </div>

@@ -221,20 +221,11 @@ export function TeamDrawer({
               </div>
               <div>
                 <label className="text-[11px] text-[#7A86A7] uppercase mb-1.5 block">
-                  Team Leader
+                  Team Leadership
                 </label>
-                <select
-                  value={editLeaderId}
-                  onChange={(e) => setEditLeaderId(e.target.value)}
-                  className="w-full p-2 rounded-md border border-[#2A3A5C] bg-[#081325] text-white text-sm"
-                >
-                  <option value="">No Leader</option>
-                  {members.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.full_name || m.username}
-                    </option>
-                  ))}
-                </select>
+                <div className="p-2 rounded-md border border-[#2A3A5C] bg-[#081325] text-[#7A86A7] text-xs">
+                  Use the "Promote to Leader" button in the member list below to assign leaders.
+                </div>
               </div>
             </>
           ) : (

@@ -211,21 +211,28 @@ class ChannelMemberManageView(APIView):
         auth.require_channel_access(channel_id)
 
         from .serializers import UserMiniSerializer
+        from workspaces.models import WorkspaceMembership
+        
         members = (
             ChannelMember.objects.filter(channel=channel, is_active=True)
             .select_related("user", "user__profile")
         )
-        data = [
-            {
+        data = []
+        for m in members:
+            # SSOT FIX: Return the Workspace role instead of the Channel role
+            ws_membership = WorkspaceMembership.objects.filter(
+                user=m.user, workspace=channel.workspace, is_active=True
+            ).first()
+            ws_role = ws_membership.role if ws_membership else "member"
+            
+            data.append({
                 "id": m.id,
                 "user_id": m.user.id,
                 "username": m.user.username,
                 "full_name": m.user.get_full_name() or m.user.username,
-                "role": m.role,
+                "role": ws_role,
                 "profile_image": UserMiniSerializer(m.user, context={"request": request}).data.get("profile_image"),
-            }
-            for m in members
-        ]
+            })
         return Response(data)
 
     def post(self, request, workspace_id, channel_id):

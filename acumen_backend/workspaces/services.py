@@ -25,6 +25,64 @@ def generate_unique_workspace_slug(name: str) -> str:
 
 
 class WorkspaceService:
+
+    @staticmethod
+    @transaction.atomic
+    def sync_management_team_membership(workspace, user):
+        """
+        Ensures a user is in the Management team and chat if they are an admin/owner or a team leader.
+        If they lose all leadership and admin roles, they are removed from the Management team and chat.
+        """
+        from chat.models import Channel, ChannelMember
+
+        management, _ = Team.objects.get_or_create(
+            workspace=workspace, 
+            team_type=TeamType.MANAGEMENT, 
+            defaults={"name": "Management"}
+        )
+        mgmt_chat, _ = Channel.objects.get_or_create(
+            slug=f"management-{workspace.id}",
+            defaults={
+                "name": "Management",
+                "channel_type": "official",
+                "workspace": workspace,
+                "team": management,
+                "created_by": workspace.owner
+            }
+        )
+
+        ws_membership = WorkspaceMembership.objects.filter(
+            user=user, workspace=workspace, is_active=True
+        ).first()
+        is_owner = ws_membership and ws_membership.role == "owner"
+        is_admin = ws_membership and ws_membership.role == "admin"
+        
+        is_team_leader = TeamMembership.objects.filter(
+            user=user, team__workspace=workspace, is_leader=True, is_active=True
+        ).exists()
+
+        should_be_in_mgmt = is_owner or is_admin or is_team_leader
+
+        # SSOT FIX: ONLY the workspace owner is the leader of the Management team
+        TeamMembership.objects.update_or_create(
+            team=management, user=user,
+            defaults={
+                "is_active": should_be_in_mgmt, 
+                "left_at": None if should_be_in_mgmt else timezone.now(),
+                "is_leader": is_owner
+            }
+        )
+
+        # Sync Chat Membership
+        ChannelMember.objects.update_or_create(
+            channel=mgmt_chat, user=user,
+            defaults={
+                "role": "admin" if (is_owner or is_admin) else "member", 
+                "is_active": should_be_in_mgmt, 
+                "left_at": None if should_be_in_mgmt else timezone.now()
+            }
+        )
+
     @staticmethod
     def create_workspace(name, owner, slug=None):
         from chat.models import Channel, ChannelMember
@@ -356,24 +414,8 @@ class TeamService:
             channel=team_channel, user=user, is_active=True
         ).update(is_active=False, left_at=timezone.now())
 
-        # Check if user still leads any other teams
-        still_leads = TeamMembership.objects.filter(
-            user=user, team__workspace=team.workspace, is_leader=True, is_active=True
-        ).exists()
-
-        if not still_leads:
-            # Remove from Management team and chat
-            management = Team.objects.get(
-                workspace=team.workspace, team_type=TeamType.MANAGEMENT
-            )
-            TeamMembership.objects.filter(
-                team=management, user=user, is_active=True
-            ).update(is_active=False, left_at=timezone.now())
-
-            mgmt_chat = Channel.objects.get(slug=f"management-{team.workspace.id}")
-            ChannelMember.objects.filter(
-                channel=mgmt_chat, user=user, is_active=True
-            ).update(is_active=False, left_at=timezone.now())
+        # FIX: Automatically sync Management team status (will remove if no longer admin/leader)
+        WorkspaceService.sync_management_team_membership(team.workspace, user)
 
         # Check if user has 0 active standard teams, add to Unassigned
         active_teams = TeamMembership.objects.filter(
@@ -398,16 +440,14 @@ class TeamService:
     def promote_leader(team, user):
         from chat.models import Channel, ChannelMember
 
-        # FIX: Allow multiple leaders. We no longer demote existing leaders.
-        # TeamMembership.objects.filter(
-        #     team=team, is_leader=True, is_active=True
-        # ).exclude(user=user).update(is_leader=False)
-
         TeamMembership.objects.update_or_create(
             team=team,
             user=user,
             defaults={"is_active": True, "is_leader": True, "left_at": None},
         )
+        
+        # FIX: Automatically add leaders to the Management team and chat
+        WorkspaceService.sync_management_team_membership(team.workspace, user)
 
     @staticmethod
     @transaction.atomic
@@ -418,30 +458,5 @@ class TeamService:
             is_leader=False
         )
 
-        still_leads = TeamMembership.objects.filter(
-            user=user, team__workspace=team.workspace, is_leader=True, is_active=True
-        ).exists()
-
-        if not still_leads:
-            management, _ = Team.objects.get_or_create(
-                workspace=team.workspace,
-                team_type=TeamType.MANAGEMENT,
-                defaults={"name": "Management"},
-            )
-            TeamMembership.objects.filter(
-                team=management, user=user, is_active=True
-            ).update(is_active=False, left_at=timezone.now())
-
-            mgmt_chat, _ = Channel.objects.get_or_create(
-                slug=f"management-{team.workspace.id}",
-                defaults={
-                    "name": "Management",
-                    "channel_type": "official",
-                    "workspace": team.workspace,
-                    "team": management,  # FIX: Link channel to Management team
-                    "created_by": user,
-                },
-            )
-            ChannelMember.objects.filter(
-                channel=mgmt_chat, user=user, is_active=True
-            ).update(is_active=False, left_at=timezone.now())
+        # FIX: Automatically sync Management team status (will remove if no longer admin/leader)
+        WorkspaceService.sync_management_team_membership(team.workspace, user)

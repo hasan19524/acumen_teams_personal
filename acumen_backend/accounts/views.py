@@ -40,11 +40,7 @@ def register(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if User.objects.filter(email=email).exists():
-        return Response(
-            {"error": "An account with this email already exists."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    # FIX: Allow multiple accounts with the same email, but enforce unique usernames.
 
     name_parts = full_name.split(" ", 1)
     first_name = name_parts[0] if name_parts else ""
@@ -103,10 +99,16 @@ def login_user(request):
 
     user_candidate = None
     if "@" in login_input:
-        try:
-            user_candidate = User.objects.get(email=login_input)
-        except User.DoesNotExist:
-            pass
+        # FIX: Handle multiple accounts with the same email
+        users = User.objects.filter(email=login_input)
+        if users.count() > 1:
+            return Response(
+                {
+                    "error": "Multiple accounts found with this email. Please log in using your username."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user_candidate = users.first()
     else:
         try:
             user_candidate = User.objects.get(username=login_input)
@@ -158,7 +160,7 @@ def build_user_response(user, profile, membership):
     ws_description = ""
     ws_created_at = None
     role = membership.role if membership else None
-    
+
     if membership and membership.workspace:
         try:
             if membership.workspace.logo:
@@ -167,83 +169,95 @@ def build_user_response(user, profile, membership):
             ws_logo_url = None
         ws_owner = membership.workspace.owner.username
         ws_description = membership.workspace.description or ""
-        ws_created_at = membership.workspace.created_at.isoformat() if membership.workspace.created_at else None
-        
-        # FIX: If the user is a standard member, check if they lead any team.
-        # If so, dynamically upgrade their role to "leader" for the frontend.
-        if role == "member":
-            from workspaces.models import TeamMembership
-            if TeamMembership.objects.filter(user=user, is_leader=True, is_active=True).exists():
-                role = "leader"
+        ws_created_at = (
+            membership.workspace.created_at.isoformat()
+            if membership.workspace.created_at
+            else None
+        )
+        # SSOT FIX: Workspace role is strictly based on WorkspaceMembership.
+        # Team leadership is handled separately in the Teams API to prevent UI conflicts.
 
-    return Response({
-        "user_id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "full_name": f"{user.first_name} {user.last_name}".strip() or user.username,
-        "role": role,
-        "company_name": membership.workspace.name if membership else "",
-        "workspace_id": membership.workspace.id if membership else None,
-        "joined_at": membership.joined_at.isoformat() if membership and membership.joined_at else None,
-        "date_joined": user.date_joined.isoformat(),
-        "avatar_url": avatar_url,
-        "profile_image": avatar_url,  # Added for settings page compatibility
-        "workspace_logo": ws_logo_url,
-        "workspace_description": ws_description,
-        "workspace_owner": ws_owner,
-        "workspace_created_at": ws_created_at,
-        "bio": profile.bio,
-        "phone_number": profile.phone_number,
-        "designation": profile.designation,
-        "notification_preferences": profile.notification_preferences,
-    })
+    return Response(
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": f"{user.first_name} {user.last_name}".strip() or user.username,
+            "role": role,
+            "company_name": membership.workspace.name if membership else "",
+            "workspace_id": membership.workspace.id if membership else None,
+            "joined_at": (
+                membership.joined_at.isoformat()
+                if membership and membership.joined_at
+                else None
+            ),
+            "date_joined": user.date_joined.isoformat(),
+            "avatar_url": avatar_url,
+            "profile_image": avatar_url,  # Added for settings page compatibility
+            "workspace_logo": ws_logo_url,
+            "workspace_description": ws_description,
+            "workspace_owner": ws_owner,
+            "workspace_created_at": ws_created_at,
+            "bio": profile.bio,
+            "phone_number": profile.phone_number,
+            "designation": profile.designation,
+            "notification_preferences": profile.notification_preferences,
+        }
+    )
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
     user = request.user
     profile, created = Profile.objects.get_or_create(user=user)
-    membership = user.memberships.filter(is_active=True).select_related("workspace").first()
+    membership = (
+        user.memberships.filter(is_active=True).select_related("workspace").first()
+    )
     return build_user_response(user, profile, membership)
+
 
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def me_update(request):
     user = request.user
     profile, created = Profile.objects.get_or_create(user=user)
-    
+
     # 1. Update User fields manually
-    if 'first_name' in request.data:
-        user.first_name = request.data.get('first_name', '')
-    if 'last_name' in request.data:
-        user.last_name = request.data.get('last_name', '')
-    if 'email' in request.data:
-        user.email = request.data.get('email', user.email)
+    if "first_name" in request.data:
+        user.first_name = request.data.get("first_name", "")
+    if "last_name" in request.data:
+        user.last_name = request.data.get("last_name", "")
+    if "email" in request.data:
+        user.email = request.data.get("email", user.email)
     user.save()
 
     # 2. Update Profile fields manually
-    if 'bio' in request.data:
-        profile.bio = request.data.get('bio')
-    if 'phone_number' in request.data:
-        profile.phone_number = request.data.get('phone_number')
-    if 'designation' in request.data:
-        profile.designation = request.data.get('designation')
-    if 'notification_preferences' in request.data:
-        profile.notification_preferences = request.data.get('notification_preferences')
+    if "bio" in request.data:
+        profile.bio = request.data.get("bio")
+    if "phone_number" in request.data:
+        profile.phone_number = request.data.get("phone_number")
+    if "designation" in request.data:
+        profile.designation = request.data.get("designation")
+    if "notification_preferences" in request.data:
+        profile.notification_preferences = request.data.get("notification_preferences")
 
     # 3. Handle Avatar Upload
     # NOTE: We don't delete the old image here. The Profile model's save() method
     # automatically detects the change and deletes the old file from S3.
-    if 'profile_image' in request.FILES:
-        profile.profile_image = request.FILES['profile_image']
-    
+    if "profile_image" in request.FILES:
+        profile.profile_image = request.FILES["profile_image"]
+
     profile.save()
 
     # 4. Return the exact same response as `me` to keep frontend happy
-    membership = user.memberships.filter(is_active=True).select_related("workspace").first()
+    membership = (
+        user.memberships.filter(is_active=True).select_related("workspace").first()
+    )
     return build_user_response(user, profile, membership)
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -251,16 +265,25 @@ def change_password(request):
     user = request.user
     current_password = request.data.get("current_password")
     new_password = request.data.get("new_password")
-    
+
     if not current_password or not new_password:
-        return Response({"error": "Current and new password are required."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        return Response(
+            {"error": "Current and new password are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if not user.check_password(current_password):
-        return Response({"error": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        return Response(
+            {"error": "Current password is incorrect."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if len(new_password) < 8:
-        return Response({"error": "Password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        return Response(
+            {"error": "Password must be at least 8 characters long."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     user.set_password(new_password)
     user.save()
     return Response({"message": "Password changed successfully."})
@@ -349,6 +372,7 @@ def clock_history(request):
         )
     return Response(data)
 
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_user_profile(request, user_id):
@@ -357,19 +381,23 @@ def get_user_profile(request, user_id):
         target_user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=404)
-    
+
     profile, _ = Profile.objects.get_or_create(user=target_user)
-    
+
     # Only return data if they share an active workspace
     membership = (
         target_user.memberships.filter(
-            is_active=True, 
-            workspace__memberships__user=request.user, 
-            workspace__memberships__is_active=True
-        ).select_related("workspace").first()
+            is_active=True,
+            workspace__memberships__user=request.user,
+            workspace__memberships__is_active=True,
+        )
+        .select_related("workspace")
+        .first()
     )
-    
+
     if not membership:
-        return Response({"error": "You do not have permission to view this profile."}, status=403)
-        
+        return Response(
+            {"error": "You do not have permission to view this profile."}, status=403
+        )
+
     return build_user_response(target_user, profile, membership)

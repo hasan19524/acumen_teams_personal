@@ -732,48 +732,50 @@ export default function SettingsPage() {
               )}
 
               {/* WORKSPACE TAB */}
-              {activeTab === "workspace" && user?.role === "owner" && (
+              {activeTab === "workspace" && (
                 <div className="space-y-8">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold">Workspace Settings</h2>
-                    {!isEditingWs ? (
-                      <button
-                        onClick={() => setIsEditingWs(true)}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
-                        style={{
-                          background: tk.surfaceHover,
-                          color: tk.brandLight,
-                        }}
-                      >
-                        <Edit3 size={14} /> Edit Workspace
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2">
+                    {user?.role === "owner" && (
+                      !isEditingWs ? (
                         <button
-                          onClick={handleCancelWsEdit}
+                          onClick={() => setIsEditingWs(true)}
                           className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
                           style={{
-                            background: tk.bg,
-                            color: tk.textSecondary,
-                            border: `1px solid ${tk.border}`,
+                            background: tk.surfaceHover,
+                            color: tk.brandLight,
                           }}
                         >
-                          <X size={14} /> Cancel
+                          <Edit3 size={14} /> Edit Workspace
                         </button>
-                        <button
-                          onClick={handleSaveWorkspace}
-                          disabled={isSavingWs}
-                          className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors flex items-center gap-2 disabled:opacity-50"
-                          style={{ background: tk.brand }}
-                        >
-                          {isSavingWs ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Check size={14} />
-                          )}
-                          {isSavingWs ? "Saving..." : "Save Changes"}
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleCancelWsEdit}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors"
+                            style={{
+                              background: tk.bg,
+                              color: tk.textSecondary,
+                              border: `1px solid ${tk.border}`,
+                            }}
+                          >
+                            <X size={14} /> Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveWorkspace}
+                            disabled={isSavingWs}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+                            style={{ background: tk.brand }}
+                          >
+                            {isSavingWs ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Check size={14} />
+                            )}
+                            {isSavingWs ? "Saving..." : "Save Changes"}
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -885,7 +887,7 @@ export default function SettingsPage() {
                           </div>
                         )}
 
-                        {/* Leave Workspace */}
+                        {/* Leave Workspace (Visible to ALL members) */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 rounded-xl" style={{ background: tk.bg, border: `1px solid ${tk.border}` }}>
                           <div className="flex items-start gap-3">
                             <LogOut size={18} style={{ color: tk.textMuted, marginTop: 2 }} />
@@ -916,20 +918,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {activeTab === "workspace" && user?.role !== "owner" && (
-                <div className="text-center py-10">
-                  <Building
-                    size={32}
-                    className="mx-auto mb-4"
-                    style={{ color: tk.textMuted }}
-                  />
-                  <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-                  <p style={{ color: tk.textMuted }}>
-                    Only workspace owners and admins can manage workspace
-                    settings.
-                  </p>
-                </div>
-              )}
+              {/* The Access Denied block has been removed so standard members can view the workspace info and leave the workspace. */}
 
               {/* NOTIFICATIONS TAB */}
               {activeTab === "notifications" && (

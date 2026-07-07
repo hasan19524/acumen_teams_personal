@@ -14,11 +14,9 @@ import {
   AlertTriangle,
   X,
   Trash2,
-  ArrowRightCircle,
   MoreHorizontal,
   Shield,
   Link as LinkIcon,
-  Crown,
 } from "lucide-react";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import {
@@ -98,10 +96,10 @@ export default function TeamPage() {
           ),
         ]);
       setUsers(Array.isArray(membersData) ? membersData : []);
-      // Filter: Team page shows custom teams + Unassigned system team, NOT General
       const filtered = Array.isArray(teamsData)
         ? teamsData.filter(
-            (t: Team) => t.team_type !== "general" && t.name?.toLowerCase() !== "general"
+            (t: Team) =>
+              t.team_type !== "general" && t.name?.toLowerCase() !== "general",
           )
         : [];
       setTeams(filtered);
@@ -176,20 +174,6 @@ export default function TeamPage() {
         is_private: editIsPrivate,
         color: editColor,
       });
-
-      const currentLeader = users.find((u) =>
-        selectedTeam.leaders.includes(u.username),
-      );
-      const currentLeaderId = currentLeader
-        ? String(currentLeader.user_id)
-        : "";
-      if (editLeaderId && editLeaderId !== currentLeaderId) {
-        await workspaceService.promoteTeamLeader(
-          selectedTeam.id,
-          Number(editLeaderId),
-        );
-      }
-
       fetchAllData();
       setIsEditingTeam(false);
       setSelectedTeam(null);
@@ -225,7 +209,7 @@ export default function TeamPage() {
     try {
       await workspaceService.promoteTeamLeader(selectedTeam.id, userId);
       await fetchAllData();
-      await refreshUser(); // Sync global state instantly
+      await refreshUser();
     } catch (err: any) {
       alert(err.message || "Failed to promote leader");
     }
@@ -236,7 +220,7 @@ export default function TeamPage() {
     try {
       await workspaceService.demoteTeamLeader(selectedTeam.id, userId);
       await fetchAllData();
-      await refreshUser(); // Sync global state instantly
+      await refreshUser();
     } catch (err: any) {
       alert(err.message || "Failed to demote leader");
     }
@@ -249,7 +233,6 @@ export default function TeamPage() {
       await fetchAllData();
       setShowAddMemberModal(false);
     } catch (err: any) {
-      // Fix: Clean up raw Django JSON response if it exists
       let errorMsg = "Failed to add member to team.";
       if (err.message) {
         try {
@@ -307,14 +290,27 @@ export default function TeamPage() {
     );
   };
 
+  const menuBtnStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    background: "transparent",
+    border: "none",
+    color: tk.textSecondary,
+    fontSize: 13,
+    width: "100%",
+    textAlign: "left",
+    cursor: "pointer",
+  };
+
   return (
     <main
+      className="min-h-full w-full"
       style={{
-        minHeight: "100vh",
         background: tk.bg,
         color: tk.textPrimary,
         fontFamily: "'Inter', sans-serif",
-        padding: "32px 40px",
       }}
     >
       <style>{`
@@ -322,204 +318,129 @@ export default function TeamPage() {
         .skeleton { background: linear-gradient(90deg, ${tk.surface} 25%, ${tk.surfaceHover} 50%, ${tk.surface} 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
         .member-row:hover { background: ${tk.surfaceHover} !important; }
       `}</style>
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        {/* HEADER */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "24px",
-          }}
-        >
-          <div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700 }}>
-              Workspace Administration
-            </h1>
-            <p
-              style={{
-                margin: "6px 0 0",
-                color: tk.textSecondary,
-                fontSize: "14px",
-              }}
-            >
-              Manage members, teams and permissions.
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
+
+      {/* =========================================
+          1. LOCKED TOP SECTION (Sticky)
+      ========================================= */}
+      <div className="sticky top-0 z-10 p-4 md:p-8 pb-4 bg-[#081325] border-b border-[#2A3A5C]/50">
+        <div className="max-w-7xl mx-auto">
+          {/* HEADER */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold">
+                Workspace Administration
+              </h1>
+              <p className="text-sm mt-1" style={{ color: tk.textSecondary }}>
+                Manage members, teams and permissions.
+              </p>
+            </div>
             {isAdmin && (
-              <button
-                onClick={() => setShowInviteModal(true)}
-                style={{
-                  height: 40,
-                  padding: "0 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: tk.brand,
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <UserPlus size={16} /> Invite
-              </button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+                  style={{ background: tk.brand, color: "#fff" }}
+                >
+                  <UserPlus size={16} /> Invite
+                </button>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border"
+                  style={{ borderColor: tk.borderHover, color: tk.textPrimary }}
+                >
+                  <Plus size={16} /> Create Team
+                </button>
+              </div>
             )}
-            {isAdmin && (
-              <button
-                onClick={() => setShowCreateModal(true)}
+          </div>
+
+          {/* SUMMARY CARDS */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+            <SummaryCard
+              label="Members"
+              value={isLoading ? "..." : (statsData?.total_members ?? 0)}
+              icon={Users}
+              color={tk.brandLight}
+            />
+            <SummaryCard
+              label="Teams"
+              value={isLoading ? "..." : teams.length}
+              icon={Building2}
+              color={tk.brand}
+            />
+            <SummaryCard
+              label="Pending Invites"
+              value={
+                isLoading ? "..." : inviteCounts.workspace + inviteCounts.teams
+              }
+              icon={Mail}
+              color={tk.warning}
+            />
+            <SummaryCard
+              label="Leaders"
+              value={isLoading ? "..." : (statsData?.total_leaders ?? 0)}
+              icon={Shield}
+              color={tk.success}
+              onClick={() => !isLoading && setShowLeadersModal(true)}
+              interactive={!isLoading}
+            />
+          </div>
+
+          {/* CONTROLS */}
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: tk.textMuted }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search teams, members, leaders..."
+                className="w-full pl-11 pr-4 py-2.5 rounded-lg border outline-none text-sm"
                 style={{
-                  height: 40,
-                  padding: "0 16px",
-                  borderRadius: 8,
-                  border: `1px solid ${tk.borderHover}`,
-                  background: "transparent",
+                  borderColor: tk.border,
+                  background: tk.surface,
                   color: tk.textPrimary,
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
                 }}
-              >
-                <Plus size={16} /> Create Team
-              </button>
-            )}
+              />
+            </div>
+            <div
+              className="flex gap-1 p-1 rounded-lg border"
+              style={{ background: tk.surface, borderColor: tk.border }}
+            >
+              {(["teams", "members", "invites"] as Tab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-semibold capitalize transition-colors"
+                  style={{
+                    background: activeTab === tab ? tk.brand : "transparent",
+                    color: activeTab === tab ? "#fff" : tk.textSecondary,
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* SUMMARY CARDS */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 16,
-            marginBottom: 24,
-          }}
-        >
-          <SummaryCard
-            label="Members"
-            value={isLoading ? "..." : (statsData?.total_members ?? 0)}
-            icon={Users}
-            color={tk.brandLight}
-          />
-          <SummaryCard
-            label="Teams"
-            value={isLoading ? "..." : teams.length}
-            icon={Building2}
-            color={tk.brand}
-          />
-          <SummaryCard
-            label="Pending Invites"
-            value={
-              isLoading ? "..." : inviteCounts.workspace + inviteCounts.teams
-            }
-            icon={Mail}
-            color={tk.warning}
-          />
-          <SummaryCard
-            label="Leaders"
-            value={isLoading ? "..." : (statsData?.total_leaders ?? 0)}
-            icon={Shield}
-            color={tk.success}
-            onClick={() => !isLoading && setShowLeadersModal(true)}
-            interactive={!isLoading}
-          />
-        </div>
-
-        {/* CONTROLS */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            marginBottom: 24,
-            alignItems: "center",
-          }}
-        >
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute",
-                left: 14,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: tk.textMuted,
-                pointerEvents: "none",
-              }}
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search teams, members, leaders..."
-              style={{
-                width: "100%",
-                padding: "10px 16px 10px 40px",
-                borderRadius: 8,
-                border: `1px solid ${tk.border}`,
-                background: tk.surface,
-                color: tk.textPrimary,
-                fontSize: 14,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 2,
-              background: tk.surface,
-              padding: 3,
-              borderRadius: 8,
-              border: `1px solid ${tk.border}`,
-            }}
-          >
-            {(["teams", "members", "invites"] as Tab[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: activeTab === tab ? tk.brand : "transparent",
-                  color: activeTab === tab ? "#fff" : tk.textSecondary,
-                  fontWeight: 600,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* CONTENT AREA */}
+      {/* =========================================
+          2. SCROLLABLE LOWER SECTION
+      ========================================= */}
+      <div className="p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
         {activeTab === "teams" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: 16,
-            }}
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoading ? (
               [1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="skeleton"
-                  style={{
-                    height: 180,
-                    borderRadius: 16,
-                    border: `1px solid ${tk.border}`,
-                  }}
+                  className="skeleton h-48 rounded-2xl border"
+                  style={{ borderColor: tk.border }}
                 />
               ))
             ) : filteredTeams.length === 0 ? (
@@ -543,12 +464,6 @@ export default function TeamPage() {
                     setEditDesc(t.description || "");
                     setIsEditPrivate(t.is_private);
                     setEditColor(t.color || "#4B1587");
-                    const currentLeader = users.find((u) =>
-                      t.leaders.includes(u.username),
-                    );
-                    setEditLeaderId(
-                      currentLeader ? String(currentLeader.user_id) : "",
-                    );
                     setIsEditingTeam(false);
                   }}
                 />
@@ -558,13 +473,15 @@ export default function TeamPage() {
         )}
 
         {activeTab === "members" && (
-          <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl">
+          <div
+            className="rounded-xl border overflow-hidden"
+            style={{ background: tk.surface, borderColor: tk.border }}
+          >
+            {/* Desktop Header */}
             <div
+              className="hidden md:grid grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b"
               style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr 40px",
-                padding: "12px 16px",
-                borderBottom: `1px solid ${tk.border}`,
+                borderColor: tk.border,
                 color: tk.textMuted,
                 fontSize: 11,
                 fontWeight: 700,
@@ -578,17 +495,11 @@ export default function TeamPage() {
               <div>Joined</div>
               <div></div>
             </div>
+
             {isLoading ? (
               <div
-                style={{
-                  padding: 40,
-                  textAlign: "center",
-                  color: tk.textMuted,
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 8,
-                }}
+                className="p-10 text-center flex justify-center items-center gap-2"
+                style={{ color: tk.textMuted }}
               >
                 <Loader2 size={16} className="animate-spin" /> Loading
                 members...
@@ -609,12 +520,11 @@ export default function TeamPage() {
                 return (
                   <div
                     key={u.user_id || i}
-                    className="member-row grid grid-cols-2 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b border-[#2A3A5C] last:border-0 items-center transition-colors cursor-pointer relative"
+                    className="member-row grid grid-cols-2 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b last:border-0 items-center cursor-pointer relative"
+                    style={{ borderColor: tk.border }}
                     onClick={() => openProfile(u)}
                   >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 12 }}
-                    >
+                    <div className="flex items-center gap-3 col-span-2 md:col-span-1">
                       <Avatar
                         user={u}
                         src={u.profile_image}
@@ -622,27 +532,28 @@ export default function TeamPage() {
                         size="sm"
                       />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>
+                        <div className="font-semibold text-sm">
                           {u.full_name || u.username}
                         </div>
-                        <div style={{ fontSize: 12, color: tk.textMuted }}>
+                        <div
+                          className="text-xs"
+                          style={{ color: tk.textMuted }}
+                        >
                           @{u.username}
                         </div>
                       </div>
                     </div>
-                    <div>
+                    <div className="hidden md:block">
                       <RoleBadge role={u.role} isLeader={isLeader} />
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    <div className="hidden md:flex flex-wrap gap-1">
                       {u.teams && u.teams.length > 0 ? (
                         u.teams.map((t) => (
                           <span
                             key={t.id}
+                            className="text-[10px] px-1.5 py-0.5 rounded"
                             style={{
-                              fontSize: 10,
-                              padding: "2px 6px",
                               background: tk.bg,
-                              borderRadius: 4,
                               color: tk.textSecondary,
                             }}
                           >
@@ -650,27 +561,30 @@ export default function TeamPage() {
                           </span>
                         ))
                       ) : (
-                        <span style={{ fontSize: 12, color: tk.textMuted }}>
+                        <span
+                          className="text-xs"
+                          style={{ color: tk.textMuted }}
+                        >
                           Unassigned
                         </span>
                       )}
                     </div>
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
+                    <div className="hidden md:flex items-center gap-1.5">
                       <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: tk.success,
-                        }}
+                        className="w-2 h-2 rounded-full"
+                        style={{ background: tk.success }}
                       />
-                      <span style={{ fontSize: 13, color: tk.textSecondary }}>
+                      <span
+                        className="text-xs"
+                        style={{ color: tk.textSecondary }}
+                      >
                         Active
                       </span>
                     </div>
-                    <div style={{ fontSize: 13, color: tk.textSecondary }}>
+                    <div
+                      className="hidden md:block text-xs"
+                      style={{ color: tk.textSecondary }}
+                    >
                       {new Date(u.joined_at).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -678,7 +592,7 @@ export default function TeamPage() {
                       })}
                     </div>
                     <div
-                      style={{ display: "flex", justifyContent: "center" }}
+                      className="flex justify-end"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {isAdmin && (
@@ -688,28 +602,18 @@ export default function TeamPage() {
                               openMenuId === u.user_id ? null : u.user_id,
                             )
                           }
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: tk.textMuted,
-                            cursor: "pointer",
-                          }}
+                          className="p-1"
+                          style={{ color: tk.textMuted }}
                         >
                           <MoreHorizontal size={18} />
                         </button>
                       )}
                       {openMenuId === u.user_id && (
                         <div
+                          className="absolute top-10 right-2 z-20 w-48 rounded-lg shadow-2xl border"
                           style={{
-                            position: "absolute",
-                            top: 40,
-                            right: 10,
                             background: tk.surface,
-                            border: `1px solid ${tk.borderHover}`,
-                            borderRadius: 8,
-                            zIndex: 20,
-                            width: 180,
-                            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                            borderColor: tk.borderHover,
                           }}
                         >
                           <button
@@ -731,12 +635,9 @@ export default function TeamPage() {
                             Move Team
                           </button>
                           <div
-                            style={{
-                              height: 1,
-                              background: tk.border,
-                              margin: "4px 0",
-                            }}
-                          />
+                            className="h-px my-1"
+                            style={{ background: tk.border }}
+                          ></div>
                           <button
                             onClick={() => {
                               setConfirmAction({ type: "remove", user: u });
@@ -758,77 +659,39 @@ export default function TeamPage() {
 
         {activeTab === "invites" && (
           <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
+            className="rounded-xl border overflow-hidden"
+            style={{ background: tk.surface, borderColor: tk.border }}
           >
             <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "16px 24px",
-                borderBottom: `1px solid ${tk.border}`,
-              }}
+              className="flex justify-between items-center p-4 border-b"
+              style={{ borderColor: tk.border }}
             >
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                Active Invite Links
-              </h3>
+              <h3 className="text-base font-bold">Active Invite Links</h3>
               <button
                 onClick={() => setShowInviteModal(true)}
-                style={{
-                  height: 36,
-                  padding: "0 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: tk.brand,
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+                style={{ background: tk.brand, color: "#fff" }}
               >
                 <Plus size={14} /> Generate New
               </button>
             </div>
             {activeLinks.length === 0 ? (
-              <div
-                style={{
-                  padding: 40,
-                  textAlign: "center",
-                  color: tk.textMuted,
-                }}
-              >
+              <div className="p-10 text-center" style={{ color: tk.textMuted }}>
                 No active invite links. Click "Generate New" to invite someone.
               </div>
             ) : (
               activeLinks.map((link, i) => (
                 <div
                   key={link.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 1fr",
-                    padding: "12px 24px",
-                    borderBottom:
-                      i !== activeLinks.length - 1
-                        ? `1px solid ${tk.border}`
-                        : "none",
-                    alignItems: "center",
-                    fontSize: 13,
-                    color: tk.textSecondary,
-                  }}
+                  className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border-b last:border-0 text-sm"
+                  style={{ borderColor: tk.border, color: tk.textSecondary }}
                 >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
+                  <div className="flex items-center gap-2">
                     <LinkIcon size={14} color={tk.brandLight} />
-                    <span style={{ color: tk.textPrimary, fontWeight: 500 }}>
+                    <span
+                      className="font-medium"
+                      style={{ color: tk.textPrimary }}
+                    >
                       {link.role_to_assign}
                     </span>
                   </div>
@@ -838,10 +701,8 @@ export default function TeamPage() {
                   </div>
                   <div>By: {link.created_by}</div>
                   <div
-                    style={{
-                      color: link.is_valid ? tk.success : tk.textMuted,
-                      fontWeight: 600,
-                    }}
+                    className="font-semibold"
+                    style={{ color: link.is_valid ? tk.success : tk.textMuted }}
                   >
                     {link.is_valid ? "Active" : "Expired"}
                   </div>
@@ -850,8 +711,9 @@ export default function TeamPage() {
             )}
           </div>
         )}
+        </div>
       </div>
-      {/* MODALS & DRAWERS */}
+
       <CreateTeamModal
         showModal={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -897,72 +759,37 @@ export default function TeamPage() {
         onPromote={handlePromoteLeader}
         onDemote={handleDemoteLeader}
       />
-      
       <InviteManager
         showModal={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         teams={teams}
       />
-      {/* LEADERS DIRECTORY MODAL */}
+
       {showLeadersModal && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
+          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           onClick={() => setShowLeadersModal(false)}
         >
           <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.borderHover}`,
-              borderRadius: 12,
-              width: "100%",
-              maxWidth: 500,
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
+            className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl border"
+            style={{ background: tk.surface, borderColor: tk.borderHover }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              style={{
-                padding: "16px 20px",
-                borderBottom: `1px solid ${tk.border}`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
+              className="flex justify-between items-center p-4 border-b"
+              style={{ borderColor: tk.border }}
             >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
+              <h3 className="text-base font-bold flex items-center gap-2">
                 <Shield size={18} color={tk.success} /> Leaders Directory
               </h3>
               <button
                 onClick={() => setShowLeadersModal(false)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: tk.textMuted,
-                  cursor: "pointer",
-                }}
+                style={{ color: tk.textMuted }}
               >
                 <X size={20} />
               </button>
             </div>
-            <div style={{ padding: 20 }}>
+            <div className="p-4">
               {["owner", "admin", "member"].map((role) => {
                 const roleUsers = users.filter(
                   (u) =>
@@ -972,44 +799,34 @@ export default function TeamPage() {
                 );
                 if (roleUsers.length === 0) return null;
                 return (
-                  <div key={role} style={{ marginBottom: 20 }}>
+                  <div key={role} className="mb-5">
                     <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: tk.textMuted,
-                        textTransform: "uppercase",
-                        marginBottom: 8,
-                      }}
+                      className="text-[11px] font-bold uppercase mb-2"
+                      style={{ color: tk.textMuted }}
                     >
                       {role === "member" ? "Team Leaders" : role + "s"}
                     </div>
                     {roleUsers.map((u) => (
                       <div
                         key={u.user_id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: "8px 0",
-                        }}
+                        className="flex items-center gap-3 py-2"
                       >
                         <Avatar
                           user={u}
                           name={u.full_name || u.username}
                           size="sm"
                         />
-                        <div style={{ flex: 1 }}>
+                        <div className="flex-1">
                           <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: tk.textPrimary,
-                            }}
+                            className="text-sm font-semibold"
+                            style={{ color: tk.textPrimary }}
                           >
                             {u.full_name || u.username}
                           </div>
-                          <div style={{ fontSize: 12, color: tk.textMuted }}>
+                          <div
+                            className="text-xs"
+                            style={{ color: tk.textMuted }}
+                          >
                             @{u.username}{" "}
                             {u.teams.length > 0 &&
                               `• Leads: ${u.teams
@@ -1031,47 +848,19 @@ export default function TeamPage() {
           </div>
         </div>
       )}
-      {/* MEMBER ACTION MODALS */}
+
       {confirmAction && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
+          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           onClick={() => setConfirmAction(null)}
         >
           <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: 12,
-              padding: 24,
-              width: "100%",
-              maxWidth: 400,
-            }}
+            className="w-full max-w-sm p-6 rounded-xl border"
+            style={{ background: tk.surface, borderColor: tk.border }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  textTransform: "capitalize",
-                }}
-              >
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-base font-bold capitalize">
                 {confirmAction.type === "remove"
                   ? "Remove Member"
                   : confirmAction.type === "role"
@@ -1080,56 +869,31 @@ export default function TeamPage() {
               </h3>
               <button
                 onClick={() => setConfirmAction(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: tk.textMuted,
-                  cursor: "pointer",
-                }}
+                style={{ color: tk.textMuted }}
               >
                 <X size={20} />
               </button>
             </div>
             {confirmAction.type === "remove" && (
               <div>
-                <p
-                  style={{
-                    color: tk.textSecondary,
-                    fontSize: 14,
-                    margin: "0 0 20px",
-                  }}
-                >
+                <p className="text-sm mb-5" style={{ color: tk.textSecondary }}>
                   Remove{" "}
                   <b style={{ color: tk.textPrimary }}>
                     {confirmAction.user.full_name}
                   </b>{" "}
                   from the workspace?
                 </p>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex gap-2">
                   <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: `1px solid ${tk.border}`,
-                      background: "transparent",
-                      color: tk.textSecondary,
-                      cursor: "pointer",
-                    }}
+                    className="flex-1 p-2.5 rounded-lg border"
+                    style={{ borderColor: tk.border, color: tk.textSecondary }}
                     onClick={() => setConfirmAction(null)}
                   >
                     Cancel
                   </button>
                   <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: "none",
-                      background: tk.primary,
-                      color: "#fff",
-                      cursor: "pointer",
-                    }}
+                    className="flex-1 p-2.5 rounded-lg"
+                    style={{ background: tk.primary, color: "#fff" }}
                     onClick={() =>
                       handleMemberAction("remove", confirmAction.user.user_id)
                     }
@@ -1144,44 +908,27 @@ export default function TeamPage() {
                 <select
                   id="role-select"
                   defaultValue={confirmAction.user.role}
+                  className="w-full p-2.5 rounded-lg border mb-5"
                   style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: `1px solid ${tk.border}`,
+                    borderColor: tk.border,
                     background: tk.bg,
                     color: tk.textPrimary,
-                    marginBottom: 20,
                   }}
                 >
                   <option value="admin">Admin</option>
                   <option value="member">Member</option>
                 </select>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex gap-2">
                   <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: `1px solid ${tk.border}`,
-                      background: "transparent",
-                      color: tk.textSecondary,
-                      cursor: "pointer",
-                    }}
+                    className="flex-1 p-2.5 rounded-lg border"
+                    style={{ borderColor: tk.border, color: tk.textSecondary }}
                     onClick={() => setConfirmAction(null)}
                   >
                     Cancel
                   </button>
                   <button
-                    style={{
-                      flex: 1,
-                      padding: 10,
-                      borderRadius: 8,
-                      border: "none",
-                      background: tk.brand,
-                      color: "#fff",
-                      cursor: "pointer",
-                    }}
+                    className="flex-1 p-2.5 rounded-lg"
+                    style={{ background: tk.brand, color: "#fff" }}
                     onClick={() => {
                       const newRole = (
                         document.getElementById(
@@ -1200,90 +947,42 @@ export default function TeamPage() {
                 </div>
               </div>
             )}
-            {/* Move Team action removed from global Member Drawer to prevent logic flaws */}
           </div>
         </div>
       )}
-      {/* DELETE CONFIRMATION */}
+
       {confirmDeleteTeam && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
+          className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
           onClick={() => setConfirmDeleteTeam(null)}
         >
           <div
-            style={{
-              background: tk.surface,
-              border: `1px solid ${tk.border}`,
-              borderRadius: 12,
-              padding: 28,
-              width: "100%",
-              maxWidth: 400,
-              textAlign: "center",
-            }}
+            className="w-full max-w-sm p-7 rounded-xl border text-center"
+            style={{ background: tk.surface, borderColor: tk.border }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: `${tk.primary}15`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 16px",
-              }}
+              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ background: `${tk.primary}15` }}
             >
               <AlertTriangle size={24} color={tk.primary} />
             </div>
-            <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>
-              Delete Team?
-            </h3>
-            <p
-              style={{
-                margin: "0 0 24px",
-                color: tk.textSecondary,
-                fontSize: 14,
-              }}
-            >
+            <h3 className="text-lg font-bold mb-2">Delete Team?</h3>
+            <p className="text-sm mb-6" style={{ color: tk.textSecondary }}>
               Members will be moved to "Unassigned". This cannot be undone.
             </p>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div className="flex gap-3">
               <button
+                className="flex-1 p-3 rounded-lg border font-semibold"
+                style={{ borderColor: tk.border, color: tk.textSecondary }}
                 onClick={() => setConfirmDeleteTeam(null)}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 8,
-                  border: `1px solid ${tk.border}`,
-                  background: "transparent",
-                  color: tk.textSecondary,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
               >
                 Cancel
               </button>
               <button
+                className="flex-1 p-3 rounded-lg font-semibold"
+                style={{ background: tk.primary, color: "#fff" }}
                 onClick={handleDeleteTeam}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "none",
-                  background: tk.primary,
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
               >
                 Delete
               </button>
@@ -1295,21 +994,6 @@ export default function TeamPage() {
   );
 }
 
-const menuBtnStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  padding: "8px 12px",
-  background: "transparent",
-  border: "none",
-  color: tk.textSecondary,
-  fontSize: 13,
-  width: "100%",
-  textAlign: "left",
-  cursor: "pointer",
-};
-
-// Sub Components
 const SummaryCard = ({
   label,
   value,
@@ -1320,13 +1004,11 @@ const SummaryCard = ({
 }: any) => (
   <div
     onClick={onClick}
+    className="p-4 md:p-5 rounded-xl border transition-colors"
     style={{
       background: tk.surface,
-      border: `1px solid ${tk.border}`,
-      borderRadius: 12,
-      padding: 20,
+      borderColor: tk.border,
       cursor: interactive ? "pointer" : "default",
-      transition: "border-color 0.2s",
     }}
     onMouseEnter={(e) =>
       interactive && (e.currentTarget.style.borderColor = tk.borderHover)
@@ -1335,43 +1017,35 @@ const SummaryCard = ({
       interactive && (e.currentTarget.style.borderColor = tk.border)
     }
   >
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 12,
-      }}
-    >
-      <span style={{ color: tk.textMuted, fontSize: 13, fontWeight: 500 }}>
+    <div className="flex justify-between items-center mb-3">
+      <span
+        className="text-xs md:text-sm font-medium"
+        style={{ color: tk.textMuted }}
+      >
         {label}
       </span>
       <Icon size={18} style={{ color, opacity: 0.8 }} />
     </div>
-    <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+    <div className="text-xl md:text-2xl font-bold">{value}</div>
   </div>
 );
 
 const EmptyState = ({ icon: Icon, title, subtitle }: any) => (
   <div
+    className="col-span-full p-12 text-center rounded-xl border flex flex-col items-center gap-3"
     style={{
-      gridColumn: "1 / -1",
-      padding: 48,
-      textAlign: "center",
       color: tk.textMuted,
       background: tk.surface,
-      border: `1px solid ${tk.border}`,
-      borderRadius: 12,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 12,
+      borderColor: tk.border,
     }}
   >
     <Icon size={32} style={{ opacity: 0.4 }} />
-    <div style={{ fontWeight: 600, fontSize: 15, color: tk.textSecondary }}>
+    <div
+      className="font-semibold text-base"
+      style={{ color: tk.textSecondary }}
+    >
       {title}
     </div>
-    <div style={{ fontSize: 13 }}>{subtitle}</div>
+    <div className="text-sm">{subtitle}</div>
   </div>
 );

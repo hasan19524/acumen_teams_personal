@@ -124,18 +124,8 @@ def all_teams(request, workspace_id):
     base_qs = Team.objects.filter(workspace_id=workspace_id).exclude(
         team_type=TeamType.GENERAL
     ).exclude(name__iexact="General")
-    # RBAC FIX: Admins/Owners see all. Members see teams they are active members of OR lead.
-    if membership.role in ("owner", "admin"):
-        teams = base_qs
-    else:
-        user_team_ids = TeamMembership.objects.filter(
-            user=request.user, is_active=True
-        ).values_list("team_id", flat=True)
-        # Ensure "Unassigned" is always visible to standard members
-        unassigned_team = Team.objects.filter(workspace_id=workspace_id, name__iexact="Unassigned").first()
-        if unassigned_team:
-            user_team_ids = list(user_team_ids) + [unassigned_team.id]
-        teams = base_qs.filter(id__in=user_team_ids)
+    # FIX: Any workspace member can see all teams and their members.
+    teams = base_qs
 
     # Get all active workspace user IDs to ensure we don't count "ghost" members 
     # (users who were removed from the workspace but still have team records)
@@ -198,12 +188,12 @@ def workspace_members(request, workspace_id):
         elif role == "manager":
             role = "admin"
 
-        # Fetch ALL active team memberships (excluding System Teams) for this user
+        # SSOT FIX: Include "Unassigned" team so frontend can group them correctly.
         user_teams_qs = TeamMembership.objects.filter(
             user=m.user,
             team__workspace_id=workspace_id,
             is_active=True,
-        ).exclude(team__team_type__in=[TeamType.UNASSIGNED, TeamType.GENERAL]).select_related("team")
+        ).exclude(team__team_type=TeamType.GENERAL).select_related("team")
 
         teams_list = [{"id": tm.team.id, "name": tm.team.name, "is_leader": tm.is_leader} for tm in user_teams_qs]
 
@@ -915,6 +905,10 @@ class UpdateMemberRoleView(WorkspaceBaseView):
 
         target.role = new_role
         target.save()
+        
+        # FIX: Sync Management Team membership when role changes
+        WorkspaceService.sync_management_team_membership(workspace, target.user)
+
         return Response(
             {
                 "message": f"Role updated to {new_role}.",
@@ -1633,8 +1627,9 @@ class WorkspaceSettingsView(WorkspaceBaseView):
         membership = WorkspaceMembership.objects.filter(
             user=request.user, workspace=workspace, is_active=True
         ).first()
-        if not membership or membership.role not in ("owner", "admin"):
-            return Response({"error": "Not authorized"}, status=403)
+        # FIX: Only the owner can edit workspace settings, not admins.
+        if not membership or membership.role != "owner":
+            return Response({"error": "Only the workspace owner can modify these settings."}, status=403)
 
         name = request.data.get("name")
         description = request.data.get("description")

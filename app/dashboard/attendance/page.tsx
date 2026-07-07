@@ -249,7 +249,7 @@ export default function AttendancePage() {
   const isManager = role === "leader" || role === "admin" || role === "owner";
 
   return (
-    <main className="h-full bg-[#081325] text-white font-sans flex flex-col overflow-hidden">
+    <main className="min-h-full w-full bg-[#081325] text-white font-sans">
       <style>{`
         .ac-hover { transition: all 0.15s ease; }
         .ac-hover:hover { background: ${tk.surfaceHover} !important; border-color: ${tk.border} !important; }
@@ -263,9 +263,9 @@ export default function AttendancePage() {
       `}</style>
 
       {/* =========================================
-          1. LOCKED TOP SECTION (No Scroll)
-      ========================================== */}
-      <div className="flex-shrink-0 p-4 sm:p-6 lg:p-8 border-b border-[#2A3A5C]/50">
+          1. LOCKED TOP SECTION (Sticky)
+      ========================================= */}
+      <div className="sticky top-0 z-10 p-4 sm:p-6 lg:p-8 pb-4 bg-[#081325] border-b border-[#2A3A5C]/50">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
           <div>
@@ -404,8 +404,8 @@ export default function AttendancePage() {
 
       {/* =========================================
           2. SCROLLABLE LOWER SECTION
-      ========================================== */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 lg:p-8 pt-6">
+      ========================================= */}
+      <div className="p-4 sm:p-6 lg:p-8 pt-6">
         {/* PERSONAL VIEW HISTORY */}
         {activeTab === "personal" && (
           <div className="fade-in">
