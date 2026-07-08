@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import {
-  getRandomQuote,
-  getGreeting,
-  updateLastActiveTime,
-} from "@/lib/content";
+import { getRandomQuote, updateLastActiveTime } from "@/lib/content";
 
 interface WelcomeExperienceProps {
   isBackendReady: boolean;
@@ -18,7 +14,8 @@ export default function WelcomeExperience({
   onFinished,
 }: WelcomeExperienceProps) {
   const [quote] = useState(getRandomQuote());
-  const [greeting] = useState(getGreeting());
+  // FIX: Hardcoded greeting for the welcome animation to keep it clean and consistent
+  const [greeting] = useState("Welcome Back");
   const [isExiting, setIsExiting] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
 
