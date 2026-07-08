@@ -123,7 +123,12 @@ def all_teams(request, workspace_id):
     base_qs = Team.objects.filter(workspace_id=workspace_id).exclude(
         team_type=TeamType.GENERAL
     ).exclude(name__iexact="General")
-    # FIX: Any workspace member can see all teams and their members.
+    
+    # FIX: Hide the "Management" team from standard members.
+    # Only Owners, Admins, and Leaders can see the Management team.
+    if membership.role not in ("owner", "admin", "leader"):
+        base_qs = base_qs.exclude(team_type=TeamType.MANAGEMENT)
+        
     teams = base_qs
 
     # Get all active workspace user IDs to ensure we don't count "ghost" members 
