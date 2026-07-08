@@ -129,6 +129,9 @@ export default function SignupPage() {
         if (data.workspace_id)
           localStorage.setItem("workspace_id", String(data.workspace_id));
 
+        // FIX: Trigger the welcome animation on successful signup
+        sessionStorage.setItem("show_welcome", "true");
+
         const params = new URLSearchParams(window.location.search);
         const redirectUrl = params.get("redirect");
         router.push(redirectUrl || "/dashboard");

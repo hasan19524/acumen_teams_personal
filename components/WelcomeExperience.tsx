@@ -72,7 +72,7 @@ export default function WelcomeExperience({
         </div>
 
         <h1
-          className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-[var(--heading)] mb-3 sm:mb-4 tracking-tight animate-fade-in-up"
+          className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-[var(--heading)] mb-3 sm:mb-4 tracking-tight animate-fade-in-up break-words"
           style={{ animationDelay: "0.8s" }}
         >
           {greeting}
@@ -86,7 +86,7 @@ export default function WelcomeExperience({
             Quote of the Day
           </p>
           <p
-            className="text-sm sm:text-lg md:text-xl font-medium italic animate-fade-in-up"
+            className="text-sm sm:text-lg md:text-xl font-medium italic animate-fade-in-up break-words"
             style={{ animationDelay: "2.4s", color: "var(--text-secondary)" }}
           >
             "{quote.quote}"

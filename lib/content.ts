@@ -48,10 +48,12 @@ export function getGreeting(): string {
   const day = now.getDay(); // 0 = Sunday, 6 = Saturday
   const hour = now.getHours();
 
-  let timeOfDay: "morning" | "afternoon" | "evening";
-  if (hour < 12) timeOfDay = "morning";
-  else if (hour < 18) timeOfDay = "afternoon";
-  else timeOfDay = "evening";
+  let timeOfDay: "morning" | "afternoon" | "evening" | "night";
+  if (hour < 4) timeOfDay = "night"; // 12:00 AM to 3:59 AM
+  else if (hour < 12) timeOfDay = "morning"; // 4:00 AM to 11:59 AM
+  else if (hour < 18) timeOfDay = "afternoon"; // 12:00 PM to 5:59 PM
+  else if (hour < 22) timeOfDay = "evening"; // 6:00 PM to 9:59 PM
+  else timeOfDay = "night"; // 10:00 PM to 11:59 PM
 
   if (day === 0 || day === 6) {
     const weekendGreetings = greetings.weekend;

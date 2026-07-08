@@ -143,7 +143,7 @@ export default function DashboardTopbar({
             className="m-1 text-xl font-extrabold tracking-tight flex items-center gap-2"
             style={{ color: tk.textPrimary }}
           >
-            <span className="whitespace-nowrap overflow-hidden text-ellipsis">
+            <span className="break-words">
               {greeting}, {user?.full_name?.split(" ")[0] || "User"}
             </span>
             <Sparkles
@@ -230,7 +230,7 @@ export default function DashboardTopbar({
             className="m-1 text-2xl md:text-3xl font-extrabold tracking-tight flex items-center gap-3"
             style={{ color: tk.textPrimary }}
           >
-            <span className="truncate">
+            <span className="break-words">
               {greeting}, {user?.full_name?.split(" ")[0] || "User"}
             </span>
             <Sparkles
