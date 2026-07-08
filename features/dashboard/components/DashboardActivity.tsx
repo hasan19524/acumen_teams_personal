@@ -109,7 +109,12 @@ export default function DashboardActivity({
       `}</style>
       <div className="flex justify-between items-center mb-5">
         <div className="flex items-center gap-2.5">
-          <Activity size={20} style={{ color: tk.brandLight }} />
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: tk.tintTeal }}
+          >
+            <Activity size={16} style={{ color: tk.teal }} />
+          </div>
           <h3
             className="m-0 text-lg font-bold"
             style={{ color: tk.textPrimary }}

@@ -10,29 +10,50 @@ module.exports = {
     extend: {
       colors: {
         // Background Layers
-        background: "#081325",
-        "background-secondary": "#101D35",
+        background: "var(--bg)",
+        "background-secondary": "var(--bg-secondary)",
         // Surfaces
-        surface: "#172440",
-        "surface-secondary": "#20304E",
+        surface: "var(--surface)",
+        "surface-secondary": "var(--surface-hover)",
         // Sidebar
-        sidebar: "#0D1B3D",
-        "sidebar-hover": "#16284F",
-        "sidebar-active": "#2A3D73",
+        sidebar: "var(--sidebar)",
+        "sidebar-hover": "var(--sidebar-hover)",
+        "sidebar-active": "var(--sidebar-active)",
         // Brand Colors
-        primary: "#E31E24", // Red
-        brand: "#4B1587", // Purple
-        success: "#1FA463", // Green
-        warning: "#F5B041", // Warning
-        info: "#5DADE2", // Blue
+        primary: "var(--primary)",
+        brand: "var(--brand)",
+        "brand-hover": "var(--brand-hover)",
+        "brand-light": "var(--brand-light)",
+        danger: "var(--danger)",
+        "danger-hover": "var(--danger-hover)",
+        success: "var(--success)",
+        warning: "var(--warning)",
+        info: "var(--info)",
+        pink: "var(--pink)",
+        indigo: "var(--indigo)",
+        teal: "var(--teal)",
+        glass: "var(--glass)",
+        overlay: "var(--overlay)",
+        menu: "var(--menu)",
+        "bubble-mine": "var(--bubble-mine)",
+        "bubble-other": "var(--bubble-other)",
+        "tint-red": "var(--tint-red)",
+        "tint-indigo": "var(--tint-indigo)",
+        "tint-blue": "var(--tint-blue)",
+        "tint-green": "var(--tint-green)",
+        "tint-amber": "var(--tint-amber)",
+        "tint-teal": "var(--tint-teal)",
+        "tint-brand": "var(--tint-brand)",
+        "tint-danger": "var(--tint-danger)",
         // Text System
-        heading: "#FFFFFF",
-        "text-primary": "#E8ECF6",
-        "text-secondary": "#B7C0D8",
-        "text-muted": "#7A86A7",
+        heading: "var(--heading)",
+        "text-primary": "var(--text-primary)",
+        "text-secondary": "var(--text-secondary)",
+        "text-muted": "var(--text-muted)",
         // Borders
-        border: "#2A3A5C",
-        divider: "#24334F",
+        border: "var(--border)",
+        "border-hover": "var(--border-hover)",
+        divider: "var(--divider)",
       },
       borderRadius: {
         button: "12px",

@@ -3,12 +3,12 @@
 
 import { Pin, ChevronRight, Paperclip, AlertTriangle } from "lucide-react";
 import {
-  tk,
   Announcement,
   PriorityStyle,
   getAudienceLabel,
   getPriorityStyle,
 } from "../lib";
+import { tk } from "@/lib/tokens";
 
 interface AnnouncementCardProps {
   item: Announcement;

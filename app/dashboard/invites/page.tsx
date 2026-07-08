@@ -2,18 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Mail, Users, AlertTriangle } from "lucide-react";
+import { Search, Mail, AlertTriangle } from "lucide-react";
 import { tk } from "@/lib/tokens";
 import {
   loadInviteCounts,
-  loadInviteTab,
   InviteCounts,
-  respondTeamInvite,
 } from "@/features/chat/services/inviteService";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import { useAuth } from "@/hooks/useAuth";
 
-type TabKey = "workspace" | "teams";
+type TabKey = "workspace";
 
 export default function InvitesPage() {
   const router = useRouter();
@@ -25,19 +23,12 @@ export default function InvitesPage() {
   });
 
   // FIX: Removed "private_groups" tab as they are now handled in Chat Requests
+  // FIX: Removed "teams" tab as internal team invitations are obsolete.
   const tabs = useMemo(() => {
-    if (isIndependent) {
-      return [{ key: "workspace" as TabKey, label: "Workspace" }];
-    }
-    return [
-      { key: "workspace" as TabKey, label: "Workspace" },
-      { key: "teams" as TabKey, label: "Teams" },
-    ];
-  }, [isIndependent]);
+    return [{ key: "workspace" as TabKey, label: "Workspace" }];
+  }, []);
 
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    isIndependent ? "workspace" : "teams",
-  );
+  const [activeTab, setActiveTab] = useState<TabKey>("workspace");
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -48,8 +39,8 @@ export default function InvitesPage() {
   >(null);
 
   useEffect(() => {
-    setActiveTab(isIndependent ? "workspace" : "teams");
-  }, [isIndependent]);
+    setActiveTab("workspace");
+  }, []);
 
   const refreshCounts = async () => {
     try {
@@ -75,7 +66,7 @@ export default function InvitesPage() {
       if (tab === "workspace") {
         data = await workspaceService.getActiveInvites();
       } else {
-        data = await loadInviteTab(tab);
+        data = { items: [] }; // Obsolete tabs return empty
       }
 
       // FIX: Ensure we only ever show pending invites.
@@ -100,7 +91,7 @@ export default function InvitesPage() {
     const q = search.toLowerCase();
     return items.filter(
       (i) =>
-        (i.team_name || i.workspace_name || i.role_to_assign || "")
+        (i.team_name || i.workspace_name || i.role || "")
           .toLowerCase()
           .includes(q) ||
         (i.inviter_name || i.created_by || "").toLowerCase().includes(q),
@@ -118,8 +109,6 @@ export default function InvitesPage() {
         router.push("/dashboard");
         return;
       }
-      if (type === "teams") await respondTeamInvite(inviteId, "accepted");
-
       // FIX: Remove the item from the list instantly instead of updating status
       setItems((prev) => prev.filter((i) => i.id !== inviteId));
       refreshCounts();
@@ -133,8 +122,9 @@ export default function InvitesPage() {
   const handleReject = async (inviteId: number, type: TabKey) => {
     setActionLoading(inviteId);
     try {
-      if (type === "teams") await respondTeamInvite(inviteId, "rejected");
-
+      if (type === "workspace") {
+        await workspaceService.respondWorkspaceInvite(inviteId, "rejected");
+      }
       // FIX: Remove the item from the list instantly instead of updating status
       setItems((prev) => prev.filter((i) => i.id !== inviteId));
       refreshCounts();
@@ -172,79 +162,74 @@ export default function InvitesPage() {
       }}
     >
       <div className="max-w-[1400px] mx-auto p-4 md:p-8">
-        {/* HEADER */}
-        <div style={{ marginBottom: "24px" }}>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700 }}>
-            Invitations
-          </h1>
-          <p
+        {/* HEADER & WORKSPACE BADGE */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700 }}>
+              Invitations
+            </h1>
+            <p
+              style={{
+                margin: "6px 0 0",
+                color: tk.textSecondary,
+                fontSize: "14px",
+              }}
+            >
+              Review and respond to invitations sent to you.
+            </p>
+          </div>
+
+          {/* Workspace Invites Indicator (Replaces tabs) */}
+          <div
+            className="flex items-center gap-2 px-4 py-2 rounded-lg self-start sm:self-auto"
             style={{
-              margin: "6px 0 0",
-              color: tk.textSecondary,
-              fontSize: "14px",
+              background: tk.surface,
+              border: `1px solid ${tk.border}`,
             }}
           >
-            Review and respond to invitations sent to you.
-          </p>
-        </div>
-
-        {/* TABS */}
-        {tabs.length > 1 && (
-          <div className="flex gap-2 bg-[#172440] p-1.5 rounded-lg border border-[#2A3A5C] mb-6 overflow-x-auto">
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              const count = counts[tab.key] || 0;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-md font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-                    isActive
-                      ? "bg-[#4B1587] text-white"
-                      : "text-[#B7C0D8] hover:bg-[#20304E]"
-                  }`}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center ${
-                        isActive
-                          ? "bg-white/25 text-white"
-                          : "bg-[#E31E24] text-white"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            <Mail size={16} color={tk.brand} />
+            <span
+              className="text-sm font-semibold"
+              style={{ color: tk.textPrimary }}
+            >
+              Workspace Invites
+            </span>
+            {counts.workspace > 0 && (
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center"
+                style={{ background: tk.primary, color: "#fff" }}
+              >
+                {counts.workspace}
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
         {/* SEARCH BAR */}
         <div className="mb-6">
           <div className="relative">
             <Search
               size={16}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7A86A7] pointer-events-none"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
             />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search invitations..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#2A3A5C] bg-[#172440] text-white text-sm outline-none focus:border-[#5DADE2] transition-colors box-border"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--heading)] text-sm outline-none focus:border-[var(--brand-light)] transition-colors box-border"
             />
           </div>
         </div>
 
         {/* CONTENT */}
-        {loading ? (
-          <div className="text-center py-10 text-[#7A86A7]">Loading...</div>
+        {loading && items.length === 0 ? (
+          <div className="text-center py-10 text-[var(--text-muted)]">
+            Loading...
+          </div>
         ) : filteredItems.length === 0 ? (
-          <div className="p-10 md:p-16 text-center text-[#7A86A7] bg-[#172440] border border-[#2A3A5C] rounded-xl">
+          <div className="p-10 md:p-16 text-center text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl">
             <Mail size={48} className="opacity-30 mx-auto mb-5" />
-            <div className="font-semibold text-base text-[#B7C0D8] mb-2">
+            <div className="font-semibold text-base text-[var(--text-secondary)] mb-2">
               No pending invitations
             </div>
             <div className="text-sm leading-relaxed">
@@ -254,7 +239,7 @@ export default function InvitesPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-[#172440] border border-[#2A3A5C] rounded-xl overflow-hidden">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
             {filteredItems.map((inv, i) => {
               const title =
                 inv.team_name || inv.workspace_name || "Workspace Invite";
@@ -263,27 +248,22 @@ export default function InvitesPage() {
               return (
                 <div
                   key={inv.id}
-                  className="flex flex-col md:flex-row justify-between gap-4 p-4 md:p-5 border-b border-[#2A3A5C] last:border-b-0"
+                  className="flex flex-col md:flex-row justify-between gap-4 p-4 md:p-5 border-b border-[var(--border)] last:border-b-0"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{
-                        background:
-                          activeTab === "teams" ? tk.brand : tk.surfaceHover,
+                        background: tk.surfaceHover,
                       }}
                     >
-                      {activeTab === "teams" ? (
-                        <Users size={18} color="#fff" />
-                      ) : (
-                        <Mail size={18} color={tk.textSecondary} />
-                      )}
+                      <Mail size={18} color={tk.textSecondary} />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm text-white truncate">
+                      <div className="font-semibold text-sm text-[var(--heading)] truncate">
                         {title}
                       </div>
-                      <div className="text-xs text-[#B7C0D8] mt-1 truncate">
+                      <div className="text-xs text-[var(--text-secondary)] mt-1 truncate">
                         By <span className="font-medium">{invitedBy}</span>
                         {inv.expires_at &&
                           ` · Expires ${new Date(inv.expires_at).toLocaleDateString()}`}
@@ -295,14 +275,14 @@ export default function InvitesPage() {
                     <button
                       onClick={() => initiateAccept(inv.id, activeTab)}
                       disabled={actionLoading === inv.id}
-                      className="px-3 py-2 rounded-md bg-[#1FA463] text-white font-semibold text-xs cursor-pointer disabled:opacity-50 transition-opacity"
+                      className="px-3 py-2 rounded-md bg-[var(--success)] text-[var(--heading)] font-semibold text-xs cursor-pointer disabled:opacity-50 transition-opacity"
                     >
                       Accept
                     </button>
                     <button
                       onClick={() => handleReject(inv.id, activeTab)}
                       disabled={actionLoading === inv.id}
-                      className="px-3 py-2 rounded-md border border-[#2A3A5C] bg-transparent text-[#B7C0D8] font-semibold text-xs cursor-pointer disabled:opacity-50 transition-opacity"
+                      className="px-3 py-2 rounded-md border border-[var(--border)] bg-transparent text-[var(--text-secondary)] font-semibold text-xs cursor-pointer disabled:opacity-50 transition-opacity"
                     >
                       Decline
                     </button>
@@ -321,29 +301,29 @@ export default function InvitesPage() {
           onClick={() => setShowWarning(false)}
         >
           <div
-            className="bg-[#172440] border border-[#2A3A5C] rounded-xl p-6 w-full max-w-sm text-center"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-full bg-[#E31E24]/15 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle size={24} color="#E31E24" />
+            <div className="w-12 h-12 rounded-full bg-[var(--primary)]/15 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={24} color="var(--primary)" />
             </div>
-            <h3 className="m-0 mb-2 text-base font-bold text-white">
+            <h3 className="m-0 mb-2 text-base font-bold text-[var(--heading)]">
               Join New Workspace?
             </h3>
-            <p className="m-0 mb-6 text-[#B7C0D8] text-sm leading-relaxed">
+            <p className="m-0 mb-6 text-[var(--text-secondary)] text-sm leading-relaxed">
               You are currently in another workspace. Joining will require
               leaving it.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowWarning(false)}
-                className="flex-1 py-2.5 rounded-lg border border-[#2A3A5C] bg-transparent text-[#B7C0D8] font-semibold cursor-pointer hover:bg-[#20304E] transition-colors"
+                className="flex-1 py-2.5 rounded-lg border border-[var(--border)] bg-transparent text-[var(--text-secondary)] font-semibold cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmAndExecute}
-                className="flex-1 py-2.5 rounded-lg border-none bg-[#E31E24] text-white font-semibold cursor-pointer hover:bg-[#c71a20] transition-colors"
+                className="flex-1 py-2.5 rounded-lg border-none bg-[var(--primary)] text-[var(--heading)] font-semibold cursor-pointer hover:bg-[var(--danger-hover)] transition-colors"
               >
                 Join
               </button>

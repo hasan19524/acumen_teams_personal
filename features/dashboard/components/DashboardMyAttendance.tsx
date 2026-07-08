@@ -3,8 +3,9 @@ import { Calendar, CheckCircle, XCircle } from "lucide-react";
 import { tk } from "@/lib/tokens";
 
 export default function DashboardMyAttendance({ attendance }: any) {
+  // FIX: Use real backend calculations instead of hardcoded frontend math
   const presentDays = attendance?.present_days_14d ?? 0;
-  const absentDays = Math.max(0, 14 - presentDays);
+  const absentDays = attendance?.absent_days_14d ?? 0;
   const attendanceRate = attendance?.attendance_percentage_14d ?? 0;
 
   return (

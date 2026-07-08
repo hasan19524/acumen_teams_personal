@@ -2,6 +2,8 @@
 
 "use client";
 
+import { T } from "../design/tokens";
+
 interface ConnectionStatusProps {
   state: "connecting" | "connected" | "reconnecting" | "disconnected";
 }
@@ -15,13 +17,13 @@ export function ConnectionStatus({ state }: ConnectionStatusProps) {
     switch (state) {
       case "connected":
       case "connecting":
-        return "#10b981"; // Keep green during background connects
+        return T.success; // Keep green during background connects
       case "reconnecting":
-        return "#f59e0b";
+        return T.warning;
       case "disconnected":
-        return "#ef4444";
+        return T.danger;
       default:
-        return "#9ca3af";
+        return T.textMuted;
     }
   };
 
@@ -53,7 +55,9 @@ export function ConnectionStatus({ state }: ConnectionStatusProps) {
             : "none",
         }}
       />
-      {showText && <div style={{ fontSize: 13, opacity: 0.6 }}>{getStatusText()}</div>}
+      {showText && (
+        <div style={{ fontSize: 13, opacity: 0.6 }}>{getStatusText()}</div>
+      )}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }

@@ -90,7 +90,7 @@ export const workspaceService = {
     return res.json();
   },
 
-  inviteTeamMember: async (teamId: number, userId: number) => {
+  addTeamMember: async (teamId: number, userId: number) => {
     const wsId = getWorkspaceId();
     const res = await apiFetch(`/api/workspaces/${wsId}/teams/invite/`, {
       method: "POST",
@@ -98,7 +98,7 @@ export const workspaceService = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      throw new Error(data?.error || "Failed to send team invite");
+      throw new Error(data?.error || "Failed to add member to team");
     }
     return res.json();
   },
@@ -145,6 +145,13 @@ export const workspaceService = {
       const data = await res.json().catch(() => null);
       throw new Error(data?.error || "Failed to invite member");
     }
+    return res.json();
+  },
+
+  getActiveInvites: async () => {
+    // Independent users don't have a workspace_id, so we use the /me/ endpoint
+    const res = await apiFetch(`/api/workspaces/invites/me/`);
+    if (!res.ok) return { items: [] };
     return res.json();
   },
 

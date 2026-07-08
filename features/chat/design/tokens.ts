@@ -2,47 +2,50 @@
 
 export const T = {
   // Background Layers
-  bgApp: "#081325", // Main App Background
-  bgSidebar: "#0D1B3D", // Sidebar Background
-  bgSecondary: "#101D35", // Secondary Background (Topbar/Sections)
+  bgApp: "var(--bg)",
+  bgSidebar: "var(--sidebar)",
+  bgSecondary: "var(--bg-secondary)",
 
   // Surfaces
-  surface: "#172440", // Cards, Modals, Inputs
-  surfaceHover: "#20304E", // Hover states, Dropdowns
+  surface: "var(--surface)",
+  surfaceHover: "var(--surface-hover)",
 
   // Brand Colors
-  primary: "#E31E24", // Red (Actions, Badges, Active borders)
-  accent: "#4B1587", // Purple (Primary buttons, Own bubbles)
-  accentHover: "#3a1070", // Darker Purple
-  accentMuted: "rgba(75, 21, 135, 0.15)", // Muted Purple background
-  accentSubtle: "rgba(75, 21, 135, 0.1)",
+  primary: "var(--primary)",
+  accent: "var(--brand)",
+  accentHover: "var(--brand-hover)",
+  accentMuted: "color-mix(in srgb, var(--brand) 15%, transparent)",
+  accentSubtle: "color-mix(in srgb, var(--brand) 8%, transparent)",
 
-  info: "#5DADE2", // Blue (Links, Focus rings)
-  success: "#1FA463", // Green (Online, Success badges)
-  warning: "#F5B041", // Warning, Unread
-  danger: "#E31E24", // Danger (Delete)
-  dangerHover: "#C7151A",
+  info: "var(--info)",
+  success: "var(--success)",
+  warning: "var(--warning)",
+  danger: "var(--danger)",
+  dangerHover: "var(--danger-hover)",
+  indigo: "var(--indigo)",
+  teal: "var(--teal)",
+  disabled: "var(--border-hover)",
 
   // Text System
-  textPrimary: "#E8ECF6",
-  textSecondary: "#B7C0D8",
-  textMuted: "#7A86A7",
-  textFaint: "#475569",
+  textPrimary: "var(--text-primary)",
+  textSecondary: "var(--text-secondary)",
+  textMuted: "var(--text-muted)",
+  textFaint: "var(--text-muted)",
 
   // Borders
-  border: "#2A3A5C",
-  borderHover: "#3A4d72",
-  borderFocus: "#4B1587",
+  border: "var(--border)",
+  borderHover: "var(--border-hover)",
+  borderFocus: "var(--brand)",
 
   // Chat Specific
-  bgBubbleMine: "#4B1587", // Purple for own messages
-  bgBubbleOther: "#172440", // Surface for other messages
-  bgHover: "#20304E",
-  bgHoverStrong: "#20304E",
-  bgInputField: "#101D35",
-  bgModal: "#172440",
-  bgOverlay: "rgba(8, 19, 37, 0.8)",
-  bgMenu: "#172440",
+  bgBubbleMine: "var(--bubble-mine)",
+  bgBubbleOther: "var(--bubble-other)",
+  bgHover: "var(--surface-hover)",
+  bgHoverStrong: "var(--surface-hover)",
+  bgInputField: "var(--bg-secondary)",
+  bgModal: "var(--surface)",
+  bgOverlay: "var(--overlay)",
+  bgMenu: "var(--menu)",
 
   // Radius (12px for buttons/inputs, 16px for cards)
   radiusXs: "6px",

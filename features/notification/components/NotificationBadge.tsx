@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
+import { tk } from "@/lib/tokens";
 
 interface NotificationBadgeProps {
   size?: number;
@@ -28,7 +29,7 @@ export function NotificationBadge({
         minWidth: isSmall ? size : size + 8,
         height: size,
         borderRadius: isSmall ? "50%" : 9,
-        background: "#ef4444",
+        background: tk.danger,
         color: "#fff",
         fontSize: isSmall ? 10 : 11,
         fontWeight: 700,

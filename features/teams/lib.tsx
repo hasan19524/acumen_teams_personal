@@ -48,15 +48,15 @@ export const useGroupedMembers = (members: Member[]) => {
 export const getRoleBadgeStyle = (role: string) => {
   switch (role) {
     case "owner":
-      return { bg: "rgba(168,85,247,0.15)", color: "#c084fc" };
+      return { bg: tk.tintIndigo, color: tk.indigo };
     case "admin":
-      return { bg: "rgba(59,130,246,0.15)", color: "#60a5fa" };
+      return { bg: tk.tintBlue, color: tk.info };
     case "leader": // Added for UI display when a member is a team leader
-      return { bg: "rgba(245, 176, 65, 0.15)", color: tk.warning };
+      return { bg: tk.tintAmber, color: tk.warning };
     case "guest":
-      return { bg: "rgba(255,255,255,0.05)", color: "#64748b" };
+      return { bg: tk.glass, color: tk.textMuted };
     default:
-      return { bg: "rgba(255,255,255,0.08)", color: "#94a3b8" };
+      return { bg: tk.glass, color: tk.textSecondary };
   }
 };
 

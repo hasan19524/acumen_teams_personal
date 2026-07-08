@@ -24,8 +24,10 @@ import {
   getChannelMembers,
 } from "../services/channelService";
 import { workspaceService } from "@/features/workspace/workspaceService";
-import { createDMRequest, respondDMRequest } from "../services/dmRequestService";
-
+import {
+  createDMRequest,
+  respondDMRequest,
+} from "../services/dmRequestService";
 
 export function useChatPage() {
   // ── Refs ──────────────────────────────────────────────────────────────────
@@ -56,7 +58,15 @@ export function useChatPage() {
     addChannel,
     typingUsers,
     clearTypingUser,
+    setMyUserId,
   } = useChatStore();
+
+  // FIX: the store's internal myUserId was never populated (setMyUserId was
+  // defined but never called), so isMyMessage checks in handleWSEvent always
+  // evaluated false. This kept the store's own id in sync.
+  useEffect(() => {
+    if (authChecked && myUserId) setMyUserId(myUserId);
+  }, [authChecked, myUserId, setMyUserId]);
 
   // Keep ref in sync
   useEffect(() => {
@@ -79,8 +89,12 @@ export function useChatPage() {
   const [newChannelMemberIds, setNewChannelMemberIds] = useState<number[]>([]);
   const [newChannelDMUserId, setNewChannelDMUserId] = useState("");
   const [newChannelDMMessage, setNewChannelDMMessage] = useState("");
-  const [workspaceUsers, setWorkspaceUsers] = useState<Array<{ id: number; username: string; full_name: string }>>([]);
-  const [userTeams, setUserTeams] = useState<Array<{ id: number; name: string }>>([]);
+  const [workspaceUsers, setWorkspaceUsers] = useState<
+    Array<{ id: number; username: string; full_name: string }>
+  >([]);
+  const [userTeams, setUserTeams] = useState<
+    Array<{ id: number; name: string }>
+  >([]);
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<number | null>(null);
   const [deleteModalMsgId, setDeleteModalMsgId] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -126,7 +140,8 @@ export function useChatPage() {
     isReady,
   } = useWebSocket({
     // FIX: Do not connect WebSocket for temporary (negative ID) channels
-    channelId: selectedChannelId && selectedChannelId > 0 ? selectedChannelId : null,
+    channelId:
+      selectedChannelId && selectedChannelId > 0 ? selectedChannelId : null,
     token: authChecked
       ? typeof window !== "undefined"
         ? localStorage.getItem("token")
@@ -210,7 +225,7 @@ export function useChatPage() {
     if (!token) return;
 
     // FIX: Only fetch channels if they haven't been loaded yet.
-    // This prevents overwriting local unread counts (like 0 for the active channel) 
+    // This prevents overwriting local unread counts (like 0 for the active channel)
     // with stale backend data when navigating back to the chat page.
     if (useChatStore.getState().channels.length === 0) {
       Promise.all([loadChannels(), loadDMs()])
@@ -226,7 +241,8 @@ export function useChatPage() {
     refreshWorkspaceUsers();
 
     // Fetch teams for team channel creation
-    workspaceService.getTeams()
+    workspaceService
+      .getTeams()
       .then((data) => setUserTeams(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [authChecked, setChannels]);
@@ -266,7 +282,8 @@ export function useChatPage() {
     loadMessages(selectedChannelId).then(
       ({ messages: msgs, pagination: pag }) => {
         // Ensure we haven't switched channels while this request was in flight
-        if (useChatStore.getState().selectedChannelId !== selectedChannelId) return;
+        if (useChatStore.getState().selectedChannelId !== selectedChannelId)
+          return;
 
         setMessages(selectedChannelId, msgs);
         setPagination(selectedChannelId, pag);
@@ -285,7 +302,13 @@ export function useChatPage() {
         }
       },
     );
-  }, [selectedChannelId, setMessages, setPagination, myUserId, markChannelRead]);
+  }, [
+    selectedChannelId,
+    setMessages,
+    setPagination,
+    myUserId,
+    markChannelRead,
+  ]);
 
   // ── Scroll Restoration after loading older ────────────────────────────────
   // Handled directly inside handleScroll callback for precision.
@@ -316,9 +339,10 @@ export function useChatPage() {
   useEffect(() => {
     if (showRightPanel && selectedChannelId && selectedChannelId > 0) {
       fetchChannelMembers();
-        
+
       const fetchPresence = () => {
-        workspaceService.getOnlineMembers()
+        workspaceService
+          .getOnlineMembers()
           .then((data: any) => setOnlineUsers(data?.online_users || []))
           .catch(() => {});
       };
@@ -347,43 +371,63 @@ export function useChatPage() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-    const handleSendThread = useCallback((content: string) => {
-    if (!selectedChannelId || !activeThread || !isReady()) return;
+  const handleSendThread = useCallback(
+    (content: string) => {
+      if (!selectedChannelId || !activeThread || !isReady()) return;
 
-    const clientId = crypto.randomUUID();
-    const tempId = -Date.now();
-    const myUsername = localStorage.getItem("username") || "You";
+      const clientId = crypto.randomUUID();
+      const tempId = -Date.now();
+      const myUsername = localStorage.getItem("username") || "You";
 
-    const optimisticMsg: Message = {
-      id: tempId,
-      channel: selectedChannelId,
-      sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
-      sender_name: myUsername,
-      content: content,
-      display_content: content,
-      client_id: clientId,
-      is_edited: false,
-      edited_at: null,
-      is_deleted: false,
-      reply_to: activeThread,
-      attachments: [],
-      reactions: [],
-      reads: [],
-      created_at: new Date().toISOString(),
-      created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      _status: "pending",
-    };
+      const optimisticMsg: Message = {
+        id: tempId,
+        channel: selectedChannelId,
+        sender: {
+          id: myUserId,
+          username: myUsername,
+          first_name: "",
+          last_name: "",
+          full_name: myUsername,
+        },
+        sender_name: myUsername,
+        content: content,
+        display_content: content,
+        client_id: clientId,
+        is_edited: false,
+        edited_at: null,
+        is_deleted: false,
+        reply_to: activeThread,
+        attachments: [],
+        reactions: [],
+        reads: [],
+        created_at: new Date().toISOString(),
+        created_time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        _status: "pending",
+      };
 
-    const currentMsgs = messages[selectedChannelId] || [];
-    setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
+      const currentMsgs = messages[selectedChannelId] || [];
+      setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
 
-    wsSend({
-      type: "message",
-      content: content,
-      client_id: clientId,
-      reply_to: activeThread.id,
-    });
-  }, [selectedChannelId, activeThread, isReady, wsSend, messages, setMessages, myUserId]);
+      wsSend({
+        type: "message",
+        content: content,
+        client_id: clientId,
+        reply_to: activeThread.id,
+      });
+    },
+    [
+      selectedChannelId,
+      activeThread,
+      isReady,
+      wsSend,
+      messages,
+      setMessages,
+      myUserId,
+    ],
+  );
 
   const handleSend = useCallback(async () => {
     if (!selectedChannelId || !selectedChannel) return;
@@ -400,7 +444,13 @@ export function useChatPage() {
       const optimisticMsg: Message = {
         id: tempId,
         channel: selectedChannelId,
-        sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
+        sender: {
+          id: myUserId,
+          username: myUsername,
+          first_name: "",
+          last_name: "",
+          full_name: myUsername,
+        },
         sender_name: myUsername,
         content: content,
         display_content: content,
@@ -413,16 +463,21 @@ export function useChatPage() {
         reactions: [],
         reads: [],
         created_at: new Date().toISOString(),
-        created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        created_time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         _status: "pending",
       };
 
       // Add message locally
       const currentMsgs = messages[selectedChannelId] || [];
       setMessages(selectedChannelId, [...currentMsgs, optimisticMsg]);
-      
+
       // Lock the input by marking request as pending
-      useChatStore.getState().updateChannel(selectedChannelId, { is_request_pending: true });
+      useChatStore
+        .getState()
+        .updateChannel(selectedChannelId, { is_request_pending: true });
       setMessageInput("");
 
       // Send API Request
@@ -431,14 +486,16 @@ export function useChatPage() {
           receiver_id: (selectedChannel as any).dm_partner.id,
           initial_message: content,
         });
-        
+
         // Update workspace users so they don't show up in search again
         refreshWorkspaceUsers();
       } catch (err: any) {
         alert(err.message || "Failed to send DM request");
         // Remove the optimistic message and unlock on failure
         setMessages(selectedChannelId, currentMsgs);
-        useChatStore.getState().updateChannel(selectedChannelId, { is_request_pending: false });
+        useChatStore
+          .getState()
+          .updateChannel(selectedChannelId, { is_request_pending: false });
       }
       return; // Stop normal WS send
     }
@@ -461,7 +518,13 @@ export function useChatPage() {
       const optimisticMsg: Message = {
         id: tempId,
         channel: selectedChannelId,
-        sender: { id: myUserId, username: myUsername, first_name: "", last_name: "", full_name: myUsername },
+        sender: {
+          id: myUserId,
+          username: myUsername,
+          first_name: "",
+          last_name: "",
+          full_name: myUsername,
+        },
         sender_name: myUsername,
         content: messageInput,
         display_content: messageInput,
@@ -474,7 +537,10 @@ export function useChatPage() {
         reactions: [],
         reads: [],
         created_at: new Date().toISOString(),
-        created_time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        created_time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         _status: "pending",
       };
 
@@ -484,7 +550,7 @@ export function useChatPage() {
 
       const contentCopy = messageInput;
       const replyToCopy = replyingTo ? replyingTo.id : null;
-      
+
       setMessageInput("");
       setReplyingTo(null);
 
@@ -507,8 +573,12 @@ export function useChatPage() {
               reply_to_id: replyToCopy || null,
             }).catch(() => {
               // If HTTP fails, remove the optimistic message
-              const latestMsgs = useChatStore.getState().messages[selectedChannelId] || [];
-              setMessages(selectedChannelId, latestMsgs.filter(m => m.id !== tempId));
+              const latestMsgs =
+                useChatStore.getState().messages[selectedChannelId] || [];
+              setMessages(
+                selectedChannelId,
+                latestMsgs.filter((m) => m.id !== tempId),
+              );
               alert("Failed to send message. Please try again.");
             });
           });
@@ -522,8 +592,12 @@ export function useChatPage() {
             client_id: clientId,
             reply_to_id: replyToCopy || null,
           }).catch(() => {
-            const latestMsgs = useChatStore.getState().messages[selectedChannelId] || [];
-            setMessages(selectedChannelId, latestMsgs.filter(m => m.id !== tempId));
+            const latestMsgs =
+              useChatStore.getState().messages[selectedChannelId] || [];
+            setMessages(
+              selectedChannelId,
+              latestMsgs.filter((m) => m.id !== tempId),
+            );
             alert("Failed to send message. Please try again.");
           });
         });
@@ -632,7 +706,7 @@ export function useChatPage() {
             receiver_id: Number(newChannelDMUserId),
             initial_message: newChannelDMMessage || "Hello!",
           });
-          
+
           // Show success state or notify user that request is pending
           // We do NOT add a channel or switch to it until the receiver accepts.
           alert("DM Request sent! You can start chatting once they accept.");
@@ -645,7 +719,13 @@ export function useChatPage() {
         const newChat = await createChannelService({
           name: newChannelName,
           channel_type: newChannelType as any,
-          team_id: newChannelType === "team" && newChannelTeamId ? Number(newChannelTeamId) : undefined,
+          team_id:
+            newChannelType === "team" && newChannelTeamId
+              ? Number(newChannelTeamId)
+              : undefined,
+          // FIX: We must pass the selected member IDs so the backend sends them an invite!
+          member_ids:
+            newChannelType === "private_group" ? newChannelMemberIds : [],
         });
         addChannel(newChat);
         selectChannel(newChat.id);
@@ -660,7 +740,15 @@ export function useChatPage() {
     setNewChannelDMUserId("");
     setNewChannelDMMessage("");
     setShowNewChannel(false);
-  }, [newChannelName, newChannelType, newChannelTeamId, newChannelDMUserId, newChannelDMMessage, addChannel, selectChannel]);
+  }, [
+    newChannelName,
+    newChannelType,
+    newChannelTeamId,
+    newChannelDMUserId,
+    newChannelDMMessage,
+    addChannel,
+    selectChannel,
+  ]);
 
   const handleCopy = useCallback(async (msg: Message) => {
     try {
@@ -711,33 +799,40 @@ export function useChatPage() {
       .catch(() => {});
   }, []);
 
-  const handleStartDMRequest = useCallback((userId: number) => {
-    const user = workspaceUsers.find(u => u.id === userId);
-    if (!user) return;
+  const handleStartDMRequest = useCallback(
+    (userId: number) => {
+      const user = workspaceUsers.find((u) => u.id === userId);
+      if (!user) return;
 
-    // 1. Create a temporary local channel to open the chat window
-    const tempId = -Date.now(); // Negative ID to avoid collision with backend
-    const tempChannel: any = {
-      id: tempId,
-      name: user.full_name || user.username,
-      slug: `temp_dm_${user.id}`,
-      is_private: true,
-      is_dm: true,
-      channel_type: "dm",
-      workspace: Number(getWorkspaceId()),
-      created_by: myUserId,
-      created_at: new Date().toISOString(),
-      member_count: 2,
-      dm_partner: { id: user.id, username: user.username, full_name: user.full_name },
-      is_member_active: true,
-      is_pending: false,
-      is_temp: true, // Flag to identify this is a temporary request channel
-      is_request_pending: false, // Flag to lock input after sending
-    };
+      // 1. Create a temporary local channel to open the chat window
+      const tempId = -Date.now(); // Negative ID to avoid collision with backend
+      const tempChannel: any = {
+        id: tempId,
+        name: user.full_name || user.username,
+        slug: `temp_dm_${user.id}`,
+        is_private: true,
+        is_dm: true,
+        channel_type: "dm",
+        workspace: Number(getWorkspaceId()),
+        created_by: myUserId,
+        created_at: new Date().toISOString(),
+        member_count: 2,
+        dm_partner: {
+          id: user.id,
+          username: user.username,
+          full_name: user.full_name,
+        },
+        is_member_active: true,
+        is_pending: false,
+        is_temp: true, // Flag to identify this is a temporary request channel
+        is_request_pending: false, // Flag to lock input after sending
+      };
 
-    addChannel(tempChannel);
-    selectChannel(tempId);
-  }, [workspaceUsers, addChannel, selectChannel, myUserId]);
+      addChannel(tempChannel);
+      selectChannel(tempId);
+    },
+    [workspaceUsers, addChannel, selectChannel, myUserId],
+  );
 
   // ── Catch Send Message Route from Team Page ───────────────────────────────
   useEffect(() => {
@@ -753,70 +848,39 @@ export function useChatPage() {
   const handleAcceptDM = useCallback(async () => {
     const reqId = (selectedChannel as any)?.dm_request_id;
     if (!reqId) return;
-    
     try {
-      // 1. Accept the DM request on backend
       const result = await respondDMRequest(reqId, { status: "accepted" });
-      console.log("[DM Accept] Backend response:", result);
-      
-      if (!result.dm_channel_id) {
-        console.error("[DM Accept] No dm_channel_id in response");
-        return;
-      }
-
-      // 2. Reload BOTH channels and DMs to get the fresh real channel
-      console.log("[DM Accept] Reloading channels from server...");
-      const [freshChannels, freshDMs] = await Promise.all([
-        loadChannels(),
-        loadDMs()
-      ]);
-      
-      const allFresh = [...freshChannels, ...freshDMs];
-      console.log("[DM Accept] Fresh channels loaded:", allFresh.map((c) => ({ 
-        id: c.id, 
-        name: c.name, 
-        is_pending: c.is_pending 
-      })));
-      
-      const realChannel = allFresh.find((c) => c.id === result.dm_channel_id);
-      
-      if (!realChannel) {
-        console.error("[DM Accept] Real DM channel not found. Requested ID:", result.dm_channel_id);
-        // FALLBACK: At least clear is_pending on the selected channel
-        if (selectedChannel) {
+      // Backend returns the real dm_channel_id after acceptance.
+      // We must replace the pending channel in the store with the real one
+      // and switch to it so messaging is fully unlocked.
+      const realChannelId = result.dm_channel_id;
+      if (realChannelId && selectedChannel) {
+        // Reload DMs from server to get the fresh real channel
+        const freshDMs = await loadDMs();
+        const realChannel = freshDMs.find((c) => c.id === realChannelId);
+        if (realChannel) {
+          // Remove temp/pending channel, add real one
+          useChatStore.getState().removeChannel(selectedChannel.id);
+          useChatStore.getState().addChannel(realChannel);
+          selectChannel(realChannelId);
+        } else {
+          // Fallback: just unlock the existing channel
           useChatStore.getState().updateChannel(selectedChannel.id, {
             is_pending: false,
-            is_request_pending: false,
+            id: realChannelId,
           });
-          console.log("[DM Accept] Fallback: Cleared flags on old channel");
+          selectChannel(realChannelId);
         }
-        return;
+      } else {
+        // No channel ID returned — just unlock in place
+        if (selectedChannel) {
+          useChatStore
+            .getState()
+            .updateChannel(selectedChannel.id, { is_pending: false });
+        }
       }
-
-      // 3. Replace entire channel list with fresh data
-      useChatStore.getState().setChannels(allFresh);
-      console.log("[DM Accept] Replaced channel list in store");
-      
-      // 4. Remove the old pending channel if it's different
-      if (selectedChannel && selectedChannel.id !== result.dm_channel_id) {
-        useChatStore.getState().removeChannel(selectedChannel.id);
-        console.log("[DM Accept] Removed old pending channel:", selectedChannel.id);
-      }
-      
-      // 5. Switch to real channel
-      selectChannel(result.dm_channel_id);
-      console.log("[DM Accept] Switched to real DM channel:", result.dm_channel_id);
-      
     } catch (error) {
-      console.error("[DM Accept] Failed:", error);
-      // On error, at least try to unlock the channel in place
-      if (selectedChannel) {
-        useChatStore.getState().updateChannel(selectedChannel.id, {
-          is_pending: false,
-          is_request_pending: false,
-        });
-        console.log("[DM Accept] Error fallback: Cleared flags on channel");
-      }
+      console.error("Failed to accept DM:", error);
     }
   }, [selectedChannel, selectChannel]);
 
@@ -861,29 +925,38 @@ export function useChatPage() {
     [editContent],
   );
 
-  const handleDeleteForEveryone = useCallback(async (msgId: number) => {
-    // 1. Optimistic UI Update - instantly REMOVE the message locally
-    if (selectedChannelId) {
-      const currentMsgs = messages[selectedChannelId] || [];
-      setMessages(selectedChannelId, currentMsgs.filter((m) => m.id !== msgId));
-    }
+  const handleDeleteForEveryone = useCallback(
+    async (msgId: number) => {
+      // 1. Optimistic UI Update - instantly REMOVE the message locally
+      if (selectedChannelId) {
+        const currentMsgs = messages[selectedChannelId] || [];
+        setMessages(
+          selectedChannelId,
+          currentMsgs.filter((m) => m.id !== msgId),
+        );
+      }
 
-    setDeleteModalMsgId(null);
+      setDeleteModalMsgId(null);
 
-    // 2. Persist in backend
-    try {
-      await deleteMessageForEveryone(msgId);
-    } catch (error) {
-      console.error("Failed to delete message:", error);
-    }
-  }, [selectedChannelId, messages, setMessages]);
+      // 2. Persist in backend
+      try {
+        await deleteMessageForEveryone(msgId);
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+      }
+    },
+    [selectedChannelId, messages, setMessages],
+  );
 
   const handleDeleteForMe = useCallback(
     async (msgId: number) => {
       if (selectedChannelId) {
         // 1. Optimistic UI update
         const currentMsgs = messages[selectedChannelId] || [];
-        setMessages(selectedChannelId, currentMsgs.filter((m) => m.id !== msgId));
+        setMessages(
+          selectedChannelId,
+          currentMsgs.filter((m) => m.id !== msgId),
+        );
         setDeleteModalMsgId(null);
 
         // 2. Persist in backend

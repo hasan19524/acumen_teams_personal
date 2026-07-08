@@ -1,0 +1,16 @@
+{
+  "morning": ["Good morning", "Rise and shine", "Morning", "Let's get to work"],
+  "afternoon": [
+    "Good afternoon",
+    "Hope your day is going well",
+    "Good to see you",
+    "Afternoon"
+  ],
+  "evening": ["Good evening", "Working late?", "Evening", "Wrapping up?"],
+  "weekend": [
+    "Happy Saturday",
+    "Enjoy your weekend",
+    "Happy Sunday",
+    "Weekend vibes"
+  ]
+}

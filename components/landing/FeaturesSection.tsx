@@ -98,13 +98,17 @@ export default function FeaturesSection() {
         <ScrollReveal>
           <div className="text-center mb-16 lg:mb-20">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100/80 rounded-full mb-6 border border-blue-200">
-              <span className="text-sm font-semibold text-blue-700">Platform Capabilities</span>
+              <span className="text-sm font-semibold text-blue-700">
+                Platform Capabilities
+              </span>
             </div>
             <h2 className="text-5xl sm:text-6xl font-bold text-slate-900 mb-5">
               Everything Your Team Needs
             </h2>
             <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              A complete collaboration platform built around how real teams actually work — communication, accountability, and visibility in one place.
+              A complete collaboration platform built around how real teams
+              actually work — communication, accountability, and visibility in
+              one place.
             </p>
           </div>
         </ScrollReveal>
@@ -117,16 +121,22 @@ export default function FeaturesSection() {
                   className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-5 rounded-2xl transform group-hover:scale-105 transition-all duration-300`}
                 />
                 <div className="relative bg-white rounded-2xl border border-slate-200 hover:border-slate-300 p-8 h-full flex flex-col hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5">
-                  <div className={`inline-flex w-fit px-3 py-1 ${feature.badgeColor} text-xs font-bold rounded-full mb-5`}>
+                  <div
+                    className={`inline-flex w-fit px-3 py-1 ${feature.badgeColor} text-xs font-bold rounded-full mb-5`}
+                  >
                     {feature.badge}
                   </div>
                   <div
                     className={`w-13 h-13 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-all duration-300`}
                   >
-                    <feature.icon className="w-6 h-6 text-white" />
+                    <feature.icon className="w-6 h-6 text-[var(--heading)]" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-3">{feature.title}</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed flex-1">{feature.desc}</p>
+                  <h3 className="text-xl font-bold text-slate-900 mb-3">
+                    {feature.title}
+                  </h3>
+                  <p className="text-slate-600 text-sm leading-relaxed flex-1">
+                    {feature.desc}
+                  </p>
                 </div>
               </div>
             </ScrollReveal>

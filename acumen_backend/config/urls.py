@@ -12,6 +12,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db import connection
 
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health_check(request):
@@ -20,6 +21,7 @@ def health_check(request):
         return Response({"status": "healthy", "database": "up"}, status=200)
     except Exception as e:
         return Response({"status": "unhealthy", "error": str(e)}, status=503)
+
 
 urlpatterns = [
     path("health/", health_check),
@@ -35,6 +37,7 @@ urlpatterns = [
     path("api/notifications/", include("notifications.urls")),
     path("api/support/", include("support.urls")),
     path("api/uploads/", include("upload.urls")),
+    path("api/notes/", include("notes.urls")),
 ]
 
 if settings.DEBUG:

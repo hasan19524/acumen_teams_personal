@@ -124,6 +124,8 @@ export default function LoginPage() {
         if (data.workspace_id)
           localStorage.setItem("workspace_id", String(data.workspace_id));
 
+        sessionStorage.setItem("show_welcome", "true");
+
         const params = new URLSearchParams(window.location.search);
         const redirectUrl = params.get("redirect");
         router.push(redirectUrl || "/dashboard");
@@ -171,7 +173,7 @@ export default function LoginPage() {
         </Link>
 
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center text-[var(--heading)] font-bold text-xs shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
             AT
           </div>
           <span className="text-lg font-bold text-slate-900 tracking-tight">
@@ -395,7 +397,7 @@ export default function LoginPage() {
               {/* Gradient CTA — matches "Start Free Trial" on the landing page */}
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-full text-base font-semibold flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-105 hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed group"
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-[var(--heading)] rounded-full text-base font-semibold flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-105 hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed group"
                 disabled={loading}
               >
                 {loading ? (

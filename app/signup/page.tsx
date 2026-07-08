@@ -35,7 +35,7 @@ const Feature = ({
 }) => (
   <div className="flex items-center gap-4 group">
     <div
-      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white ring-1 ring-black/5 transition-transform duration-300 ease-out group-hover:scale-105"
+      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-[var(--heading)] ring-1 ring-black/5 transition-transform duration-300 ease-out group-hover:scale-105"
       style={{
         backgroundColor: color,
         boxShadow: `0 10px 25px -8px ${color}80`,
@@ -198,7 +198,7 @@ export default function SignupPage() {
         <div className="max-w-xl w-full">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-lg shadow-blue-500/30">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-[var(--heading)] font-bold text-base shadow-lg shadow-blue-500/30">
               AT
             </div>
             <span className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -265,7 +265,7 @@ export default function SignupPage() {
       ════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-8 lg:p-16 pt-24 sm:pt-28 lg:pt-16 relative z-10 w-full">
         <div className="lg:hidden flex items-center gap-3 mb-8 mt-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center text-[var(--heading)] font-bold text-sm">
             AT
           </div>
           <span className="text-xl font-bold text-slate-900">Acumen Teams</span>
@@ -293,7 +293,7 @@ export default function SignupPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-50/0 to-purple-50/0 group-hover:from-purple-50/40 group-hover:to-transparent transition-all duration-300 pointer-events-none"></div>
 
                 <div
-                  className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-lg ring-1 ring-black/5 transition-transform duration-300 group-hover:scale-105"
+                  className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-[var(--heading)] flex-shrink-0 shadow-lg ring-1 ring-black/5 transition-transform duration-300 group-hover:scale-105"
                   style={{ backgroundColor: "#9333ea" }}
                 >
                   <Building2 size={24} strokeWidth={2} />
@@ -328,7 +328,7 @@ export default function SignupPage() {
                 {/* Subtle hover background tint */}
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-blue-50/0 group-hover:from-blue-50/40 group-hover:to-transparent transition-all duration-300 pointer-events-none"></div>
 
-                <div className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-white flex-shrink-0 bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg ring-1 ring-black/5 transition-transform duration-300 group-hover:scale-105">
+                <div className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-[var(--heading)] flex-shrink-0 bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg ring-1 ring-black/5 transition-transform duration-300 group-hover:scale-105">
                   <UserPlus size={24} strokeWidth={2} />
                 </div>
                 <div className="relative flex-1">
@@ -561,7 +561,7 @@ export default function SignupPage() {
 
               <button
                 type="submit"
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-105 hover:shadow-lg hover:shadow-blue-500/30 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed group mt-2"
+                className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-500 text-[var(--heading)] rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-105 hover:shadow-lg hover:shadow-blue-500/30 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed group mt-2"
                 disabled={loading}
               >
                 {loading ? (

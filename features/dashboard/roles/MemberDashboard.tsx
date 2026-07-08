@@ -9,70 +9,41 @@ import DashboardStats from "../components/DashboardStats";
 import DashboardActivity from "../components/DashboardActivity";
 import DashboardMyAttendance from "../components/DashboardMyAttendance";
 import DashboardProductivity from "../components/DashboardProductivity";
-import { CheckSquare, Clock, AlertTriangle, Target, X } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { tk } from "@/lib/tokens";
+import { useDashboardStore } from "@/features/dashboard/store/dashboardStore";
+import { useAttendanceStore } from "@/features/attendance/store/attendanceStore";
 
 export default function MemberDashboard() {
   const router = useRouter();
   const { authChecked, user } = useAuth();
 
-  const [stats, setStats] = useState<any>(null);
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [errors, setErrors] = useState({
-    stats: false,
+  // FIX: Consume data directly from feature stores. No local fetching state.
+  const stats = useDashboardStore((s) => s.stats);
+  const attendanceData = useAttendanceStore((s) => s.myAttendance);
+  const errorStats = useDashboardStore((s) => s.errorStats);
+
+  const loading = !stats || !attendanceData;
+  const errors = {
+    stats: !!errorStats,
     tasks: false,
     attendance: false,
     notifications: false,
-  });
-  const initialLoad = useRef(true);
+  };
 
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const notifications = useNotificationStore((s) => s.persistentNotifications);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
 
-  const fetchDashboardData = useCallback(async () => {
-    if (initialLoad.current) {
-      setLoading(true);
-      setErrors({
-        stats: false,
-        tasks: false,
-        attendance: false,
-        notifications: false,
-      });
-    }
-
-    const results = await Promise.allSettled([
-      workspaceService.getStats(),
-      workspaceService.getMyAttendance(),
-    ]);
-
-    if (results[0].status === "fulfilled" && results[0].value)
-      setStats(results[0].value);
-    else if (initialLoad.current) setErrors((p) => ({ ...p, stats: true }));
-
-    if (results[1].status === "fulfilled" && results[1].value)
-      setAttendanceData(results[1].value);
-
-    try {
-      await fetchNotifications();
-    } catch {
-      if (initialLoad.current)
-        setErrors((p) => ({ ...p, notifications: true }));
-    }
-    initialLoad.current = false;
-    setLoading(false);
-  }, [fetchNotifications]);
-
+  // Only fetch notifications on mount (everything else is handled by pipeline)
   useEffect(() => {
-    if (!authChecked) return;
-    fetchDashboardData();
-  }, [authChecked, fetchDashboardData]);
+    if (authChecked) {
+      fetchNotifications().catch(() => {});
+    }
+  }, [authChecked, fetchNotifications]);
 
   if (!authChecked) return null;
 
-  const productivityScore = stats?.productivity_score || 0;
   const currentHour = new Date().getHours();
   const greeting =
     currentHour < 12
@@ -114,7 +85,6 @@ export default function MemberDashboard() {
           todayString={todayString}
           greeting={greeting}
           unreadCount={unreadCount}
-          onModalOpen={setActiveModal}
         />
 
         {/* Member's Today Focus */}
@@ -133,7 +103,7 @@ export default function MemberDashboard() {
                 className="flex items-center gap-2.5 px-4 py-3 rounded-xl"
                 style={{
                   background: tk.surface,
-                  border: `1px solid #1FA46340`,
+                  border: `1px solid var(--success)40`,
                 }}
               >
                 <span
@@ -149,7 +119,7 @@ export default function MemberDashboard() {
                 className="flex items-center gap-2.5 px-4 py-3 rounded-xl cursor-pointer"
                 style={{
                   background: tk.surface,
-                  border: `1px solid #E31E2440`,
+                  border: `1px solid var(--primary)40`,
                 }}
               >
                 <AlertTriangle size={16} color={tk.primary} />
@@ -199,48 +169,10 @@ export default function MemberDashboard() {
           </div>
           <DashboardProductivity
             loading={loading}
-            productivityScore={productivityScore}
+            productivityData={stats?.productivity}
           />
         </div>
       </section>
-
-      {activeModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-5"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-8 max-w-sm w-full text-center"
-            style={{ background: tk.surface, border: `1px solid ${tk.border}` }}
-          >
-            <Target
-              size={32}
-              className="mx-auto mb-4"
-              style={{ color: tk.brandLight }}
-            />
-            <h2
-              className="m-0 mb-2 text-lg font-bold capitalize"
-              style={{ color: tk.textPrimary }}
-            >
-              {activeModal} Modal
-            </h2>
-            <p className="m-0 mb-6 text-sm" style={{ color: tk.textSecondary }}>
-              In the final build, this button will open the {activeModal}{" "}
-              creation modal directly on top of the dashboard without navigating
-              away.
-            </p>
-            <button
-              onClick={() => setActiveModal(null)}
-              className="w-full p-3 rounded-lg font-semibold cursor-pointer text-white"
-              style={{ background: tk.brand, border: "none" }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

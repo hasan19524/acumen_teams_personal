@@ -58,8 +58,10 @@ export default function Avatar({
 
   return (
     <div
-      className={`relative flex items-center justify-center rounded-full font-bold text-white flex-shrink-0 overflow-hidden ${s.box} ${s.text} ${className}`}
-      style={{ background: "linear-gradient(135deg, #4B1587, #5DADE2)" }}
+      className={`relative flex items-center justify-center rounded-full font-bold text-[var(--heading)] flex-shrink-0 overflow-hidden ${s.box} ${s.text} ${className}`}
+      style={{
+        background: "linear-gradient(135deg, var(--brand), var(--brand-light))",
+      }}
     >
       {imageSrc && !imgError ? (
         <Image

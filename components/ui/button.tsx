@@ -8,15 +8,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-primary text-white hover:bg-red-700 active:scale-[0.98]",
+        primary:
+          "bg-primary text-[var(--heading)] hover:bg-[var(--danger-hover)] active:scale-[0.98]",
         secondary:
-          "bg-brand text-white hover:bg-purple-800 active:scale-[0.98]",
+          "bg-brand text-[var(--heading)] hover:bg-brand-hover active:scale-[0.98]",
         outline:
           "border border-border bg-transparent text-text-primary hover:bg-surface-secondary",
         ghost:
           "bg-transparent text-text-secondary hover:bg-surface-secondary hover:text-text-primary",
         danger:
-          "border border-primary bg-transparent text-primary hover:bg-primary hover:text-white",
+          "border border-primary bg-transparent text-primary hover:bg-primary hover:text-[var(--heading)]",
       },
       size: {
         default: "h-10 px-4 py-2",

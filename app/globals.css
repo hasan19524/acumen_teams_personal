@@ -1,10 +1,128 @@
 @import "tailwindcss";
 
+/* ── DARK THEME (Default) ── */
+:root {
+  --bg: #081325;
+  --bg-secondary: #101d35;
+  --surface: #172440;
+  --surface-hover: #20304e;
+  --sidebar: #0d1b3d;
+  --sidebar-hover: #16284f;
+  --sidebar-active: #2a3d73;
+
+  --primary: #e31e24;
+  --brand: #4b1587;
+  --brand-hover: #5b1fa1;
+  --brand-light: #5dade2;
+  --success: #1fa463;
+  --warning: #f5b041;
+  --info: #5dade2;
+
+  --heading: #ffffff;
+  --text-primary: #e8ecf6;
+  --text-secondary: #b7c0d8;
+  --text-muted: #7a86a7;
+
+  --border: #2a3a5c;
+  --border-hover: #3a4d72;
+  --divider: #24334f;
+
+  --danger: #e31e24;
+  --danger-hover: #c7151a;
+  --pink: #ec4899;
+  --glass: rgba(255, 255, 255, 0.05);
+
+  --indigo: #7c3aed;
+  --teal: #14b8a6;
+  --tint-red: rgba(227, 30, 36, 0.15);
+  --tint-indigo: rgba(124, 58, 237, 0.15);
+  --tint-blue: rgba(93, 173, 226, 0.15);
+  --tint-green: rgba(31, 164, 99, 0.15);
+  --tint-amber: rgba(245, 176, 65, 0.15);
+  --tint-teal: rgba(20, 184, 166, 0.15);
+  --tint-brand: rgba(93, 46, 160, 0.18);
+  --tint-danger: rgba(227, 30, 36, 0.15);
+
+  --overlay: rgba(8, 19, 37, 0.8);
+  --bubble-mine: #4b1587;
+  --bubble-other: #172440;
+  --menu: #172440;
+
+  --priority-urgent-fg: #fca5a5;
+  --priority-important-fg: #fdba74;
+
+  color-scheme: dark;
+}
+
+/* ── LIGHT THEME ── */
+.light {
+  --bg: #f5f7fc;
+  --bg-secondary: #eceff8;
+  --surface: #ffffff;
+  --surface-hover: #f4f6fb;
+  --sidebar: #ffffff;
+  --sidebar-hover: #f4f6fb;
+  --sidebar-active: #eaf0ff;
+
+  --primary: #e31e24;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-light: #0ea5e9;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #0ea5e9;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --pink: #db2777;
+  --glass: rgba(15, 23, 42, 0.04);
+
+  /* Logo-derived accent: the indigo from the Acumen wordmark's second wing.
+     Kept distinct from --brand (blue, used for primary actions/CTAs) so it
+     reads as brand personality on cards/chips/avatars without competing
+     with functional buttons and links. */
+  --indigo: #4b1587;
+  --teal: #0d9488;
+
+  /* Soft tint + matching foreground pairs for colored chips, icon circles,
+     and avatar badges — every one of these is a *named* accent so nothing
+     in the light theme has to fall back to flat gray/white. */
+  --tint-red: rgba(227, 30, 36, 0.1);
+  --tint-indigo: rgba(75, 21, 135, 0.1);
+  --tint-blue: rgba(37, 99, 235, 0.1);
+  --tint-green: rgba(22, 163, 74, 0.1);
+  --tint-amber: rgba(217, 119, 6, 0.1);
+  --tint-teal: rgba(13, 148, 136, 0.1);
+  --tint-brand: rgba(37, 99, 235, 0.1);
+  --tint-danger: rgba(220, 38, 38, 0.1);
+
+  --heading: #0f172a;
+  --text-primary: #1e293b;
+  --text-secondary: #52606d;
+  --text-muted: #7c8794;
+
+  --border: #e3e6eb;
+  --border-hover: #cdd3db;
+  --divider: #e3e6eb;
+
+  --overlay: rgba(15, 23, 42, 0.45);
+  --bubble-mine: #2563eb;
+  --bubble-other: #ffffff;
+  --menu: #ffffff;
+
+  --priority-urgent-fg: #b91c1c;
+  --priority-important-fg: #b45309;
+
+  color-scheme: light;
+}
+
 body {
-  background-color: #081325; /* bg-background */
-  color: #e8ecf6; /* text-primary */
+  background-color: var(--bg); /* bg-background */
+  color: var(--text-primary); /* text-primary */
   -webkit-font-smoothing: antialiased;
   font-family: "Inter", sans-serif;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 html {
@@ -21,14 +139,14 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: #101d35; /* background-secondary */
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a3a5c; /* border color */
+  background: var(--border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a4d72;
+  background: var(--border-hover);
 }

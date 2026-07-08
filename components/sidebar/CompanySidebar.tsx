@@ -9,7 +9,7 @@ import {
   Calendar,
   Megaphone,
   Users,
-  Mail,
+  StickyNote,
   Settings,
 } from "lucide-react";
 import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
@@ -25,7 +25,7 @@ const COMPANY_NAV_ITEMS = [
   { name: "Attendance", href: "/dashboard/attendance", icon: Calendar },
   { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
   { name: "Team", href: "/dashboard/team", icon: Users },
-  { name: "Invites", href: "/dashboard/invites", icon: Mail },
+  { name: "Notes", href: "/dashboard/notes", icon: StickyNote },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -62,8 +62,8 @@ export default function CompanySidebar({
           : "hidden md:flex flex-col h-full"
       }
       style={{
-        background: "#0D1B3D",
-        borderRight: "1px solid #2A3A5C",
+        background: "var(--sidebar)",
+        borderRight: "1px solid var(--border)",
         padding: "24px 16px",
         position: "relative",
         zIndex: 10,
@@ -74,19 +74,27 @@ export default function CompanySidebar({
     >
       <style>{`
         .sidebar-item { transition: all 0.2s ease; position: relative; border-left: 4px solid transparent; }
-        .sidebar-item:not(.sidebar-active):hover { background: #16284F !important; color: #FFFFFF !important; }
-        .sidebar-item.sidebar-active { background: #2A3D73 !important; border-left: 4px solid #E31E24 !important; color: #FFFFFF !important; }
+        .sidebar-item:not(.sidebar-active):hover { background: var(--sidebar-hover) !important; color: var(--heading) !important; }
+        .sidebar-item.sidebar-active { background: var(--sidebar-active) !important; border-left: 4px solid var(--brand) !important; color: var(--heading) !important; }
       `}</style>
 
       <div
         style={{
-          padding: "0 4px 24px",
-          borderBottom: "1px solid #2A3A5C",
+          padding: "16px 12px 24px",
+          borderBottom: "1px solid var(--border)",
           marginBottom: 16,
+          borderRadius: 14,
         }}
       >
         <div
-          style={{ display: "flex", alignItems: "center", padding: "8px 0" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 8px",
+            borderRadius: 12,
+            background:
+              "linear-gradient(135deg, var(--tint-red) 0%, var(--tint-indigo) 100%)",
+          }}
         >
           <img
             src="/acumen-logo.svg"
@@ -119,7 +127,7 @@ export default function CompanySidebar({
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                color: active ? "#FFFFFF" : "#B7C0D8",
+                color: active ? "var(--heading)" : "var(--text-secondary)",
               }}
             >
               <div style={{ position: "relative", display: "flex" }}>
@@ -130,7 +138,7 @@ export default function CompanySidebar({
                       position: "absolute",
                       top: -6,
                       right: -10,
-                      background: "#E31E24",
+                      background: "var(--primary)",
                       color: "#fff",
                       fontSize: 9,
                       fontWeight: 700,
@@ -141,7 +149,7 @@ export default function CompanySidebar({
                       alignItems: "center",
                       justifyContent: "center",
                       padding: "0 4px",
-                      border: "1px solid #0D1B3D",
+                      border: "1px solid var(--sidebar)",
                     }}
                   >
                     {chatUnread > 99 ? "99+" : chatUnread}

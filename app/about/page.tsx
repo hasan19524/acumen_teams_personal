@@ -170,12 +170,12 @@ export default function AboutPage() {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full mb-6 border border-white/15 backdrop-blur-sm">
               <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
-              <span className="text-sm font-semibold text-white/80">
+              <span className="text-sm font-semibold text-[var(--heading)]/80">
                 Trusted Since 2002
               </span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-[var(--heading)] leading-tight mb-6">
               Two decades of trust.{" "}
               <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
                 Building the future of work.
@@ -235,7 +235,7 @@ export default function AboutPage() {
                     <div
                       className={`w-10 h-10 rounded-xl bg-gradient-to-br ${value.gradient} flex items-center justify-center mb-4`}
                     >
-                      <value.icon className="w-5 h-5 text-white" />
+                      <value.icon className="w-5 h-5 text-[var(--heading)]" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900 mb-1">
                       {value.title}
@@ -260,7 +260,7 @@ export default function AboutPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-3xl" />
                 <div className="relative rounded-3xl border border-blue-200 p-10 lg:p-12">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-6">
-                    <Compass className="w-6 h-6 text-white" />
+                    <Compass className="w-6 h-6 text-[var(--heading)]" />
                   </div>
                   <blockquote className="text-xl font-bold text-slate-900 leading-snug mb-4">
                     "Translating two decades of operational experience into
@@ -300,7 +300,7 @@ export default function AboutPage() {
       </section>
 
       {/* VISION (Editorial) */}
-      <section className="w-full py-16 lg:py-24 bg-gradient-to-br from-slate-950 to-slate-900 text-white">
+      <section className="w-full py-16 lg:py-24 bg-gradient-to-br from-slate-950 to-slate-900 text-[var(--heading)]">
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl" />
         </div>
@@ -351,7 +351,7 @@ export default function AboutPage() {
                   <div
                     className={`w-12 h-12 rounded-xl bg-gradient-to-br ${p.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}
                   >
-                    <p.icon className="w-6 h-6 text-white" />
+                    <p.icon className="w-6 h-6 text-[var(--heading)]" />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 mb-3">
                     {p.title}
@@ -391,7 +391,7 @@ export default function AboutPage() {
                   <div
                     className={`w-12 h-12 rounded-xl bg-gradient-to-br ${point.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}
                   >
-                    <point.icon className="w-6 h-6 text-white" />
+                    <point.icon className="w-6 h-6 text-[var(--heading)]" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 mb-2">
                     {point.title}
@@ -407,7 +407,7 @@ export default function AboutPage() {
       </section>
 
       {/* ECOSYSTEM */}
-      <section className="w-full py-16 lg:py-24 bg-gradient-to-b from-slate-950 to-slate-900 text-white">
+      <section className="w-full py-16 lg:py-24 bg-gradient-to-b from-slate-950 to-slate-900 text-[var(--heading)]">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
           <ScrollReveal>
             <div className="text-center mb-12">
@@ -436,7 +436,7 @@ export default function AboutPage() {
                   <div
                     className={`w-12 h-12 rounded-xl bg-gradient-to-br ${product.gradient} flex items-center justify-center mb-5`}
                   >
-                    <span className="text-white font-bold text-xs">
+                    <span className="text-[var(--heading)] font-bold text-xs">
                       {product.name.slice(7, 9).toUpperCase()}
                     </span>
                   </div>
@@ -535,7 +535,7 @@ export default function AboutPage() {
                 <Link href="/signup">
                   <Button
                     size="lg"
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white px-8 py-6 text-base rounded-full font-semibold transition-all hover:scale-105 group"
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-[var(--heading)] px-8 py-6 text-base rounded-full font-semibold transition-all hover:scale-105 group"
                   >
                     Get Started Free
                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />

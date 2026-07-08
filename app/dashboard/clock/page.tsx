@@ -9,7 +9,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { tk } from "@/lib/tokens";
-import { workspaceService } from "@/features/workspace/workspaceService";
+import { apiFetch } from "@/lib/api";
 
 export default function PersonalClockPage() {
   const [isClockedIn, setIsClockedIn] = useState(false);
@@ -22,13 +22,20 @@ export default function PersonalClockPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [status, hist] = await Promise.all([
-        workspaceService.getClockStatus(),
-        workspaceService.getClockHistory(),
+      const [statusRes, histRes] = await Promise.all([
+        apiFetch(`/api/accounts/clock-status/`),
+        apiFetch(`/api/accounts/clock-history/`),
       ]);
-      setIsClockedIn(status.is_clocked_in);
-      setTodaySeconds(status.total_seconds_today);
-      setHistory(hist.slice(0, 7)); // Last 7 days
+
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        setIsClockedIn(status.is_clocked_in);
+        setTodaySeconds(status.total_seconds_today);
+      }
+      if (histRes.ok) {
+        const hist = await histRes.json();
+        setHistory(hist.slice(0, 7)); // Last 7 days
+      }
     } catch (error) {
       console.error("Failed to fetch clock data:", error);
     } finally {
@@ -54,16 +61,32 @@ export default function PersonalClockPage() {
   const handleToggleClock = async () => {
     setActionLoading(true);
     try {
-      if (isClockedIn) {
-        await workspaceService.clockOut();
-        setIsClockedIn(false);
+      const endpoint = isClockedIn
+        ? `/api/accounts/clock-out/`
+        : `/api/accounts/clock-in/`;
+      const res = await apiFetch(endpoint, { method: "POST" });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const errorMsg = data?.error || "Failed to toggle clock";
+
+        // FIX: If state is out of sync, sync it instead of throwing an error.
+        if (errorMsg.includes("Already clocked in")) {
+          setIsClockedIn(true);
+        } else if (errorMsg.includes("Not clocked in")) {
+          setIsClockedIn(false);
+        } else {
+          throw new Error(errorMsg);
+        }
       } else {
-        await workspaceService.clockIn();
-        setIsClockedIn(true);
+        // Sync local state immediately on success
+        setIsClockedIn(!isClockedIn);
       }
-      await fetchData(); // Refresh data
-    } catch (error) {
+
+      await fetchData(); // Always refresh data to get accurate seconds
+    } catch (error: any) {
       console.error("Clock action failed:", error);
+      alert(error.message || "Failed to toggle clock");
     } finally {
       setActionLoading(false);
     }
@@ -104,55 +127,34 @@ export default function PersonalClockPage() {
 
   return (
     <main
+      className="min-h-screen p-4 md:p-8 lg:p-10"
       style={{
-        minHeight: "100vh",
         background: tk.bg,
         color: tk.textPrimary,
         fontFamily: "'Inter', sans-serif",
-        padding: "32px 40px",
       }}
     >
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 700 }}>
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-xl md:text-2xl font-bold">
             Personal Time Tracker
           </h1>
-          <p
-            style={{
-              margin: "6px 0 0",
-              color: tk.textSecondary,
-              fontSize: "14px",
-            }}
-          >
+          <p className="mt-1.5 text-sm" style={{ color: tk.textSecondary }}>
             Track your personal work hours and productivity.
           </p>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2fr",
-            gap: "24px",
-          }}
-        >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {/* Left Column: Timer & Action */}
           <div
+            className="md:col-span-1 rounded-2xl p-6 md:p-8 flex flex-col items-center justify-center gap-6"
             style={{
               background: tk.surface,
               border: `1px solid ${tk.border}`,
-              borderRadius: "16px",
-              padding: "32px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "24px",
             }}
           >
-            <div
-              style={{ position: "relative", width: "180px", height: "180px" }}
-            >
+            <div className="relative w-40 h-40 md:w-44 md:h-44">
               <svg width="100%" height="100%" viewBox="0 0 100 100">
                 <circle
                   cx="50"
@@ -176,32 +178,14 @@ export default function PersonalClockPage() {
                   style={{ transition: "stroke 0.3s ease" }}
                 />
               </svg>
-              <div
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  textAlign: "center",
-                }}
-              >
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
                 <div
-                  style={{
-                    fontSize: "12px",
-                    color: tk.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
+                  className="text-xs uppercase tracking-wide"
+                  style={{ color: tk.textMuted }}
                 >
                   {isClockedIn ? "Working" : "Clocked Out"}
                 </div>
-                <div
-                  style={{
-                    fontSize: "24px",
-                    fontWeight: 700,
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
+                <div className="text-xl md:text-2xl font-bold tabular-nums">
                   {formatTime(todaySeconds)}
                 </div>
               </div>
@@ -215,7 +199,7 @@ export default function PersonalClockPage() {
                 padding: "14px",
                 borderRadius: "10px",
                 border: "none",
-                background: isClockedIn ? "#ef4444" : "#10b981",
+                background: isClockedIn ? tk.danger : tk.success,
                 color: "#fff",
                 fontSize: "15px",
                 fontWeight: 700,
@@ -233,79 +217,47 @@ export default function PersonalClockPage() {
           </div>
 
           {/* Right Column: Stats & Graph */}
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
-          >
+          <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
             {/* Stat Cards */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "16px",
-              }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
               <div
+                className="rounded-xl p-4 md:p-5"
                 style={{
                   background: tk.surface,
                   border: `1px solid ${tk.border}`,
-                  borderRadius: "12px",
-                  padding: "20px",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
+                <div className="flex items-center gap-2 mb-3">
                   <TrendingUp size={16} color={tk.brand} />
                   <span
-                    style={{
-                      fontSize: "12px",
-                      color: tk.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
+                    className="text-xs uppercase tracking-wide"
+                    style={{ color: tk.textMuted }}
                   >
                     Avg / Day
                   </span>
                 </div>
-                <div style={{ fontSize: "24px", fontWeight: 700 }}>
+                <div className="text-xl md:text-2xl font-bold">
                   {formatTime(avgSeconds).split(":")[0]}h{" "}
                   {formatTime(avgSeconds).split(":")[1]}m
                 </div>
               </div>
               <div
+                className="rounded-xl p-4 md:p-5"
                 style={{
                   background: tk.surface,
                   border: `1px solid ${tk.border}`,
-                  borderRadius: "12px",
-                  padding: "20px",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
+                <div className="flex items-center gap-2 mb-3">
                   <Calendar size={16} color={tk.success} />
                   <span
-                    style={{
-                      fontSize: "12px",
-                      color: tk.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
+                    className="text-xs uppercase tracking-wide"
+                    style={{ color: tk.textMuted }}
                   >
                     Days Worked
                   </span>
                 </div>
-                <div style={{ fontSize: "24px", fontWeight: 700 }}>
+                <div className="text-xl md:text-2xl font-bold">
                   {validHistoryDays.length}
                 </div>
               </div>
@@ -313,41 +265,21 @@ export default function PersonalClockPage() {
 
             {/* History Graph */}
             <div
+              className="rounded-xl p-4 md:p-6 flex-1"
               style={{
                 background: tk.surface,
                 border: `1px solid ${tk.border}`,
-                borderRadius: "12px",
-                padding: "24px",
-                flex: 1,
               }}
             >
-              <h3
-                style={{
-                  margin: "0 0 20px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                }}
-              >
-                Last 7 Days
-              </h3>
+              <h3 className="text-base font-bold mb-4 md:mb-5">Last 7 Days</h3>
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-end",
-                  gap: "12px",
-                  height: "160px",
-                  paddingBottom: "24px",
-                  borderBottom: `1px solid ${tk.border}`,
-                }}
+                className="flex items-end gap-2 sm:gap-3 h-32 md:h-40 pb-5 md:pb-6 border-b"
+                style={{ borderColor: tk.border }}
               >
                 {history.length === 0 ? (
                   <div
-                    style={{
-                      width: "100%",
-                      textAlign: "center",
-                      color: tk.textMuted,
-                      fontSize: "13px",
-                    }}
+                    className="w-full text-center text-[13px]"
+                    style={{ color: tk.textMuted }}
                   >
                     No history yet.
                   </div>
@@ -358,38 +290,26 @@ export default function PersonalClockPage() {
                     .map((day, i) => (
                       <div
                         key={i}
-                        style={{
-                          flex: 1,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: "8px",
-                          height: "100%",
-                          justifyContent: "flex-end",
-                        }}
+                        className="flex-1 flex flex-col items-center gap-1.5 sm:gap-2 h-full justify-end"
                       >
                         <div
-                          style={{
-                            fontSize: "10px",
-                            color: tk.textMuted,
-                            fontWeight: 600,
-                          }}
+                          className="text-[10px] font-semibold"
+                          style={{ color: tk.textMuted }}
                         >
                           {day.total_hours > 0 ? `${day.total_hours}h` : ""}
                         </div>
                         <div
+                          className="w-full max-w-[36px] min-h-[4px] rounded-md transition-all duration-300"
                           style={{
-                            width: "100%",
-                            maxWidth: "40px",
                             height: `${(day.total_hours / maxHours) * 100}%`,
-                            minHeight: "4px",
                             background:
                               day.total_hours > 0 ? tk.brand : tk.border,
-                            borderRadius: "6px",
-                            transition: "height 0.3s ease",
                           }}
                         />
-                        <div style={{ fontSize: "10px", color: tk.textMuted }}>
+                        <div
+                          className="text-[10px]"
+                          style={{ color: tk.textMuted }}
+                        >
                           {new Date(day.date).toLocaleDateString("en-US", {
                             weekday: "short",
                           })}

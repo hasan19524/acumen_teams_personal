@@ -16,6 +16,14 @@ export default function DashboardStats({ stats, loading, errors }: any) {
   const attendanceProgress =
     totalMembers > 0 ? (presentToday / totalMembers) * 100 : 0;
 
+  const attendanceState = stats?.attendance_state;
+  const shiftStart = stats?.shift_start
+    ? new Date(`1970-01-01T${stats.shift_start}`).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "09:00";
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6 items-stretch">
       {/* Attendance -> Deep Link to /attendance */}
@@ -26,7 +34,12 @@ export default function DashboardStats({ stats, loading, errors }: any) {
       >
         <div className="flex items-center gap-2.5 mb-5 justify-between">
           <div className="flex items-center gap-2.5">
-            <Calendar size={20} style={{ color: tk.success }} />
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: tk.tintGreen }}
+            >
+              <Calendar size={18} style={{ color: tk.success }} />
+            </div>
             <h3
               className="m-0 text-base font-bold"
               style={{ color: tk.textPrimary }}
@@ -36,7 +49,26 @@ export default function DashboardStats({ stats, loading, errors }: any) {
           </div>
           <ChevronRight size={20} color={tk.textMuted} />
         </div>
-        {totalMembers === 0 ? (
+        {attendanceState === "NON_WORKING_DAY" ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p
+              className="text-sm text-center py-5"
+              style={{ color: tk.textMuted }}
+            >
+              Enjoy your weekend. No attendance today.
+            </p>
+          </div>
+        ) : attendanceState === "PRE_SHIFT" ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p
+              className="text-sm text-center py-5"
+              style={{ color: tk.textMuted }}
+            >
+              Shift starts at {shiftStart}.<br />
+              No one is absent yet.
+            </p>
+          </div>
+        ) : totalMembers === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <p
               className="text-sm text-center py-5"
@@ -113,7 +145,12 @@ export default function DashboardStats({ stats, loading, errors }: any) {
       >
         <div className="flex items-center gap-2.5 mb-5 justify-between">
           <div className="flex items-center gap-2.5">
-            <AlertCircle size={20} style={{ color: tk.warning }} />
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: tk.tintAmber }}
+            >
+              <AlertCircle size={18} style={{ color: tk.warning }} />
+            </div>
             <h3
               className="m-0 text-base font-bold"
               style={{ color: tk.textPrimary }}
@@ -163,7 +200,12 @@ export default function DashboardStats({ stats, loading, errors }: any) {
       >
         <div className="flex items-center gap-2.5 mb-5 justify-between">
           <div className="flex items-center gap-2.5">
-            <AlertTriangle size={20} style={{ color: tk.primary }} />
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: tk.tintRed }}
+            >
+              <AlertTriangle size={18} style={{ color: tk.primary }} />
+            </div>
             <h3
               className="m-0 text-base font-bold"
               style={{ color: tk.textPrimary }}

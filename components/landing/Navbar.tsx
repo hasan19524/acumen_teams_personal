@@ -116,7 +116,7 @@ export default function Navbar() {
               onClick={(e) => handleNavClick(e, "/")}
               className="flex items-center gap-2.5 group cursor-pointer -ml-4 md:-ml-10 md:mr-6 shrink-0"
             >
-              <div className="relative w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 ring-1 ring-white/40 flex items-center justify-center text-white font-bold text-sm shadow-[0_2px_10px_rgba(37,99,235,0.35)] group-hover:shadow-[0_4px_18px_rgba(37,99,235,0.5)] transition-shadow">
+              <div className="relative w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 ring-1 ring-white/40 flex items-center justify-center text-[var(--heading)] font-bold text-sm shadow-[0_2px_10px_rgba(37,99,235,0.35)] group-hover:shadow-[0_4px_18px_rgba(37,99,235,0.5)] transition-shadow">
                 <span className="relative z-10 tracking-tight">AT</span>
                 <span className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/25 to-transparent" />
               </div>
@@ -239,7 +239,7 @@ export default function Navbar() {
               <Link href="/signup">
                 <Button
                   size="sm"
-                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-full px-5 transition-all hover:scale-105 hover:shadow-[0_0_22px_rgba(37,99,235,0.4)] font-semibold"
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-[var(--heading)] rounded-full px-5 transition-all hover:scale-105 hover:shadow-[0_0_22px_rgba(37,99,235,0.4)] font-semibold"
                 >
                   Start Free
                 </Button>
@@ -343,7 +343,7 @@ export default function Navbar() {
               </Button>
             </Link>
             <Link href="/signup" onClick={() => setMobileOpen(false)}>
-              <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-full font-semibold text-[15px] h-12">
+              <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-[var(--heading)] rounded-full font-semibold text-[15px] h-12">
                 Start Free
               </Button>
             </Link>

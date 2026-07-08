@@ -57,6 +57,7 @@ export type CreateChannelPayload = {
   name: string;
   channel_type: ChannelType;
   team_id?: number | null;
+  member_ids?: number[]; // Added to support private group invites
 };
 
 // ── Legacy type (kept for backward compat during migration) ───────────

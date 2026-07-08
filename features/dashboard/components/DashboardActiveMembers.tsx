@@ -1,5 +1,5 @@
 "use client";
-import { useUIStore } from "../store/uiStore";
+import { useProfileStore } from "@/features/dashboard/store/profileStore";
 import { Users, Coffee } from "lucide-react";
 
 import { tk } from "@/lib/tokens";
@@ -8,7 +8,7 @@ export default function DashboardActiveMembers({
   onlineUsers,
   totalMembers,
 }: any) {
-  const { setProfileOpen } = useUIStore();
+  const openProfile = useProfileStore((s) => s.openProfile);
 
   return (
     <div
@@ -16,7 +16,12 @@ export default function DashboardActiveMembers({
       style={{ background: tk.surface, border: `1px solid ${tk.border}` }}
     >
       <div className="flex items-center gap-2.5 mb-4">
-        <Users size={20} style={{ color: tk.brandLight }} />
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: tk.tintIndigo }}
+        >
+          <Users size={16} style={{ color: tk.indigo }} />
+        </div>
         <h3 className="m-0 text-lg font-bold" style={{ color: tk.textPrimary }}>
           Active Members
         </h3>
@@ -75,12 +80,12 @@ export default function DashboardActiveMembers({
           {onlineUsers.map((u: any) => (
             <div
               key={u.id}
-              onClick={() => setProfileOpen(true)}
-              className="flex items-center gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-[#20304E] transition-colors"
+              onClick={() => openProfile(u)}
+              className="flex items-center gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
             >
               <div className="relative flex-shrink-0">
                 <div
-                  className="flex items-center justify-center font-bold text-white"
+                  className="flex items-center justify-center font-bold text-[var(--heading)]"
                   style={{
                     width: 32,
                     height: 32,

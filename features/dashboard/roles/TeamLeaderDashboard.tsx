@@ -9,25 +9,30 @@ import DashboardStats from "../components/DashboardStats";
 import DashboardActivity from "../components/DashboardActivity";
 import DashboardActiveMembers from "../components/DashboardActiveMembers";
 import DashboardProductivity from "../components/DashboardProductivity";
-import { Target, X } from "lucide-react";
 import { tk } from "@/lib/tokens";
+import { useWorkspaceStore } from "@/lib/stores/workspaceStore";
 
 export default function TeamLeaderDashboard() {
   const router = useRouter();
   const { authChecked, user } = useAuth();
 
-  const [stats, setStats] = useState<any>(null);
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<string | null>(null);
+  // FIX: Initialize state from global store to prevent skeleton flash
+  const [stats, setStats] = useState<any>(useWorkspaceStore.getState().stats);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>(
+    useWorkspaceStore.getState().onlineUsers,
+  );
+  const [teams, setTeams] = useState<any[]>(useWorkspaceStore.getState().teams);
+
+  // FIX: If data already exists from pipeline, don't show skeletons
+  const hasCachedData = !!useWorkspaceStore.getState().stats;
+  const [loading, setLoading] = useState(!hasCachedData);
   const [errors, setErrors] = useState({
     stats: false,
     tasks: false,
     attendance: false,
     notifications: false,
   });
-  const initialLoad = useRef(true);
+  const initialLoad = useRef(!hasCachedData);
 
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const notifications = useNotificationStore((s) => s.persistentNotifications);
@@ -86,7 +91,6 @@ export default function TeamLeaderDashboard() {
 
   if (!authChecked) return null;
 
-  const productivityScore = stats?.productivity_score || 0;
   const currentHour = new Date().getHours();
   const greeting =
     currentHour < 12
@@ -136,7 +140,6 @@ export default function TeamLeaderDashboard() {
           todayString={todayString}
           greeting={greeting}
           unreadCount={unreadCount}
-          onModalOpen={setActiveModal}
         />
 
         <div className="mb-8">
@@ -154,7 +157,7 @@ export default function TeamLeaderDashboard() {
                 className="flex items-center gap-2.5 px-4 py-3 rounded-xl"
                 style={{
                   background: tk.surface,
-                  border: `1px solid #1FA46340`,
+                  border: `1px solid var(--success)40`,
                 }}
               >
                 <span
@@ -174,7 +177,7 @@ export default function TeamLeaderDashboard() {
                     className="flex items-center gap-2.5 px-4 py-3 rounded-xl cursor-pointer"
                     style={{
                       background: tk.surface,
-                      border: `1px solid #F5B04140`,
+                      border: `1px solid var(--warning)40`,
                     }}
                   >
                     <span
@@ -193,7 +196,7 @@ export default function TeamLeaderDashboard() {
                     className="flex items-center gap-2.5 px-4 py-3 rounded-xl cursor-pointer"
                     style={{
                       background: tk.surface,
-                      border: `1px solid #E31E2440`,
+                      border: `1px solid var(--primary)40`,
                     }}
                   >
                     <span
@@ -245,48 +248,10 @@ export default function TeamLeaderDashboard() {
           </div>
           <DashboardProductivity
             loading={loading}
-            productivityScore={productivityScore}
+            productivityData={stats?.productivity}
           />
         </div>
       </section>
-
-      {activeModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-5"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-8 max-w-sm w-full text-center"
-            style={{ background: tk.surface, border: `1px solid ${tk.border}` }}
-          >
-            <Target
-              size={32}
-              className="mx-auto mb-4"
-              style={{ color: tk.brandLight }}
-            />
-            <h2
-              className="m-0 mb-2 text-lg font-bold capitalize"
-              style={{ color: tk.textPrimary }}
-            >
-              {activeModal} Modal
-            </h2>
-            <p className="m-0 mb-6 text-sm" style={{ color: tk.textSecondary }}>
-              In the final build, this button will open the {activeModal}{" "}
-              creation modal directly on top of the dashboard without navigating
-              away.
-            </p>
-            <button
-              onClick={() => setActiveModal(null)}
-              className="w-full p-3 rounded-lg font-semibold cursor-pointer text-white"
-              style={{ background: tk.brand, border: "none" }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

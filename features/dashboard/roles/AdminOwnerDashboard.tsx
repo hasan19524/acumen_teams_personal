@@ -10,28 +10,36 @@ import DashboardActivity from "../components/DashboardActivity";
 import DashboardActiveMembers from "../components/DashboardActiveMembers";
 import DashboardTeams from "../components/DashboardTeams";
 import DashboardProductivity from "../components/DashboardProductivity";
-import { Target, X } from "lucide-react";
 import { tk } from "@/lib/tokens";
+import { useWorkspaceStore } from "@/lib/stores/workspaceStore";
 
 export default function AdminOwnerDashboard() {
   const router = useRouter();
   const { authChecked, user } = useAuth();
 
-  const [stats, setStats] = useState<any>(null);
-  const [taskAnalytics, setTaskAnalytics] = useState<any>(null);
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
+  // FIX: Initialize state from global store to prevent skeleton flash
+  const [stats, setStats] = useState<any>(useWorkspaceStore.getState().stats);
+  const [taskAnalytics, setTaskAnalytics] = useState<any>(
+    useWorkspaceStore.getState().taskAnalytics,
+  );
+  const [attendanceData, setAttendanceData] = useState<any>(
+    useWorkspaceStore.getState().attendanceData,
+  );
+  const [onlineUsers, setOnlineUsers] = useState<any[]>(
+    useWorkspaceStore.getState().onlineUsers,
+  );
+  const [teams, setTeams] = useState<any[]>(useWorkspaceStore.getState().teams);
 
-  const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<string | null>(null);
+  // FIX: If data already exists from pipeline, don't show skeletons
+  const hasCachedData = !!useWorkspaceStore.getState().stats;
+  const [loading, setLoading] = useState(!hasCachedData);
   const [errors, setErrors] = useState({
     stats: false,
     tasks: false,
     attendance: false,
     notifications: false,
   });
-  const initialLoad = useRef(true);
+  const initialLoad = useRef(!hasCachedData);
 
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const notifications = useNotificationStore((s) => s.persistentNotifications);
@@ -48,6 +56,14 @@ export default function AdminOwnerDashboard() {
       });
     }
 
+    // Read from cache first for instant render
+    const cachedStats = useWorkspaceStore.getState().stats;
+    const cachedTeams = useWorkspaceStore.getState().teams;
+
+    if (cachedStats) setStats(cachedStats);
+    if (cachedTeams) setTeams(cachedTeams);
+
+    // FIX: Always fetch fresh stats in the background to update attendance/present counts
     const results = await Promise.allSettled([
       workspaceService.getStats(),
       workspaceService.getTaskAnalytics(),
@@ -56,24 +72,26 @@ export default function AdminOwnerDashboard() {
       workspaceService.getTeams(),
     ]);
 
-    if (results[0].status === "fulfilled" && results[0].value)
-      setStats(results[0].value);
-    else if (initialLoad.current) setErrors((p) => ({ ...p, stats: true }));
+    if (results[0].status === "fulfilled" && (results[0] as any).value) {
+      setStats((results[0] as any).value);
+      useWorkspaceStore.getState().setStats((results[0] as any).value);
+    } else if (initialLoad.current) setErrors((p) => ({ ...p, stats: true }));
 
-    if (results[1].status === "fulfilled" && results[1].value)
-      setTaskAnalytics(results[1].value);
+    if (results[1].status === "fulfilled" && (results[1] as any).value)
+      setTaskAnalytics((results[1] as any).value);
     else if (initialLoad.current) setErrors((p) => ({ ...p, tasks: true }));
 
-    if (results[2].status === "fulfilled" && results[2].value)
-      setAttendanceData(results[2].value);
+    if (results[2].status === "fulfilled" && (results[2] as any).value)
+      setAttendanceData((results[2] as any).value);
 
-    if (results[3].status === "fulfilled" && results[3].value)
-      setOnlineUsers(results[3].value?.online_users || []);
+    if (results[3].status === "fulfilled" && (results[3] as any).value)
+      setOnlineUsers((results[3] as any).value?.online_users || []);
     else if (initialLoad.current) setOnlineUsers([]);
 
-    if (results[4].status === "fulfilled" && results[4].value)
-      setTeams(results[4].value || []);
-    else if (initialLoad.current) setTeams([]);
+    if (results[4].status === "fulfilled" && (results[4] as any).value) {
+      setTeams((results[4] as any).value || []);
+      useWorkspaceStore.getState().setTeams((results[4] as any).value || []);
+    } else if (initialLoad.current) setTeams([]);
 
     try {
       await fetchNotifications();
@@ -99,7 +117,6 @@ export default function AdminOwnerDashboard() {
 
   if (!authChecked) return null;
 
-  const productivityScore = stats?.productivity_score || 0;
   const currentHour = new Date().getHours();
   const greeting =
     currentHour < 12
@@ -144,7 +161,6 @@ export default function AdminOwnerDashboard() {
           todayString={todayString}
           greeting={greeting}
           unreadCount={unreadCount}
-          onModalOpen={setActiveModal}
         />
 
         <div className="mb-8">
@@ -162,7 +178,7 @@ export default function AdminOwnerDashboard() {
                 className="flex items-center gap-2.5 px-4 py-3 rounded-xl"
                 style={{
                   background: tk.surface,
-                  border: `1px solid #1FA46340`,
+                  border: `1px solid var(--success)40`,
                 }}
               >
                 <span
@@ -182,7 +198,7 @@ export default function AdminOwnerDashboard() {
                     className="flex items-center gap-2.5 px-4 py-3 rounded-xl cursor-pointer"
                     style={{
                       background: tk.surface,
-                      border: `1px solid #F5B04140`,
+                      border: `1px solid var(--warning)40`,
                     }}
                   >
                     <span
@@ -201,7 +217,7 @@ export default function AdminOwnerDashboard() {
                     className="flex items-center gap-2.5 px-4 py-3 rounded-xl cursor-pointer"
                     style={{
                       background: tk.surface,
-                      border: `1px solid #E31E2440`,
+                      border: `1px solid var(--primary)40`,
                     }}
                   >
                     <span
@@ -240,48 +256,10 @@ export default function AdminOwnerDashboard() {
           />
           <DashboardProductivity
             loading={loading}
-            productivityScore={productivityScore}
+            productivityData={stats?.productivity}
           />
         </div>
       </section>
-
-      {activeModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-5"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-8 max-w-sm w-full text-center"
-            style={{ background: tk.surface, border: `1px solid ${tk.border}` }}
-          >
-            <Target
-              size={32}
-              className="mx-auto mb-4"
-              style={{ color: tk.brandLight }}
-            />
-            <h2
-              className="m-0 mb-2 text-lg font-bold capitalize"
-              style={{ color: tk.textPrimary }}
-            >
-              {activeModal} Modal
-            </h2>
-            <p className="m-0 mb-6 text-sm" style={{ color: tk.textSecondary }}>
-              In the final build, this button will open the {activeModal}{" "}
-              creation modal directly on top of the dashboard without navigating
-              away.
-            </p>
-            <button
-              onClick={() => setActiveModal(null)}
-              className="w-full p-3 rounded-lg font-semibold cursor-pointer text-white"
-              style={{ background: tk.brand, border: "none" }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

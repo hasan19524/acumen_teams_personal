@@ -10,7 +10,7 @@ import { T } from "../design/tokens";
 export function renderMessageContent(text: string, isMine: boolean) {
   const combinedRegex = /(https?:\/\/[^\s<]+|@\w+)/g;
   const parts = text.split(combinedRegex);
-  
+
   return parts.map((part, i) => {
     if (part.startsWith("@")) {
       return (
@@ -37,7 +37,7 @@ export function renderMessageContent(text: string, isMine: boolean) {
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: isMine ? "#93c5fd" : T.info,
+            color: isMine ? "#bfdbfe" : T.info,
             textDecoration: "none",
             wordBreak: "break-all",
           }}

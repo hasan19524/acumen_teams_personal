@@ -111,7 +111,7 @@ export default function SupportPage() {
               </span>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6">
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-[var(--heading)] leading-tight mb-6">
               Support & Contact
             </h1>
 
@@ -129,7 +129,7 @@ export default function SupportPage() {
                   <p className="text-xs text-cyan-300/70 font-medium mb-0.5">
                     Email us
                   </p>
-                  <p className="text-white font-semibold text-sm">
+                  <p className="text-[var(--heading)] font-semibold text-sm">
                     {supportEmail}
                   </p>
                 </div>
@@ -143,7 +143,7 @@ export default function SupportPage() {
                   <p className="text-xs text-cyan-300/70 font-medium mb-0.5">
                     Call us
                   </p>
-                  <p className="text-white font-semibold text-sm">
+                  <p className="text-[var(--heading)] font-semibold text-sm">
                     {supportPhone}
                   </p>
                 </div>
@@ -236,7 +236,7 @@ export default function SupportPage() {
                   <Button
                     type="submit"
                     disabled={submitted}
-                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white py-4 rounded-xl font-semibold transition-all hover:scale-[1.02] flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:scale-100"
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-[var(--heading)] py-4 rounded-xl font-semibold transition-all hover:scale-[1.02] flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:scale-100"
                   >
                     {submitted ? "Sending..." : "Send Message"}
                     {!submitted && <Send className="w-4 h-4" />}

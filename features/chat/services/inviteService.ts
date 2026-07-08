@@ -38,26 +38,7 @@ export async function loadInviteTab(tab: string): Promise<{ items: any[] }> {
   return await res.json();
 }
 
-// ── Team Invite Types ──────────────────────────────────────────────────
-
-export type TeamInviteItem = {
-  id: number;
-  team_id: number;
-  team_name: string;
-  inviter_id: number;
-  inviter_name: string;
-  status: string;
-  expires_at: string | null;
-  created_at: string;
-};
-
-export type TeamInviteResponse = {
-  id: number;
-  team_id: number;
-  team_name: string;
-  status: string;
-};
-
+// Team Invite Types removed.
 // ── Private Group Invite Types ─────────────────────────────────────────
 
 export type PrivateGroupInviteItem = {
@@ -78,26 +59,7 @@ export type PrivateGroupInviteResponse = {
   status: string;
 };
 
-// ── Team Invite Actions ────────────────────────────────────────────────
-
-export async function respondTeamInvite(
-  inviteId: number,
-  status: "accepted" | "rejected",
-): Promise<TeamInviteResponse> {
-  const wsId = getWorkspaceId();
-  const res = await apiFetch(
-    `/api/workspaces/${wsId}/teams/invite/${inviteId}/`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    },
-  );
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error || "Failed to respond to team invite");
-  return data;
-}
-
+// Team Invite Actions removed.
 // ── Private Group Invite Actions ───────────────────────────────────────
 
 export async function respondGroupInvite(
@@ -150,16 +112,4 @@ export async function cleanupPendingGroups(): Promise<{
   return data;
 }
 
-export async function sendTeamInvite(
-  userId: number,
-  teamId: number,
-): Promise<any> {
-  const wsId = getWorkspaceId();
-  const res = await apiFetch(`/api/workspaces/${wsId}/teams/invite/`, {
-    method: "POST",
-    body: JSON.stringify({ user_id: userId, team_id: teamId }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to send team invite");
-  return data;
-}
+// sendTeamInvite removed.

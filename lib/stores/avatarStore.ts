@@ -40,8 +40,11 @@ export const useAvatarStore = create<AvatarStore>((set, get) => ({
       existing.avatarUrl &&
       existing.expiresAt > Date.now() + REFRESH_THRESHOLD
     ) {
-      if (!newUrl || existing.avatarUrl === newUrl) {
-        return;
+      // FIX: Compare base URL without query parameters to prevent S3 presigned URL flashes
+      const existingBase = existing.avatarUrl.split("?")[0];
+      const newBase = newUrl ? newUrl.split("?")[0] : null;
+      if (!newUrl || newBase === existingBase) {
+        return; // Keep existing valid URL to prevent image flash
       }
     }
 

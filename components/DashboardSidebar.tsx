@@ -14,12 +14,14 @@ import {
   Home,
   Clock,
   Bell,
+  StickyNote,
 } from "lucide-react";
 import { NotificationBadge } from "@/features/notification/components/NotificationBadge";
 import { useNotificationStore } from "@/features/notification/store/notificationStore";
 import { useChatStore } from "@/features/chat/store/chatStore";
 import { loadChannels, loadDMs } from "@/features/chat/services/channelService";
 import { useEffect } from "react";
+import { tk } from "@/lib/tokens";
 
 // Separate nav items for Company vs Independent users
 const COMPANY_NAV_ITEMS = [
@@ -29,7 +31,7 @@ const COMPANY_NAV_ITEMS = [
   { name: "Attendance", href: "/dashboard/attendance", icon: Calendar },
   { name: "Announcements", href: "/dashboard/announcements", icon: Megaphone },
   { name: "Team", href: "/dashboard/team", icon: Users },
-  { name: "Invites", href: "/dashboard/invites", icon: Mail },
+  { name: "Notes", href: "/dashboard/notes", icon: StickyNote },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -37,6 +39,7 @@ const INDEPENDENT_NAV_ITEMS = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Invitations", href: "/dashboard/invites", icon: Mail },
   { name: "Clock", href: "/dashboard/clock", icon: Clock },
+  { name: "Notes", href: "/dashboard/notes", icon: StickyNote },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -77,8 +80,8 @@ export default function DashboardSidebar({
           : "hidden md:flex flex-col h-full"
       }
       style={{
-        background: "#0D1B3D",
-        borderRight: "1px solid #2A3A5C",
+        background: tk.sidebar,
+        borderRight: `1px solid ${tk.border}`,
         padding: "24px 16px",
         position: "relative",
         zIndex: 10,
@@ -88,16 +91,29 @@ export default function DashboardSidebar({
       }}
     >
       <style>{`
-        .sidebar-item { transition: all 0.2s ease; position: relative; border-left: 4px solid transparent; }
-        .sidebar-item:not(.sidebar-active):hover { background: #16284F !important; color: #FFFFFF !important; }
-        .sidebar-item.sidebar-active { background: #2A3D73 !important; border-left: 4px solid #E31E24 !important; color: #FFFFFF !important; }
-      `}</style>
+.sidebar-item{
+  transition:all .2s ease;
+  position:relative;
+  border-left:4px solid transparent;
+}
+
+.sidebar-item:not(.sidebar-active):hover{
+  background:${tk.sidebarHover} !important;
+  color:${tk.heading} !important;
+}
+
+.sidebar-item.sidebar-active{
+  background:${tk.sidebarActive} !important;
+  border-left:4px solid ${tk.primary} !important;
+  color:${tk.heading} !important;
+}
+`}</style>
 
       {/* Logo */}
       <div
         style={{
           padding: "0 4px 24px",
-          borderBottom: "1px solid #2A3A5C",
+          borderBottom: `1px solid ${tk.border}`,
           marginBottom: 16,
         }}
       >
@@ -136,7 +152,7 @@ export default function DashboardSidebar({
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                color: active ? "#FFFFFF" : "#B7C0D8",
+                color: active ? tk.heading : tk.textSecondary,
               }}
             >
               <div style={{ position: "relative", display: "flex" }}>
@@ -147,7 +163,7 @@ export default function DashboardSidebar({
                       position: "absolute",
                       top: -6,
                       right: -10,
-                      background: "#E31E24",
+                      background: "var(--primary)",
                       color: "#fff",
                       fontSize: 9,
                       fontWeight: 700,
@@ -158,7 +174,7 @@ export default function DashboardSidebar({
                       alignItems: "center",
                       justifyContent: "center",
                       padding: "0 4px",
-                      border: "1px solid #0D1B3D",
+                      border: `1px solid ${tk.sidebar}`,
                     }}
                   >
                     {chatUnread > 99 ? "99+" : chatUnread}

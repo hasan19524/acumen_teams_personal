@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "notes",
     "rest_framework",
     "corsheaders",
     "channels",
@@ -121,7 +122,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kolkata" # FIX: Set to India/Delhi timezone
 USE_I18N = True
 USE_TZ = True
 

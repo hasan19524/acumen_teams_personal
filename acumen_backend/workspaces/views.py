@@ -21,7 +21,6 @@ from .models import (
     WorkspaceMembership,
     WorkspaceInvite,
     TeamMembership,
-    TeamInvite,
     PrivateGroupInvite,
     ROLE_PERMISSIONS,
     TeamType,
@@ -266,41 +265,154 @@ def dashboard_stats(request, workspace_id):
         status="pending"
     ).count()
 
+    # FIX: Determine if shift has started or if it's a non-working day
+    from attendance.models import WorkspaceAttendanceConfig
+    config, _ = WorkspaceAttendanceConfig.objects.get_or_create(workspace_id=workspace_id)
+    today = timezone.localdate()
+    now = timezone.now()
+    
+    attendance_state = "WORKING"
+    if not config.is_working_day(today):
+        attendance_state = "NON_WORKING_DAY"
+    # FIX: Convert UTC time to local timezone before comparing with shift_start
+    elif timezone.localtime(now).time() < config.shift_start:
+        attendance_state = "PRE_SHIFT"
+
+    # FIX: Count anyone who has successfully clocked in today, regardless of whether they clocked out.
     present_today = Attendance.objects.filter(
         user_id__in=active_user_ids, 
         workspace_id=workspace_id,
         date=timezone.localdate(), 
-        check_out__isnull=True,
+        check_in__isnull=False,
         status__in=["present", "late", "half_day"]
     ).count()
     
-    absent_today = max(0, total_members - present_today)
+    # Only count absent if shift has started
+    absent_today = max(0, total_members - present_today) if attendance_state == "WORKING" else 0
 
-    # Calculate Weekly Productivity Score
-    seven_days_ago = timezone.now() - timedelta(days=7)
-    completed_tasks_week = Task.objects.filter(
-        workspace_id=workspace_id,
-        status="completed",
-        updated_at__gte=seven_days_ago,
+    # ── ENTERPRISE PRODUCTIVITY ENGINE (Configurable Cycle) ──
+    # FIX: Do not import Attendance locally here. It is already imported at the top of the file.
+    # Importing it locally causes an UnboundLocalError on line 281.
+    from attendance.models import WorkspaceAttendanceConfig
+    config, _ = WorkspaceAttendanceConfig.objects.get_or_create(workspace_id=workspace_id)
+    cycle_days = config.productivity_cycle_days
+    start_date_cycle = timezone.now() - timedelta(days=cycle_days)
+    today = timezone.localdate()
+
+    # 1. Calculate working days in cycle up to today
+    working_days_in_cycle = 0
+    for i in range(cycle_days):
+        date = today - timedelta(days=i)
+        if config.is_working_day(date):
+            working_days_in_cycle += 1
+
+    active_members_count = len(active_user_ids) if active_user_ids else 1
+    
+    # 2. Calculate Attendance Score (40%)
+    if working_days_in_cycle > 0:
+        present_attendances = Attendance.objects.filter(
+            workspace_id=workspace_id,
+            date__gte=start_date_cycle,
+            date__lte=today,
+            status__in=["present", "late", "half_day"]
+        ).count()
+        max_possible_attendances = active_members_count * working_days_in_cycle
+        att_score = (present_attendances / max_possible_attendances) * 100 if max_possible_attendances > 0 else 100
+    else:
+        present_attendances = 0
+        att_score = 100 # No working days yet (e.g., weekend), don't penalize
+
+    # 3. Calculate Task Score (40%)
+    ws_tasks_completed = Task.objects.filter(
+        workspace_id=workspace_id, status="completed", completed_at__gte=start_date_cycle, is_deleted=False
+    ).count()
+    ws_tasks_due = Task.objects.filter(
+        workspace_id=workspace_id, created_at__gte=start_date_cycle, is_deleted=False
+    ).count()
+    
+    if ws_tasks_due > 0:
+        task_score = (ws_tasks_completed / ws_tasks_due) * 100
+    else:
+        task_score = 100 # No tasks assigned in cycle, don't penalize
+
+    # 4. Calculate Admin/Approval Score (20%) - Penalize for bad management
+    overdue_tasks = Task.objects.filter(
+        workspace_id=workspace_id, 
+        status__in=["todo", "in_progress"], 
+        due_date__lt=timezone.now(), 
+        is_deleted=False
+    ).count()
+    pending_approvals = Task.objects.filter(
+        workspace_id=workspace_id, 
+        status="pending_approval", 
         is_deleted=False
     ).count()
     
-    total_assigned_tasks_week = Task.objects.filter(
-        workspace_id=workspace_id,
-        created_at__gte=seven_days_ago,
-        is_deleted=False
-    ).count()
+    admin_score = max(0, 100 - (overdue_tasks * 10) - (pending_approvals * 5))
+
+    # 5. Final Workspace Score
+    total_tasks_in_ws = Task.objects.filter(workspace_id=workspace_id, is_deleted=False).count()
     
-    attendance_days_week = Attendance.objects.filter(
-        user_id__in=active_user_ids,
-        workspace_id=workspace_id,
-        date__gte=seven_days_ago.date(),
-        status__in=["present", "late", "half_day"]
-    ).values('date').distinct().count()
-    
-    total_possible = total_assigned_tasks_week + 5 # 5 standard work days
-    total_actual = completed_tasks_week + attendance_days_week
-    productivity_score = min(100, int((total_actual / total_possible) * 100)) if total_possible > 0 else 0
+    # If workspace is completely empty, don't show a score yet
+    if total_tasks_in_ws == 0 and present_attendances == 0:
+        ws_cycle_active = False
+        ws_score = None
+        ws_message = f"Work hard for the next {cycle_days} days to have a high productivity score!"
+    else:
+        ws_score = min(100, int((att_score * 0.4) + (task_score * 0.4) + (admin_score * 0.2)))
+        ws_cycle_active = True
+        ws_message = None
+
+    # 6. Team Leaderboard (RBAC Aware)
+    team_leaderboard = []
+    if membership.role in ("owner", "admin"):
+        teams_qs = Team.objects.filter(workspace_id=workspace_id, team_type=TeamType.STANDARD)
+    elif membership.role == "leader":
+        leader_team_ids = TeamMembership.objects.filter(user=request.user, is_leader=True, is_active=True).values_list("team_id", flat=True)
+        teams_qs = Team.objects.filter(id__in=leader_team_ids, team_type=TeamType.STANDARD)
+    else:
+        teams_qs = Team.objects.none()
+
+    for team in teams_qs:
+        t_completed = Task.objects.filter(workspace_id=workspace_id, team=team, status="completed", completed_at__gte=start_date_cycle, is_deleted=False).count()
+        t_due = Task.objects.filter(workspace_id=workspace_id, team=team, created_at__gte=start_date_cycle, is_deleted=False).count()
+        t_task_score = (t_completed / t_due) * 100 if t_due > 0 else 100
+        
+        team_member_ids = TeamMembership.objects.filter(team=team, is_active=True).values_list("user_id", flat=True)
+        t_present = Attendance.objects.filter(workspace_id=workspace_id, user_id__in=team_member_ids, date__gte=start_date_cycle, date__lte=today, status__in=["present", "late", "half_day"]).count()
+        t_max_att = len(team_member_ids) * working_days_in_cycle if len(team_member_ids) > 0 else 1
+        t_att_score = (t_present / t_max_att) * 100 if t_max_att > 0 else 100
+        
+        t_score = min(100, int((t_task_score * 0.6) + (t_att_score * 0.4)))
+        team_leaderboard.append({"name": team.name, "score": t_score})
+
+    team_leaderboard.sort(key=lambda x: x["score"], reverse=True)
+
+    # 7. Member Leaderboard (Exclude Admins, Owners, Leaders)
+    member_leaderboard = []
+    excluded_user_ids = set(WorkspaceMembership.objects.filter(workspace_id=workspace_id, role__in=["owner", "admin"]).values_list("user_id", flat=True))
+    leader_ids = set(TeamMembership.objects.filter(team__workspace_id=workspace_id, is_leader=True, is_active=True).values_list("user_id", flat=True))
+    excluded_user_ids.update(leader_ids)
+
+    base_members_qs = WorkspaceMembership.objects.filter(workspace_id=workspace_id, is_active=True).exclude(user_id__in=excluded_user_ids)
+
+    # If leader, only include members from their teams
+    if membership.role == "leader":
+        my_team_member_ids = TeamMembership.objects.filter(team_id__in=leader_team_ids, is_active=True).values_list("user_id", flat=True)
+        base_members_qs = base_members_qs.filter(user_id__in=my_team_member_ids)
+
+    for m in base_members_qs:
+        m_completed = Task.objects.filter(workspace_id=workspace_id, assigned_to=m.user, status="completed", completed_at__gte=start_date_cycle, is_deleted=False).count()
+        m_due = Task.objects.filter(workspace_id=workspace_id, assigned_to=m.user, created_at__gte=start_date_cycle, is_deleted=False).count()
+        m_task_score = (m_completed / m_due) * 100 if m_due > 0 else 100
+        
+        m_present = Attendance.objects.filter(workspace_id=workspace_id, user=m.user, date__gte=start_date_cycle, date__lte=today, status__in=["present", "late", "half_day"]).count()
+        m_att_score = (m_present / working_days_in_cycle) * 100 if working_days_in_cycle > 0 else 100
+        
+        m_score = min(100, int((m_task_score * 0.6) + (m_att_score * 0.4)))
+        member_leaderboard.append({"name": m.user.get_full_name() or m.user.username, "score": m_score})
+
+    member_leaderboard.sort(key=lambda x: x["score"], reverse=True)
 
     # Personalized data for members
     my_pending_tasks = 0
@@ -331,10 +443,19 @@ def dashboard_stats(request, workspace_id):
             "open_invites": open_invites,
             "present_today": present_today,
             "absent_today": absent_today,
-            "productivity_score": productivity_score,
+            "attendance_state": attendance_state,
+            "shift_start": config.shift_start.isoformat(),
             "my_pending_tasks": my_pending_tasks,
             "my_overdue_tasks": my_overdue_tasks,
             "my_dm_requests": my_dm_requests,
+            # New Enterprise Productivity Response
+            "productivity": {
+                "score": ws_score,
+                "cycle_active": ws_cycle_active,
+                "message": ws_message,
+                "teams": team_leaderboard,
+                "members": member_leaderboard
+            }
         }
     )
 
@@ -556,12 +677,12 @@ class InviteMemberView(WorkspaceBaseView):
         else:
             return Response({"error": "username or email required"}, status=400)
 
-        # FIX: Only block if they are already an active member of THIS SPECIFIC workspace.
-        # Allow inviting users who are in OTHER workspaces.
+        # NEW ARCHITECTURE: A user cannot belong to multiple workspaces.
+        # If they are in ANY active workspace, they cannot be invited.
         if WorkspaceMembership.objects.filter(
-            user=target_user, workspace=workspace, is_active=True
+            user=target_user, is_active=True
         ).exists():
-            return Response({"error": "User is already in this workspace"}, status=400)
+            return Response({"error": "This user already belongs to another workspace."}, status=400)
 
         # Check for existing pending invite to THIS workspace
         if WorkspaceInvite.objects.filter(
@@ -982,13 +1103,11 @@ class InviteCenterCountsView(WorkspaceBaseView):
         ).update(status="expired")
 
         # Workspace invites are handled by MyWorkspaceInvitesView for independent users.
-        # This endpoint now strictly returns counts for workspace-scoped invitations (Teams/Groups).
+        # Team invites are removed. Only private group invites remain here.
         return Response(
             {
                 "workspace": 0, # Kept for frontend compatibility, always 0 here.
-                "teams": TeamInvite.objects.filter(
-                    invitee=request.user, workspace=workspace, status="pending"
-                ).count(),
+                "teams": 0, # Obsolete, always 0.
                 "private_groups": PrivateGroupInvite.objects.filter(
                     invitee=request.user, workspace=workspace, status="pending"
                 ).count(),
@@ -1002,41 +1121,8 @@ class InviteCenterTabView(WorkspaceBaseView):
         tab = request.query_params.get("tab", "")
 
         # Workspace invites are no longer handled here to prevent architectural confusion.
-        if tab == "teams":
-            TeamInvite.objects.filter(
-                invitee=request.user,
-                workspace=workspace,
-                status="pending",
-                expires_at__lte=timezone.now(),
-            ).update(status="expired")
-            invites = (
-                TeamInvite.objects.filter(
-                    invitee=request.user, workspace=workspace, status="pending"
-                )
-                .select_related("team", "inviter")
-                .order_by("-created_at")
-            )
-            return Response(
-                {
-                    "items": [
-                        {
-                            "id": inv.id,
-                            "team_id": inv.team.id,
-                            "team_name": inv.team.name,
-                            "inviter_id": inv.inviter.id,
-                            "inviter_name": inv.inviter.get_full_name()
-                            or inv.inviter.username,
-                            "expires_at": (
-                                inv.expires_at.isoformat() if inv.expires_at else None
-                            ),
-                            "created_at": inv.created_at.isoformat(),
-                        }
-                        for inv in invites
-                    ]
-                }
-            )
-
-        elif tab == "private_groups":
+        # Team invites are obsolete and removed.
+        if tab == "private_groups":
             PrivateGroupInvite.objects.filter(
                 invitee=request.user,
                 workspace=workspace,
@@ -1075,6 +1161,11 @@ class InviteCenterTabView(WorkspaceBaseView):
 
 
 class TeamInviteView(WorkspaceBaseView):
+    """
+    PHASE 8: Direct Add Flow.
+    Admins/Owners can add to any team. Leaders can only add to their team.
+    No invite record is created; the user is added instantly.
+    """
     def post(self, request, workspace_id):
         workspace = self.get_workspace()
         team_id = request.data.get("team_id")
@@ -1093,7 +1184,7 @@ class TeamInviteView(WorkspaceBaseView):
             request.user, team.id
         ):
             return Response(
-                {"error": "You do not have permission to invite to this team"},
+                {"error": "You do not have permission to add members to this team"},
                 status=403,
             )
 
@@ -1107,84 +1198,44 @@ class TeamInviteView(WorkspaceBaseView):
         if TeamMembership.objects.filter(
             team=team, user=invitee, is_active=True
         ).exists():
-            return Response({"error": "User is already in this team"}, status=400)
-        if TeamInvite.objects.filter(
-            team=team, invitee=invitee, workspace=workspace, status="pending"
-        ).exists():
-            return Response({"error": "Invite already pending"}, status=409)
+            return Response({"error": "User already belongs to this team."}, status=400)
 
-        expires_at = timezone.now() + timedelta(days=4)
-        invite = TeamInvite.objects.create(
-            team=team,
-            inviter=request.user,
-            invitee=invitee,
-            workspace=workspace,
-            status="pending",
-            expires_at=expires_at,
-        )
+        try:
+            # 1. Directly add member to team (Immediate Assignment)
+            TeamService.add_member(team, invitee)
+            
+            # 2. Sync Chat Channel (Add them to the team's chat channel)
+            from chat.services.chat_service import ChatService
+            ChatService.add_user_to_team_channel(workspace, team, invitee)
+        except Exception as e:
+            logger.error(f"Chat sync failed for new team member, but membership created: {e}")
+            # Do not return a 500 error. The membership was successfully created.
+            # The chat sync failure is logged but should not block the UI success message.
 
         try:
             NotificationService.create_and_emit(
                 WorkspaceEvent(
                     actor_id=request.user.id,
                     workspace_id=workspace.id,
-                    event_description=f"You've been invited to join team {team.name}",
+                    event_description=f"You have been added to team {team.name}",
                     member_ids=[invitee.id],
                 )
             )
         except Exception:
             pass
+            
         return Response(
             {
-                "id": invite.id,
+                "detail": "Member added successfully",
                 "team_id": team.id,
                 "team_name": team.name,
-                "invitee_id": invitee.id,
-                "status": invite.status,
-                "expires_at": invite.expires_at.isoformat(),
+                "user_id": invitee.id,
             },
             status=201,
         )
 
 
-class TeamInviteRespondView(WorkspaceBaseView):
-    def patch(self, request, workspace_id, pk):
-        workspace = self.get_workspace()
-        TeamInvite.objects.filter(
-            invitee=request.user,
-            workspace=workspace,
-            status="pending",
-            expires_at__lte=timezone.now(),
-        ).update(status="expired")
-
-        try:
-            invite = TeamInvite.objects.get(
-                id=pk, invitee=request.user, workspace=workspace
-            )
-        except TeamInvite.DoesNotExist:
-            return Response({"error": "Invite not found"}, status=404)
-
-        if invite.status != "pending":
-            return Response({"error": f"Invite is already {invite.status}"}, status=400)
-        new_status = request.data.get("status")
-        if new_status not in ("accepted", "rejected"):
-            return Response(
-                {"error": "status must be 'accepted' or 'rejected'"}, status=400
-            )
-
-        if new_status == "accepted":
-            TeamService.add_member(invite.team, request.user)
-
-        invite.status = new_status
-        invite.save()
-        return Response(
-            {
-                "id": invite.id,
-                "team_id": invite.team.id,
-                "team_name": invite.team.name,
-                "status": invite.status,
-            }
-        )
+# TeamInviteRespondView removed as internal team invitations are obsolete.
 
 
 class LeaveTeamView(WorkspaceBaseView):

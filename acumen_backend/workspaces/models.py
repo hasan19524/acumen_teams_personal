@@ -188,35 +188,7 @@ class TeamMembership(models.Model):
         return f"{self.user.username} in {self.team.name}"
 
 
-class TeamInvite(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("accepted", "Accepted"),
-        ("rejected", "Rejected"),
-        ("expired", "Expired"),
-    ]
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="invites")
-    inviter = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="sent_team_invites"
-    )
-    invitee = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="received_team_invites"
-    )
-    workspace = models.ForeignKey(
-        Workspace, on_delete=models.CASCADE, related_name="team_invites"
-    )
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    expires_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        indexes = [
-            models.Index(
-                fields=["team", "invitee", "workspace", "status"],
-                name="idx_teaminvite_lookup",
-            )
-        ]
+# TeamInvite model has been completely removed.
 
 
 class PrivateGroupInvite(models.Model):

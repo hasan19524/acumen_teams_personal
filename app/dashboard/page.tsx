@@ -14,11 +14,17 @@ export default function DashboardPage() {
     return <EmployeeDashboard />;
   }
 
-  if (user?.role === "member") {
+  // FIX: Wait for the user object and role to be fully populated
+  // This prevents members from briefly seeing the Admin dashboard
+  if (!user || !user.role) {
+    return null; 
+  }
+
+  if (user.role === "member") {
     return <MemberDashboard />;
   }
 
-  if (user?.role === "leader") {
+  if (user.role === "leader") {
     return <TeamLeaderDashboard />;
   }
 

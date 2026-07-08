@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import ScrollReveal from "@/components/ui/ScrollReveal";
-import { Mail, Globe, MapPin, Phone,ExternalLink } from "lucide-react";
+import { Mail, Globe, MapPin, Phone, ExternalLink } from "lucide-react";
 
 const footerLinks = {
   company: [
@@ -42,25 +42,25 @@ const footerLinks = {
 };
 
 export default function Footer() {
-  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@acumenteams.com";
+  const supportEmail =
+    process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@acumenteams.com";
   const supportPhone = process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+15551234567";
-  
+
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id.replace("#", ""));
     if (el) window.scrollTo({ top: el.offsetTop - 76, behavior: "smooth" });
   };
 
   return (
-    <footer className="w-full bg-slate-950 text-white border-t border-slate-800">
+    <footer className="w-full bg-slate-950 text-[var(--heading)] border-t border-slate-800">
       <ScrollReveal>
         {/* Main Footer */}
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 lg:py-20">
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-8">
-
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-8">
             {/* Brand — spans 2 cols on all screens */}
             <div className="col-span-2 lg:col-span-2 mb-4 lg:mb-0">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-[var(--heading)] font-bold text-sm">
                   AT
                 </div>
                 <span className="text-lg font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
@@ -86,7 +86,7 @@ export default function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-slate-400 hover:text-white transition-colors text-sm font-medium"
+                      className="text-slate-400 hover:text-[var(--heading)] transition-colors text-sm font-medium"
                     >
                       {link.label}
                     </Link>
@@ -106,14 +106,14 @@ export default function Footer() {
                     {link.scroll ? (
                       <button
                         onClick={() => scrollToSection(link.href)}
-                        className="text-slate-400 hover:text-white transition-colors text-sm font-medium"
+                        className="text-slate-400 hover:text-[var(--heading)] transition-colors text-sm font-medium"
                       >
                         {link.label}
                       </button>
                     ) : (
                       <Link
                         href={link.href}
-                        className="text-slate-400 hover:text-white transition-colors text-sm font-medium"
+                        className="text-slate-400 hover:text-[var(--heading)] transition-colors text-sm font-medium"
                       >
                         {link.label}
                       </Link>
@@ -140,7 +140,7 @@ export default function Footer() {
                           href={link.href}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-slate-400 hover:text-white transition-colors text-sm font-medium flex items-center gap-1.5"
+                          className="text-slate-400 hover:text-[var(--heading)] transition-colors text-sm font-medium flex items-center gap-1.5"
                         >
                           {link.label}
                           <ExternalLink className="w-3 h-3 opacity-50" />
@@ -148,7 +148,7 @@ export default function Footer() {
                       ) : (
                         <Link
                           href={link.href}
-                          className="text-slate-400 hover:text-white transition-colors text-sm font-medium"
+                          className="text-slate-400 hover:text-[var(--heading)] transition-colors text-sm font-medium"
                         >
                           {link.label}
                         </Link>
@@ -174,7 +174,7 @@ export default function Footer() {
                     <Mail className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
                     <a
                       href={`mailto:${supportEmail}`}
-                      className="hover:text-white transition-colors"
+                      className="hover:text-[var(--heading)] transition-colors"
                     >
                       {supportEmail}
                     </a>
@@ -183,7 +183,7 @@ export default function Footer() {
                     <Phone className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
                     <a
                       href={`tel:${supportPhone.replace(/\s/g, "")}`}
-                      className="hover:text-white transition-colors"
+                      className="hover:text-[var(--heading)] transition-colors"
                     >
                       {supportPhone}
                     </a>

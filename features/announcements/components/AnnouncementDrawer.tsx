@@ -14,7 +14,6 @@ import {
   Edit3,
 } from "lucide-react";
 import {
-  tk,
   Announcement,
   PriorityStyle,
   getPriorityStyle,
@@ -23,6 +22,7 @@ import {
   getFileIcon,
   renderMarkdown,
 } from "../lib";
+import { tk } from "@/lib/tokens";
 
 interface AnnouncementDrawerProps {
   selectedAnn: Announcement | null;

@@ -71,7 +71,7 @@ export default function HeroSection() {
               <Link href="/signup" className="w-full sm:w-auto">
                 <Button
                   size="lg"
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white px-8 py-6 text-base lg:text-lg rounded-full transition-all hover:scale-105 hover:shadow-[0_20px_50px_rgba(6,182,212,0.3)] group font-semibold"
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-[var(--heading)] px-8 py-6 text-base lg:text-lg rounded-full transition-all hover:scale-105 hover:shadow-[0_20px_50px_rgba(6,182,212,0.3)] group font-semibold"
                 >
                   Start Free Trial
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -130,7 +130,7 @@ export default function HeroSection() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl">
                       <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-                        <MessageSquare className="w-5 h-5 text-white" />
+                        <MessageSquare className="w-5 h-5 text-[var(--heading)]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">
@@ -144,7 +144,7 @@ export default function HeroSection() {
 
                     <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
                       <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                        <CheckSquare className="w-5 h-5 text-white" />
+                        <CheckSquare className="w-5 h-5 text-[var(--heading)]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">
@@ -158,7 +158,7 @@ export default function HeroSection() {
 
                     <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl">
                       <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-                        <Activity className="w-5 h-5 text-white" />
+                        <Activity className="w-5 h-5 text-[var(--heading)]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">
@@ -172,7 +172,7 @@ export default function HeroSection() {
 
                     <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
                       <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center flex-shrink-0">
-                        <Bell className="w-5 h-5 text-white" />
+                        <Bell className="w-5 h-5 text-[var(--heading)]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">

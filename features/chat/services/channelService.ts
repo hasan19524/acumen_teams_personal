@@ -82,6 +82,8 @@ export async function createChannel(
       name: payload.name,
       channel_type: payload.channel_type,
       team_id: payload.team_id || undefined,
+      // Pass member_ids to backend for private groups
+      member_ids: payload.member_ids || [],
     }),
   });
   const data = await res.json();
@@ -121,11 +123,13 @@ function parseRawChannel(raw: any): Channel {
     last_message_sender: raw.last_message_sender || null,
     unread_count: raw.unread_count || 0,
   };
-  
+
   if (raw.is_dm && parsed.is_pending) {
-    console.warn(`[parseRawChannel] DM channel ${parsed.id} (${parsed.name}) has is_pending=true`);
+    console.warn(
+      `[parseRawChannel] DM channel ${parsed.id} (${parsed.name}) has is_pending=true`,
+    );
   }
-  
+
   return parsed;
 }
 
@@ -281,13 +285,16 @@ export async function loadDMs(): Promise<Channel[]> {
   }
   const data = await res.json();
   if (Array.isArray(data) && data.length > 0) {
-    console.log("[loadDMs] Raw backend response:", data.map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      is_pending: c.is_pending,
-      channel_type: c.channel_type,
-      dm_partner: c.dm_partner?.username
-    })));
+    console.log(
+      "[loadDMs] Raw backend response:",
+      data.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        is_pending: c.is_pending,
+        channel_type: c.channel_type,
+        dm_partner: c.dm_partner?.username,
+      })),
+    );
   }
   return Array.isArray(data)
     ? data.map((item: any) => parseRawChannel(item))

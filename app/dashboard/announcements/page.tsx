@@ -6,7 +6,8 @@ import { Bell, Search, Archive, AlertTriangle, Plus } from "lucide-react";
 import { workspaceService } from "@/features/workspace/workspaceService";
 import { apiFetch } from "@/lib/api";
 import { getWorkspaceId } from "@/lib/auth";
-import { tk, Announcement, Team } from "@/features/announcements/lib";
+import { Announcement, Team } from "@/features/announcements/lib";
+import { tk } from "@/lib/tokens";
 import { AnnouncementCard } from "@/features/announcements/components/AnnouncementCard";
 import { AnnouncementModal } from "@/features/announcements/components/AnnouncementModal";
 import { AnnouncementDrawer } from "@/features/announcements/components/AnnouncementDrawer";
@@ -14,8 +15,18 @@ import { AnnouncementDrawer } from "@/features/announcements/components/Announce
 export default function AnnouncementsPage() {
   const [role, setRole] = useState("member");
   const [userTeams, setUserTeams] = useState<Team[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    const {
+      useAnnouncementStore,
+    } = require("@/features/announcements/store/announcementStore");
+    return useAnnouncementStore.getState().announcements || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const {
+      useAnnouncementStore,
+    } = require("@/features/announcements/store/announcementStore");
+    return useAnnouncementStore.getState().announcements.length === 0;
+  });
   const [activeTab, setActiveTab] = useState<"all" | "archive">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -31,20 +42,35 @@ export default function AnnouncementsPage() {
   const canPost = role === "owner" || role === "admin" || role === "leader";
 
   useEffect(() => {
-    workspaceService
-      .getStats()
-      .then((s: any) => setRole(s?.role || "member"))
-      .catch(() => {});
-    workspaceService
-      .getTeams()
-      .then((t: any) => setUserTeams(t || []))
-      .catch(() => {});
+    const { useWorkspaceStore } = require("@/lib/stores/workspaceStore");
+    const cachedStats = useWorkspaceStore.getState().stats;
+    const cachedTeams = useWorkspaceStore.getState().teams;
+
+    if (cachedStats?.role) {
+      setRole(cachedStats.role);
+    } else {
+      workspaceService
+        .getStats()
+        .then((s: any) => setRole(s?.role || "member"))
+        .catch(() => {});
+    }
+
+    if (cachedTeams?.length > 0) {
+      setUserTeams(cachedTeams);
+    } else {
+      workspaceService
+        .getTeams()
+        .then((t: any) => setUserTeams(t || []))
+        .catch(() => {});
+    }
+
     fetchAnnouncements();
   }, []);
 
   const fetchAnnouncements = async () => {
-    setLoading(true);
     const wsId = getWorkspaceId();
+    // FIX: Only show skeletons if we don't already have data from the pipeline
+    if (announcements.length === 0) setLoading(true);
     try {
       const res = await apiFetch(
         `/api/announcements/${wsId}/?filter=${activeTab}&search=${searchQuery}`,
@@ -204,7 +230,7 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <main className="h-full bg-[#081325] text-white font-sans flex flex-col overflow-hidden">
+    <main className="h-full bg-[var(--bg)] text-[var(--heading)] font-sans flex flex-col overflow-hidden">
       <style>{`
         @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .drawer-slide { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -218,13 +244,17 @@ export default function AnnouncementsPage() {
       {/* =========================================
           1. LOCKED TOP SECTION (No Scroll)
       ========================================== */}
-      <div className="flex-shrink-0 p-4 sm:p-6 lg:p-8 border-b border-[#2A3A5C]/50">
+      <div className="flex-shrink-0 p-4 sm:p-6 lg:p-8 border-b border-[var(--border)]/50">
         <div className="max-w-5xl mx-auto">
           {/* HEADER */}
           <div className="flex justify-between items-center gap-4 mb-6">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Announcements</h1>
-              <p className="text-sm text-[#B7C0D8] mt-1">Stay updated with company news and updates.</p>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                Announcements
+              </h1>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Stay updated with company news and updates.
+              </p>
             </div>
             {canPost && (
               <button
@@ -233,9 +263,9 @@ export default function AnnouncementsPage() {
                   setInitialData(null);
                   setShowModal(true);
                 }}
-                className="h-10 px-4 sm:px-5 rounded-lg bg-[#4B1587] text-white font-semibold text-sm flex items-center gap-2 flex-shrink-0 hover:brightness-110 transition-all"
+                className="h-10 px-4 sm:px-5 rounded-lg bg-[var(--brand)] text-[var(--heading)] font-semibold text-sm flex items-center gap-2 flex-shrink-0 hover:brightness-110 transition-all"
               >
-                <Plus size={16} /> 
+                <Plus size={16} />
                 <span className="hidden sm:inline">Create Announcement</span>
                 <span className="sm:hidden">Create</span>
               </button>
@@ -245,24 +275,27 @@ export default function AnnouncementsPage() {
           {/* CONTROLS */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7A86A7] pointer-events-none" />
+              <Search
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
+              />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search announcements..."
-                className="w-full p-2.5 pl-10 rounded-lg border border-[#2A3A5C] bg-[#172440] text-white text-sm outline-none focus:border-[#5DADE2] transition-colors"
+                className="w-full p-2.5 pl-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--heading)] text-sm outline-none focus:border-[var(--brand-light)] transition-colors"
               />
             </div>
-            <div className="flex gap-1 bg-[#172440] p-1 rounded-lg border border-[#2A3A5C] flex-shrink-0 self-stretch sm:self-auto">
+            <div className="flex gap-1 bg-[var(--surface)] p-1 rounded-lg border border-[var(--border)] flex-shrink-0 self-stretch sm:self-auto">
               <button
                 onClick={() => setActiveTab("all")}
-                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "all" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "all" ? "bg-[var(--brand)] text-[var(--heading)]" : "text-[var(--text-secondary)]"}`}
               >
                 All
               </button>
               <button
                 onClick={() => setActiveTab("archive")}
-                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "archive" ? "bg-[#4B1587] text-white" : "text-[#B7C0D8]"}`}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === "archive" ? "bg-[var(--brand)] text-[var(--heading)]" : "text-[var(--text-secondary)]"}`}
               >
                 Archive
               </button>
@@ -278,49 +311,63 @@ export default function AnnouncementsPage() {
         <div className="max-w-5xl mx-auto">
           {/* FEED */}
           <div>
-          {loading ? (
-            <div className="flex flex-col gap-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="shimmer-bg h-24 rounded-xl border border-[#2A3A5C]"></div>
-              ))}
-            </div>
-          ) : announcements.length === 0 ? (
-            <div className="p-12 text-center text-[#7A86A7] bg-[#172440] border border-[#2A3A5C] rounded-xl flex flex-col items-center gap-3">
-              {searchQuery ? (
-                <>
-                  <Search size={28} className="opacity-40" />
-                  <div className="font-semibold text-base text-[#B7C0D8]">No announcements matched "{searchQuery}"</div>
-                  <button onClick={() => setSearchQuery("")} className="bg-transparent border-none text-[#5DADE2] cursor-pointer text-sm font-semibold underline">
-                    Clear search
-                  </button>
-                </>
-              ) : activeTab === "archive" ? (
-                <>
-                  <Archive size={32} className="opacity-40" />
-                  <div className="font-semibold text-base text-[#B7C0D8]">Archive is empty</div>
-                  <div className="text-sm">Expired announcements will appear here.</div>
-                </>
-              ) : (
-                <>
-                  <Bell size={32} className="opacity-40" />
-                  <div className="font-semibold text-base text-[#B7C0D8]">No Announcements</div>
-                  <div className="text-sm">Check back later for updates.</div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {announcements.map((item) => (
-                <AnnouncementCard
-                  key={item.id}
-                  item={item}
-                  onClick={() => openDetail(item)}
-                />
-              ))}
-            </div>
-          )}
+            {loading ? (
+              <div className="flex flex-col gap-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="shimmer-bg h-24 rounded-xl border border-[var(--border)]"
+                  ></div>
+                ))}
+              </div>
+            ) : announcements.length === 0 ? (
+              <div className="p-12 text-center text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col items-center gap-3">
+                {searchQuery ? (
+                  <>
+                    <Search size={28} className="opacity-40" />
+                    <div className="font-semibold text-base text-[var(--text-secondary)]">
+                      No announcements matched "{searchQuery}"
+                    </div>
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="bg-transparent border-none text-[var(--brand-light)] cursor-pointer text-sm font-semibold underline"
+                    >
+                      Clear search
+                    </button>
+                  </>
+                ) : activeTab === "archive" ? (
+                  <>
+                    <Archive size={32} className="opacity-40" />
+                    <div className="font-semibold text-base text-[var(--text-secondary)]">
+                      Archive is empty
+                    </div>
+                    <div className="text-sm">
+                      Expired announcements will appear here.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Bell size={32} className="opacity-40" />
+                    <div className="font-semibold text-base text-[var(--text-secondary)]">
+                      No Announcements
+                    </div>
+                    <div className="text-sm">Check back later for updates.</div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {announcements.map((item) => (
+                  <AnnouncementCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => openDetail(item)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
 
       {/* MODAL */}
@@ -347,26 +394,33 @@ export default function AnnouncementsPage() {
 
       {/* DELETE CONFIRMATION */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-[200] flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDeleteId(null)}>
-          <div className="modal-fade bg-[#172440] border border-[#2A3A5C] rounded-xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[200] flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="modal-fade bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-sm p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
-                <AlertTriangle size={24} className="text-[#E31E24]" />
+              <div className="w-12 h-12 rounded-full bg-[var(--tint-red)] flex items-center justify-center mb-4">
+                <AlertTriangle size={24} className="text-[var(--primary)]" />
               </div>
               <h3 className="text-lg font-bold mb-2">Delete Announcement?</h3>
-              <p className="text-sm text-[#B7C0D8] mb-6 leading-relaxed">
-                This action cannot be undone. This announcement will be permanently deleted.
+              <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">
+                This action cannot be undone. This announcement will be
+                permanently deleted.
               </p>
               <div className="flex gap-3 w-full">
                 <button
                   onClick={() => setConfirmDeleteId(null)}
-                  className="flex-1 py-3 rounded-lg border border-[#2A3A5C] bg-transparent text-[#B7C0D8] font-semibold text-sm hover:bg-[#081325] transition-colors"
+                  className="flex-1 py-3 rounded-lg border border-[var(--border)] bg-transparent text-[var(--text-secondary)] font-semibold text-sm hover:bg-[var(--bg)] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDelete}
-                  className="flex-1 py-3 rounded-lg bg-[#E31E24] text-white font-semibold text-sm hover:brightness-110 transition-all"
+                  className="flex-1 py-3 rounded-lg bg-[var(--primary)] text-[var(--heading)] font-semibold text-sm hover:brightness-110 transition-all"
                 >
                   Delete
                 </button>

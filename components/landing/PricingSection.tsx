@@ -76,13 +76,16 @@ export default function PricingSection() {
         <ScrollReveal>
           <div className="text-center mb-16 lg:mb-20">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100/80 rounded-full mb-6 border border-blue-200">
-              <span className="text-sm font-semibold text-blue-700">Flexible Plans</span>
+              <span className="text-sm font-semibold text-blue-700">
+                Flexible Plans
+              </span>
             </div>
             <h2 className="text-5xl sm:text-6xl font-bold text-slate-900 mb-5">
               Future Plans & Enterprise
             </h2>
             <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              We are finalizing our pricing tiers. Until then, the platform is free to use. Explore our planned structures below.
+              We are finalizing our pricing tiers. Until then, the platform is
+              free to use. Explore our planned structures below.
             </p>
           </div>
         </ScrollReveal>
@@ -100,7 +103,7 @@ export default function PricingSection() {
                 {plan.featured && (
                   <>
                     <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-t-2xl" />
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs rounded-full font-bold shadow-lg whitespace-nowrap">
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-[var(--heading)] text-xs rounded-full font-bold shadow-lg whitespace-nowrap">
                       Most Popular
                     </div>
                   </>
@@ -108,18 +111,31 @@ export default function PricingSection() {
 
                 <div className="p-7 lg:p-8 flex-1 flex flex-col">
                   <div className="mb-6">
-                    <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
+                    <h3 className="text-xl font-bold text-slate-900 mb-1">
+                      {plan.name}
+                    </h3>
                     <p className="text-sm text-slate-500">{plan.description}</p>
                   </div>
 
                   <div className="mb-7">
-                    <span className={`text-2xl font-bold ${plan.featured ? "text-blue-600" : "text-slate-900"}`}>{plan.price}</span>
-                    {plan.period && <span className="text-slate-500 text-sm ml-2">{plan.period}</span>}
+                    <span
+                      className={`text-2xl font-bold ${plan.featured ? "text-blue-600" : "text-slate-900"}`}
+                    >
+                      {plan.price}
+                    </span>
+                    {plan.period && (
+                      <span className="text-slate-500 text-sm ml-2">
+                        {plan.period}
+                      </span>
+                    )}
                   </div>
 
                   <ul className="space-y-3 mb-8 flex-1">
                     {plan.features.map((f) => (
-                      <li key={f} className="flex items-center gap-3 text-sm text-slate-600">
+                      <li
+                        key={f}
+                        className="flex items-center gap-3 text-sm text-slate-600"
+                      >
                         <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                           <CheckSquare className="w-2.5 h-2.5 text-blue-600" />
                         </div>
@@ -132,7 +148,7 @@ export default function PricingSection() {
                     <Button
                       className={`w-full rounded-xl py-2.5 font-semibold transition-all hover:scale-[1.02] text-sm ${
                         plan.featured
-                          ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white"
+                          ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-[var(--heading)]"
                           : "bg-slate-100 text-slate-900 hover:bg-slate-200"
                       }`}
                     >
@@ -143,11 +159,12 @@ export default function PricingSection() {
               </div>
             </ScrollReveal>
           ))}
-        <ScrollReveal delay={200}>
-          <p className="text-center text-sm text-slate-400 mt-12 italic">
-            Illustrative pricing. Final plans and feature sets are subject to change.
-          </p>
-        </ScrollReveal>
+          <ScrollReveal delay={200}>
+            <p className="text-center text-sm text-slate-400 mt-12 italic">
+              Illustrative pricing. Final plans and feature sets are subject to
+              change.
+            </p>
+          </ScrollReveal>
         </div>
       </div>
     </section>

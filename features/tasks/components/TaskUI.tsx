@@ -6,26 +6,26 @@ import { Task, TaskPriority, TaskStatus, TaskAnalytics, WorkspaceMember } from "
 import { useTaskStore } from "@/features/tasks/store/taskStore";
 import { X, Archive } from "lucide-react";
 import Avatar from "@/components/Avatar";
+import { tk as baseTk } from "@/lib/tokens";
 
-// ── Acumen Design System Tokens ───────────────────────────────────────
 const tk = {
-  bg: "#081325", 
-  surface: "#172440", 
-  surfaceAlt: "#101D35", 
-  surfaceHover: "#20304E",
-  glass: "rgba(255,255,255,0.03)", 
-  border: "#2A3A5C", 
-  borderHover: "#3A4D72", 
-  borderFocus: "#5DADE2",
-  text: "#FFFFFF", 
-  textSec: "#B7C0D8", 
-  textTer: "#7A86A7", 
-  purple: "#4B1587", // Acumen Brand
-  blue: "#5DADE2",   // Acumen Info
-  amber: "#F5B041",  // Acumen Warning
-  green: "#1FA463",  // Acumen Success
-  red: "#E31E24",    // Acumen Primary/Danger
-  pink: "#E31E24",   // Mapped to Primary for consistency
+  bg: baseTk.bg,
+  surface: baseTk.surface,
+  surfaceAlt: baseTk.bgSecondary,
+  surfaceHover: baseTk.surfaceHover,
+  glass: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
+  border: baseTk.border,
+  borderHover: baseTk.borderHover,
+  borderFocus: baseTk.brandLight,
+  text: baseTk.textPrimary,
+  textSec: baseTk.textSecondary,
+  textTer: baseTk.textMuted,
+  purple: baseTk.brand,
+  blue: baseTk.info,
+  amber: baseTk.warning,
+  green: baseTk.success,
+  red: baseTk.primary,
+  pink: baseTk.primary,
 };
 
 const priorityConfig: Record<string, { color: string; bg: string; dot: string }> = {

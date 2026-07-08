@@ -12,6 +12,7 @@ import {
   CheckSquare,
   Building2,
   ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { tk } from "@/lib/tokens";
@@ -21,33 +22,105 @@ export default function DashboardTopbar({
   todayString,
   greeting,
   unreadCount,
-  onModalOpen,
 }: any) {
   const router = useRouter();
   const openProfile = useProfileStore((s) => s.openProfile);
   const [showQuickActions, setShowQuickActions] = useState(false);
 
-  const quickActionsList = [
-    {
-      icon: UserPlus,
-      label: "Invite User",
-      color: tk.success,
-      modal: "invite",
-    },
-    { icon: Users, label: "Create Team", color: tk.brand, modal: "team" },
-    {
-      icon: Megaphone,
-      label: "Announcement",
-      color: tk.brandLight,
-      modal: "announcement",
-    },
-    {
-      icon: CheckSquare,
-      label: "Create Task",
-      color: tk.warning,
-      modal: "task",
-    },
-  ];
+  const role = user?.role || "member";
+
+  const getActions = () => {
+    if (role === "owner" || role === "admin") {
+      return [
+        {
+          icon: UserPlus,
+          label: "Invite User",
+          color: tk.success,
+          path: "/dashboard/team",
+        },
+        {
+          icon: Users,
+          label: "Create Team",
+          color: tk.brand,
+          path: "/dashboard/team",
+        },
+        {
+          icon: Megaphone,
+          label: "New Announcement",
+          color: tk.brandLight,
+          path: "/dashboard/announcements",
+        },
+        {
+          icon: CheckSquare,
+          label: "Create Task",
+          color: tk.warning,
+          path: "/dashboard/tasks",
+        },
+      ];
+    }
+    if (role === "leader") {
+      return [
+        {
+          icon: CheckSquare,
+          label: "Create Task",
+          color: tk.warning,
+          path: "/dashboard/tasks",
+        },
+        {
+          icon: MessageSquare,
+          label: "Create Group Chat",
+          color: tk.brand,
+          path: "/dashboard/chat",
+        },
+        {
+          icon: UserPlus,
+          label: "Invite to Team",
+          color: tk.success,
+          path: "/dashboard/team",
+        },
+        {
+          icon: Megaphone,
+          label: "New Announcement",
+          color: tk.brandLight,
+          path: "/dashboard/announcements",
+        },
+      ];
+    }
+    // Member
+    return [
+      {
+        icon: CheckSquare,
+        label: "Create Personal Task",
+        color: tk.warning,
+        path: "/dashboard/tasks",
+      },
+      {
+        icon: MessageSquare,
+        label: "Start DM",
+        color: tk.brand,
+        path: "/dashboard/chat",
+      },
+      {
+        icon: Users,
+        label: "Create Group Chat",
+        color: tk.brandLight,
+        path: "/dashboard/chat",
+      },
+      {
+        icon: Megaphone,
+        label: "View Announcements",
+        color: tk.success,
+        path: "/dashboard/announcements",
+      },
+    ];
+  };
+
+  const quickActionsList = getActions();
+
+  const handleActionClick = (path: string) => {
+    router.push(path);
+    setShowQuickActions(false);
+  };
 
   return (
     <>
@@ -58,8 +131,8 @@ export default function DashboardTopbar({
       `}</style>
 
       {/* MOBILE GREETING */}
-      <div className="lg:hidden flex justify-between items-center mt-4 mb-6">
-        <div>
+      <div className="lg:hidden flex justify-between items-center mt-4 mb-6 gap-4">
+        <div className="min-w-0 flex-1">
           <p
             className="m-0 text-xs font-semibold uppercase tracking-wider"
             style={{ color: tk.textMuted }}
@@ -80,7 +153,7 @@ export default function DashboardTopbar({
             />
           </h1>
         </div>
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowQuickActions(!showQuickActions)}
             className="avatar flex items-center justify-center cursor-pointer"
@@ -113,11 +186,8 @@ export default function DashboardTopbar({
                   return (
                     <button
                       key={action.label}
-                      onClick={() => {
-                        onModalOpen(action.modal);
-                        setShowQuickActions(false);
-                      }}
-                      className="w-full flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors hover:bg-slate-700/50"
+                      onClick={() => handleActionClick(action.path)}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors hover:bg-[var(--surface-hover)]"
                       style={{
                         color: tk.textPrimary,
                         background: "transparent",
@@ -135,7 +205,7 @@ export default function DashboardTopbar({
                       >
                         <Icon size={12} color={action.color} />
                       </div>
-                      <span className="text-xs font-medium">
+                      <span className="text-xs font-medium whitespace-nowrap">
                         {action.label}
                       </span>
                     </button>
@@ -214,11 +284,8 @@ export default function DashboardTopbar({
                     return (
                       <button
                         key={action.label}
-                        onClick={() => {
-                          onModalOpen(action.modal);
-                          setShowQuickActions(false);
-                        }}
-                        className="w-full flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-700/50"
+                        onClick={() => handleActionClick(action.path)}
+                        className="w-full flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-[var(--surface-hover)]"
                         style={{
                           color: tk.textPrimary,
                           background: "transparent",
@@ -236,7 +303,7 @@ export default function DashboardTopbar({
                         >
                           <Icon size={14} color={action.color} />
                         </div>
-                        <span className="text-sm font-medium">
+                        <span className="text-sm font-medium whitespace-nowrap">
                           {action.label}
                         </span>
                       </button>

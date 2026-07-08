@@ -91,26 +91,74 @@ function ChannelIcon({ chat }: { chat: Channel }) {
   switch (chat.channel_type) {
     case "official": // intentional fallthrough for system/official channels
       return (
-        <div style={{ width: 38, height: 38, borderRadius: T.radiusSm, background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: T.radiusSm,
+            background: T.accent,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
           <Building2 size={18} color="#fff" />
         </div>
       );
     case "team":
       return (
-        <div style={{ width: 38, height: 38, borderRadius: T.radiusSm, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: T.radiusSm,
+            background: T.indigo,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
           <Users size={18} color="#fff" />
         </div>
       );
     case "private_group":
-      return <Avatar src={(chat as any)?.avatar_url} name={chat.name} size="md" className="rounded-lg" />;
+      return (
+        <Avatar
+          src={(chat as any)?.avatar_url}
+          name={chat.name}
+          size="md"
+          className="rounded-lg"
+        />
+      );
     case "dm": {
-      const myUsername = typeof window !== "undefined" ? localStorage.getItem("username") || "" : "";
-      const dmName = chat.dm_partner?.full_name || chat.dm_partner?.username || (chat.name.split(",").find((n) => n.trim() !== myUsername) || "Unknown").trim();
+      const myUsername =
+        typeof window !== "undefined"
+          ? localStorage.getItem("username") || ""
+          : "";
+      const dmName =
+        chat.dm_partner?.full_name ||
+        chat.dm_partner?.username ||
+        (
+          chat.name.split(",").find((n) => n.trim() !== myUsername) || "Unknown"
+        ).trim();
       return <Avatar user={chat.dm_partner} name={dmName} size="md" />;
     }
     default:
       return (
-        <div style={{ width: 38, height: 38, borderRadius: T.radiusSm, background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: T.radiusSm,
+            background: T.accent,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
           <Users size={18} color="#fff" />
         </div>
       );
@@ -204,11 +252,11 @@ function ChatItem({
           if (!isSelected) e.currentTarget.style.background = "transparent";
         }}
       >
-        <div 
-          onClick={(e) => { 
-            if (chat.channel_type === 'dm' && chat.dm_partner) {
-              e.stopPropagation(); 
-              openProfile(chat.dm_partner); 
+        <div
+          onClick={(e) => {
+            if (chat.channel_type === "dm" && chat.dm_partner) {
+              e.stopPropagation();
+              openProfile(chat.dm_partner);
             }
           }}
           style={{ display: "flex", alignItems: "center" }}
@@ -657,14 +705,18 @@ export function ChatSidebar({
   const sortedChats = [...processedChats].sort((a, b) => {
     const aPinned = pinnedChats.has(a.id);
     const bPinned = pinnedChats.has(b.id);
-    
+
     if (aPinned && !bPinned) return -1;
     if (!aPinned && bPinned) return 1;
 
     // If both are pinned or both are unpinned, sort by latest message time
-    const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
-    const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
-    
+    const timeA = a.last_message_time
+      ? new Date(a.last_message_time).getTime()
+      : 0;
+    const timeB = b.last_message_time
+      ? new Date(b.last_message_time).getTime()
+      : 0;
+
     return timeB - timeA; // Descending order (newest first)
   });
 
@@ -968,10 +1020,10 @@ export function ChatSidebar({
                         (e.currentTarget.style.background = "transparent")
                       }
                     >
-                      <div 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          openProfile(u); 
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openProfile(u);
                         }}
                       >
                         <Avatar user={u} size="sm" />
@@ -1117,7 +1169,13 @@ export function ChatSidebar({
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: `0 ${T.gapSm} 80px ${T.gapSm}` }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: `0 ${T.gapSm} 80px ${T.gapSm}`,
+        }}
+      >
         {showRequestsList ? (
           <div style={{ padding: "8px 12px" }}>
             {receivedRequests.length === 0 ? (
@@ -1143,7 +1201,13 @@ export function ChatSidebar({
                   }}
                 >
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, overflow: "hidden" }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      flex: 1,
+                      overflow: "hidden",
+                    }}
                   >
                     <div
                       style={{
@@ -1470,7 +1534,11 @@ export function ChatSidebar({
                         {isSelected && <Check size={14} color="#fff" />}
                       </div>
                     )}
-                    <Avatar user={u} name={u.full_name || u.username} size="md" />
+                    <Avatar
+                      user={u}
+                      name={u.full_name || u.username}
+                      size="md"
+                    />
                     <div style={{ overflow: "hidden" }}>
                       <div
                         style={{

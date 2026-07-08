@@ -1,4 +1,3 @@
-// app/dashboard/team/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -34,6 +33,7 @@ import { useProfileStore } from "@/features/dashboard/store/profileStore";
 import { InviteManager } from "@/features/teams/components/InviteManager";
 import { useAuth } from "@/hooks/useAuth";
 import Avatar from "@/components/Avatar";
+import { useWorkspaceStore } from "@/lib/stores/workspaceStore";
 
 type Tab = "teams" | "members" | "invites";
 
@@ -43,11 +43,26 @@ export default function TeamPage() {
   const [activeTab, setActiveTab] = useState<Tab>("teams");
   const [search, setSearch] = useState("");
 
-  const [users, setUsers] = useState<Member[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [statsData, setStatsData] = useState<any>(null);
-  const [myRole, setMyRole] = useState("member");
+  const [users, setUsers] = useState<Member[]>(
+    () => useWorkspaceStore.getState().members || [],
+  );
+  const [teams, setTeams] = useState<Team[]>(() => {
+    const cached = useWorkspaceStore.getState().teams || [];
+    return cached.filter(
+      (t: Team) =>
+        t.team_type !== "general" && t.name?.toLowerCase() !== "general",
+    );
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    const s = useWorkspaceStore.getState();
+    return s.members.length === 0 || s.teams.length === 0 || !s.stats;
+  });
+  const [statsData, setStatsData] = useState<any>(
+    () => useWorkspaceStore.getState().stats || null,
+  );
+  const [myRole, setMyRole] = useState<string>(
+    () => useWorkspaceStore.getState().stats?.role || "member",
+  );
   const [myUsername, setMyUsername] = useState("");
   const [inviteCounts, setInviteCounts] = useState({
     workspace: 0,
@@ -62,7 +77,7 @@ export default function TeamPage() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editIsPrivate, setIsEditPrivate] = useState(false);
-  const [editColor, setEditColor] = useState("#4B1587");
+  const [editColor, setEditColor] = useState("var(--brand)");
   const [editLeaderId, setEditLeaderId] = useState("");
 
   // Modals State
@@ -79,23 +94,35 @@ export default function TeamPage() {
     user: Member;
   } | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [menuPos, setMenuPos] = useState<{ top?: string; bottom?: string }>({ top: "100%" });
+  const [menuPos, setMenuPos] = useState<{ top?: string; bottom?: string }>({
+    top: "100%",
+  });
 
   const isAdmin = myRole === "owner" || myRole === "admin";
 
   const fetchAllData = async () => {
-    setIsLoading(true);
+    const s = useWorkspaceStore.getState();
+    // FIX: Only show skeletons if the pipeline didn't preload data
+    if (s.members.length === 0 || s.teams.length === 0 || !s.stats) {
+      setIsLoading(true);
+    }
+
     try {
-      const [membersData, teamsData, , statsData, countsData] =
-        await Promise.all([
-          workspaceService.getMembers(),
-          workspaceService.getTeams(),
-          null,
-          workspaceService.getStats(),
+      const [membersData, teamsData, statsData, countsData] = await Promise.all(
+        [
+          s.members.length > 0
+            ? Promise.resolve(s.members)
+            : workspaceService.getMembers(),
+          s.teams.length > 0
+            ? Promise.resolve(s.teams)
+            : workspaceService.getTeams(),
+          s.stats ? Promise.resolve(s.stats) : workspaceService.getStats(),
           import("@/features/chat/services/inviteService").then((m) =>
             m.loadInviteCounts(),
           ),
-        ]);
+        ],
+      );
+
       setUsers(Array.isArray(membersData) ? membersData : []);
       const filtered = Array.isArray(teamsData)
         ? teamsData.filter(
@@ -323,7 +350,7 @@ export default function TeamPage() {
       {/* =========================================
           1. LOCKED TOP SECTION (Sticky)
       ========================================= */}
-      <div className="sticky top-0 z-10 p-4 md:p-8 pb-4 bg-[#081325] border-b border-[#2A3A5C]/50">
+      <div className="sticky top-0 z-10 p-4 md:p-8 pb-4 bg-[var(--bg)] border-b border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto">
           {/* HEADER */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -367,7 +394,7 @@ export default function TeamPage() {
               label="Teams"
               value={isLoading ? "..." : teams.length}
               icon={Building2}
-              color={tk.brand}
+              color={tk.indigo}
             />
             <SummaryCard
               label="Pending Invites"
@@ -434,297 +461,320 @@ export default function TeamPage() {
       ========================================= */}
       <div className="p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-        {activeTab === "teams" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoading ? (
-              [1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="skeleton h-48 rounded-2xl border"
-                  style={{ borderColor: tk.border }}
-                />
-              ))
-            ) : filteredTeams.length === 0 ? (
-              <EmptyState
-                icon={Building2}
-                title="No Teams Found"
-                subtitle={
-                  search
-                    ? "Try another keyword."
-                    : "Create your first team to get started."
-                }
-              />
-            ) : (
-              filteredTeams.map((t) => (
-                <TeamCard
-                  key={t.id}
-                  team={t}
-                  onClick={() => {
-                    setSelectedTeam(t);
-                    setEditName(t.name);
-                    setEditDesc(t.description || "");
-                    setIsEditPrivate(t.is_private);
-                    setEditColor(t.color || "#4B1587");
-                    setIsEditingTeam(false);
-                  }}
-                />
-              ))
-            )}
-          </div>
-        )}
-
-        {activeTab === "members" && (
-          <div
-            className="rounded-xl border overflow-visible"
-            style={{ background: tk.surface, borderColor: tk.border }}
-          >
-            {/* Desktop Header */}
-            <div
-              className="hidden md:grid grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b"
-              style={{
-                borderColor: tk.border,
-                color: tk.textMuted,
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: "uppercase",
-              }}
-            >
-              <div>Name</div>
-              <div>Role</div>
-              <div>Teams</div>
-              <div>Status</div>
-              <div>Joined</div>
-              <div></div>
-            </div>
-
-            {isLoading ? (
-              <div
-                className="p-10 text-center flex justify-center items-center gap-2"
-                style={{ color: tk.textMuted }}
-              >
-                <Loader2 size={16} className="animate-spin" /> Loading
-                members...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <EmptyState
-                icon={Users}
-                title="No Members Found"
-                subtitle={
-                  search
-                    ? "Try another keyword."
-                    : "Invite users to your workspace."
-                }
-              />
-            ) : (
-              filteredUsers.map((u, i) => {
-                const isLeader = u.teams.some((t: any) => t.is_leader);
-                return (
+          {activeTab === "teams" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {isLoading ? (
+                [1, 2, 3].map((i) => (
                   <div
-                    key={u.user_id || i}
-                    className="member-row grid grid-cols-[1fr_auto] md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b last:border-0 items-center cursor-pointer relative"
+                    key={i}
+                    className="skeleton h-48 rounded-2xl border"
                     style={{ borderColor: tk.border }}
-                    onClick={() => openProfile(u)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        user={u}
-                        src={u.profile_image}
-                        name={u.full_name || u.username}
-                        size="sm"
-                      />
-                      <div>
-                        <div className="font-semibold text-sm">
-                          {u.full_name || u.username}
-                        </div>
-                        <div
-                          className="text-xs"
-                          style={{ color: tk.textMuted }}
-                        >
-                          @{u.username}
+                  />
+                ))
+              ) : filteredTeams.length === 0 ? (
+                <EmptyState
+                  icon={Building2}
+                  title="No Teams Found"
+                  subtitle={
+                    search
+                      ? "Try another keyword."
+                      : "Create your first team to get started."
+                  }
+                />
+              ) : (
+                filteredTeams.map((t) => (
+                  <TeamCard
+                    key={t.id}
+                    team={t}
+                    onClick={() => {
+                      setSelectedTeam(t);
+                      setEditName(t.name);
+                      setEditDesc(t.description || "");
+                      setIsEditPrivate(t.is_private);
+                      setEditColor(t.color || "var(--brand)");
+                      setIsEditingTeam(false);
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === "members" && (
+            <div
+              className="rounded-xl border overflow-visible"
+              style={{ background: tk.surface, borderColor: tk.border }}
+            >
+              {/* Desktop Header */}
+              <div
+                className="hidden md:grid grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b"
+                style={{
+                  borderColor: tk.border,
+                  color: tk.textMuted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                }}
+              >
+                <div>Name</div>
+                <div>Role</div>
+                <div>Teams</div>
+                <div>Status</div>
+                <div>Joined</div>
+                <div></div>
+              </div>
+
+              {isLoading ? (
+                <div
+                  className="p-10 text-center flex justify-center items-center gap-2"
+                  style={{ color: tk.textMuted }}
+                >
+                  <Loader2 size={16} className="animate-spin" /> Loading
+                  members...
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="No Members Found"
+                  subtitle={
+                    search
+                      ? "Try another keyword."
+                      : "Invite users to your workspace."
+                  }
+                />
+              ) : (
+                filteredUsers.map((u, i) => {
+                  const isLeader = u.teams.some((t: any) => t.is_leader);
+                  return (
+                    <div
+                      key={u.user_id || i}
+                      className="member-row grid grid-cols-[1fr_auto] md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b last:border-0 items-center cursor-pointer relative"
+                      style={{ borderColor: tk.border }}
+                      onClick={() => openProfile(u)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          user={u}
+                          src={u.profile_image}
+                          name={u.full_name || u.username}
+                          size="sm"
+                        />
+                        <div>
+                          <div className="font-semibold text-sm">
+                            {u.full_name || u.username}
+                          </div>
+                          <div
+                            className="text-xs"
+                            style={{ color: tk.textMuted }}
+                          >
+                            @{u.username}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="hidden md:block">
-                      <RoleBadge role={u.role} isLeader={isLeader} />
-                    </div>
-                    <div className="hidden md:flex flex-wrap gap-1">
-                      {u.teams && u.teams.length > 0 ? (
-                        u.teams.map((t) => (
+                      <div className="hidden md:block">
+                        <RoleBadge role={u.role} isLeader={isLeader} />
+                      </div>
+                      <div className="hidden md:flex flex-wrap gap-1">
+                        {u.teams && u.teams.length > 0 ? (
+                          u.teams.map((t) => (
+                            <span
+                              key={t.id}
+                              className="text-[10px] px-1.5 py-0.5 rounded"
+                              style={{
+                                background: tk.bg,
+                                color: tk.textSecondary,
+                              }}
+                            >
+                              {t.name}
+                            </span>
+                          ))
+                        ) : (
                           <span
-                            key={t.id}
-                            className="text-[10px] px-1.5 py-0.5 rounded"
-                            style={{
-                              background: tk.bg,
-                              color: tk.textSecondary,
-                            }}
+                            className="text-xs"
+                            style={{ color: tk.textMuted }}
                           >
-                            {t.name}
+                            Unassigned
                           </span>
-                        ))
-                      ) : (
+                        )}
+                      </div>
+                      <div className="hidden md:flex items-center gap-1.5">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ background: tk.success }}
+                        />
                         <span
                           className="text-xs"
-                          style={{ color: tk.textMuted }}
+                          style={{ color: tk.textSecondary }}
                         >
-                          Unassigned
+                          Active
                         </span>
-                      )}
-                    </div>
-                    <div className="hidden md:flex items-center gap-1.5">
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ background: tk.success }}
-                      />
-                      <span
-                        className="text-xs"
+                      </div>
+                      <div
+                        className="hidden md:block text-xs"
                         style={{ color: tk.textSecondary }}
                       >
-                        Active
+                        {new Date(u.joined_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </div>
+                      <div
+                        className="flex justify-end relative"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isAdmin && (
+                          <button
+                            onClick={(e) => {
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              if (window.innerHeight - rect.bottom < 200) {
+                                setMenuPos({ bottom: "100%", top: "auto" });
+                              } else {
+                                setMenuPos({ top: "100%", bottom: "auto" });
+                              }
+                              setOpenMenuId(
+                                openMenuId === u.user_id ? null : u.user_id,
+                              );
+                            }}
+                            className="p-1"
+                            style={{ color: tk.textMuted }}
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                        )}
+                        {openMenuId === u.user_id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-20"
+                              onClick={() => setOpenMenuId(null)}
+                            />
+                            <div
+                              className="absolute right-0 z-30 w-48 rounded-lg shadow-2xl border mt-2 mb-2"
+                              style={{
+                                ...menuPos,
+                                background: tk.surface,
+                                borderColor: tk.borderHover,
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  setConfirmAction({ type: "role", user: u });
+                                  setOpenMenuId(null);
+                                }}
+                                style={menuBtnStyle}
+                              >
+                                Change Role
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setConfirmAction({ type: "move", user: u });
+                                  setOpenMenuId(null);
+                                }}
+                                style={menuBtnStyle}
+                              >
+                                Move Team
+                              </button>
+                              <div
+                                className="h-px my-1"
+                                style={{ background: tk.border }}
+                              ></div>
+                              <button
+                                onClick={() => {
+                                  setConfirmAction({ type: "remove", user: u });
+                                  setOpenMenuId(null);
+                                }}
+                                style={{ ...menuBtnStyle, color: tk.primary }}
+                              >
+                                Remove Member
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {activeTab === "invites" && (
+            <div
+              className="rounded-xl border overflow-hidden"
+              style={{ background: tk.surface, borderColor: tk.border }}
+            >
+              <div
+                className="flex justify-between items-center p-4 border-b"
+                style={{ borderColor: tk.border }}
+              >
+                <h3 className="text-base font-bold">
+                  Pending Invitations & Links
+                </h3>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+                  style={{ background: tk.brand, color: "#fff" }}
+                >
+                  <Plus size={14} /> Invite User
+                </button>
+              </div>
+              {activeLinks.length === 0 ? (
+                <div
+                  className="p-10 text-center"
+                  style={{ color: tk.textMuted }}
+                >
+                  No pending invitations or active links. Click "Invite User" to
+                  add someone.
+                </div>
+              ) : (
+                activeLinks.map((invite) => (
+                  <div
+                    key={invite.id}
+                    className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 border-b last:border-0 text-sm items-center"
+                    style={{ borderColor: tk.border, color: tk.textSecondary }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {invite.type === "Link" ? (
+                        <LinkIcon size={16} color={tk.brandLight} />
+                      ) : (
+                        <Users size={16} color={tk.brandLight} />
+                      )}
+                      <span
+                        className="font-medium truncate"
+                        style={{ color: tk.textPrimary }}
+                      >
+                        {invite.invitee_name}
                       </span>
                     </div>
-                    <div
-                      className="hidden md:block text-xs"
-                      style={{ color: tk.textSecondary }}
-                    >
-                      {new Date(u.joined_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </div>
-                    <div
-                      className="flex justify-end relative"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {isAdmin && (
-                        <button
-                          onClick={(e) => {
-                            // FIX: Calculate if menu should open up or down
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            if (window.innerHeight - rect.bottom < 200) {
-                              setMenuPos({ bottom: "100%", top: "auto" });
-                            } else {
-                              setMenuPos({ top: "100%", bottom: "auto" });
-                            }
-                            setOpenMenuId(
-                              openMenuId === u.user_id ? null : u.user_id,
-                            );
-                          }}
-                          className="p-1"
-                          style={{ color: tk.textMuted }}
-                        >
-                          <MoreHorizontal size={18} />
-                        </button>
-                      )}
-                      {openMenuId === u.user_id && (
-                        <>
-                          <div className="fixed inset-0 z-20" onClick={() => setOpenMenuId(null)} />
-                          <div
-                            className="absolute right-0 z-30 w-48 rounded-lg shadow-2xl border mt-2 mb-2"
-                            style={{
-                              ...menuPos,
-                              background: tk.surface,
-                              borderColor: tk.borderHover,
-                            }}
-                          >
-                          <button
-                            onClick={() => {
-                              setConfirmAction({ type: "role", user: u });
-                              setOpenMenuId(null);
-                            }}
-                            style={menuBtnStyle}
-                          >
-                            Change Role
-                          </button>
-                          <button
-                            onClick={() => {
-                              setConfirmAction({ type: "move", user: u });
-                              setOpenMenuId(null);
-                            }}
-                            style={menuBtnStyle}
-                          >
-                            Move Team
-                          </button>
-                          <div
-                            className="h-px my-1"
-                            style={{ background: tk.border }}
-                          ></div>
-                          <button
-                            onClick={() => {
-                              setConfirmAction({ type: "remove", user: u });
-                              setOpenMenuId(null);
-                            }}
-                            style={{ ...menuBtnStyle, color: tk.primary }}
-                          >
-                            Remove Member
-                          </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {activeTab === "invites" && (
-          <div
-            className="rounded-xl border overflow-hidden"
-            style={{ background: tk.surface, borderColor: tk.border }}
-          >
-            <div
-              className="flex justify-between items-center p-4 border-b"
-              style={{ borderColor: tk.border }}
-            >
-              <h3 className="text-base font-bold">Pending Invitations & Links</h3>
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
-                style={{ background: tk.brand, color: "#fff" }}
-              >
-                <Plus size={14} /> Invite User
-              </button>
-            </div>
-            {activeLinks.length === 0 ? (
-              <div className="p-10 text-center" style={{ color: tk.textMuted }}>
-                No pending invitations or active links. Click "Invite User" to add someone.
-              </div>
-            ) : (
-              activeLinks.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 border-b last:border-0 text-sm items-center"
-                  style={{ borderColor: tk.border, color: tk.textSecondary }}
-                >
-                  <div className="flex items-center gap-2">
+                    <div className="capitalize">{invite.role}</div>
                     {invite.type === "Link" ? (
-                      <LinkIcon size={16} color={tk.brandLight} />
+                      <div>
+                        Uses: {invite.use_count}/
+                        {invite.max_uses === 0 ? "∞" : invite.max_uses}
+                      </div>
                     ) : (
-                      <Users size={16} color={tk.brandLight} />
+                      <div className="capitalize">{invite.status}</div>
                     )}
-                    <span className="font-medium truncate" style={{ color: tk.textPrimary }}>
-                      {invite.invitee_name}
-                    </span>
+                    <div
+                      className="font-semibold capitalize"
+                      style={{
+                        color: invite.is_valid ? tk.success : tk.textMuted,
+                      }}
+                    >
+                      {invite.type === "Link"
+                        ? invite.is_valid
+                          ? "Active"
+                          : "Expired"
+                        : invite.status === "pending"
+                          ? "Waiting"
+                          : invite.status}
+                    </div>
                   </div>
-                  <div className="capitalize">{invite.role}</div>
-                  {invite.type === "Link" ? (
-                    <div>Uses: {invite.use_count}/{invite.max_uses === 0 ? "∞" : invite.max_uses}</div>
-                  ) : (
-                    <div className="capitalize">{invite.status}</div>
-                  )}
-                  <div
-                    className="font-semibold capitalize"
-                    style={{ color: invite.is_valid ? tk.success : tk.textMuted }}
-                  >
-                    {invite.type === "Link" ? (invite.is_valid ? "Active" : "Expired") : (invite.status === "pending" ? "Waiting" : invite.status)}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1038,7 +1088,12 @@ const SummaryCard = ({
       >
         {label}
       </span>
-      <Icon size={18} style={{ color, opacity: 0.8 }} />
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}
+      >
+        <Icon size={16} style={{ color }} />
+      </div>
     </div>
     <div className="text-xl md:text-2xl font-bold">{value}</div>
   </div>

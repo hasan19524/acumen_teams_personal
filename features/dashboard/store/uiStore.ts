@@ -1,11 +1,2 @@
-import { create } from "zustand";
-
-interface UIState {
-  isProfileOpen: boolean;
-  setProfileOpen: (open: boolean) => void;
-}
-
-export const useUIStore = create<UIState>((set) => ({
-  isProfileOpen: false,
-  setProfileOpen: (open) => set({ isProfileOpen: open }),
-}));
+// Re-exports the single source of truth so old imports keep working.
+export { useUIStore } from "@/lib/stores/uiStore";

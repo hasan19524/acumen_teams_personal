@@ -17,15 +17,7 @@ import {
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 
-const tk = {
-  bg: "#081325",
-  surface: "#172440",
-  border: "#2A3A5C",
-  textPrimary: "#FFFFFF",
-  textSecondary: "#B7C0D8",
-  textMuted: "#7A86A7",
-  brandLight: "#5DADE2",
-};
+import { tk } from "@/lib/tokens";
 
 export default function WorkspaceProfilePage() {
   const { user } = useAuth();
@@ -42,10 +34,30 @@ export default function WorkspaceProfilePage() {
   const canManage = user?.role === "owner" || user?.role === "admin";
 
   const statCards = [
-    { label: "Total Members", value: stats?.total_members ?? 0, icon: Users, color: tk.brandLight },
-    { label: "Total Teams", value: stats?.total_teams ?? 0, icon: Building2, color: "#1FA463" },
-    { label: "Total Leaders", value: stats?.total_leaders ?? 0, icon: Shield, color: "#F5B041" },
-    { label: "Pending Invites", value: stats?.open_invites ?? 0, icon: Mail, color: "#E31E24" },
+    {
+      label: "Total Members",
+      value: stats?.total_members ?? 0,
+      icon: Users,
+      color: tk.brandLight,
+    },
+    {
+      label: "Total Teams",
+      value: stats?.total_teams ?? 0,
+      icon: Building2,
+      color: "var(--success)",
+    },
+    {
+      label: "Total Leaders",
+      value: stats?.total_leaders ?? 0,
+      icon: Shield,
+      color: "var(--warning)",
+    },
+    {
+      label: "Pending Invites",
+      value: stats?.open_invites ?? 0,
+      icon: Mail,
+      color: "var(--primary)",
+    },
   ];
 
   const infoItems = [
@@ -82,9 +94,9 @@ export default function WorkspaceProfilePage() {
       }}
     >
       <div className="w-full max-w-7xl mx-auto">
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => router.push("/dashboard")}
           className="mb-4 -ml-2"
         >
@@ -197,9 +209,7 @@ export default function WorkspaceProfilePage() {
                         >
                           {item.label}
                         </p>
-                        <p className="text-sm font-semibold">
-                          {item.value}
-                        </p>
+                        <p className="text-sm font-semibold">{item.value}</p>
                       </div>
                     </div>
                   ),

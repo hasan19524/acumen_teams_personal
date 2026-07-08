@@ -9,26 +9,7 @@ import {
   FileArchive,
   File as FileIcon,
 } from "lucide-react";
-
-// Universal Design Tokens
-export const tk = {
-  bg: "#081325",
-  bgSecondary: "#101D35",
-  surface: "#172440",
-  surfaceHover: "#20304E",
-  sidebar: "#0D1B3D",
-  primary: "#E31E24",
-  brand: "#4B1587",
-  brandLight: "#5DADE2",
-  success: "#1FA463",
-  warning: "#F5B041",
-  info: "#5DADE2",
-  textPrimary: "#E8ECF6",
-  textSecondary: "#B7C0D8",
-  textMuted: "#7A86A7",
-  border: "#2A3A5C",
-  borderHover: "#3A4D72",
-};
+import { tk } from "@/lib/tokens";
 
 export type Team = { id: number; name: string };
 export type Attachment = {
@@ -67,21 +48,21 @@ export type PriorityStyle = {
 export const getPriorityStyle = (p: string): PriorityStyle => {
   if (p === "urgent")
     return {
-      bg: "rgba(227, 30, 36, 0.15)",
-      color: "#FCA5A5",
+      bg: tk.tintDanger,
+      color: tk.priorityUrgentFg,
       label: "URGENT",
       icon: AlertTriangle,
     };
   if (p === "important")
     return {
-      bg: "rgba(245, 176, 65, 0.15)",
-      color: "#FDBA74",
+      bg: tk.tintAmber,
+      color: tk.priorityImportantFg,
       label: "IMPORTANT",
       icon: Pin,
     };
   return {
-    bg: "rgba(42, 58, 92, 0.5)",
-    color: "#94A3B8",
+    bg: "color-mix(in srgb, var(--text-muted) 15%, transparent)",
+    color: "var(--text-secondary)",
     label: "NORMAL",
     icon: null,
   };

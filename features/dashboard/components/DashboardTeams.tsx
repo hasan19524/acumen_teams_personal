@@ -59,7 +59,7 @@ export default function DashboardTeams({ loading, teams, onlineUsers }: any) {
                 style={{ background: tk.bg, border: `1px solid ${tk.border}` }}
               >
                 <div
-                  className="flex items-center justify-center text-white font-bold flex-shrink-0"
+                  className="flex items-center justify-center text-[var(--heading)] font-bold flex-shrink-0"
                   style={{
                     width: 40,
                     height: 40,

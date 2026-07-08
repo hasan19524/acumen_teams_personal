@@ -84,7 +84,7 @@ export default function PlatformSection() {
   return (
     <section
       id="platform"
-      className="w-full py-20 lg:py-28 relative bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden"
+      className="w-full py-20 lg:py-28 relative bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-[var(--heading)] overflow-hidden"
     >
       <div className="absolute inset-0 opacity-20">
         <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-blue-500 rounded-full blur-3xl" />
@@ -95,13 +95,17 @@ export default function PlatformSection() {
         <ScrollReveal>
           <div className="text-center mb-16 lg:mb-20">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full mb-6 border border-white/20">
-              <span className="text-sm font-semibold text-white/80">The Platform</span>
+              <span className="text-sm font-semibold text-[var(--heading)]/80">
+                The Platform
+              </span>
             </div>
             <h2 className="text-5xl sm:text-6xl font-bold mb-5">
               Five Pillars. One Platform.
             </h2>
             <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              Acumen Teams is not a collection of tools. It is a single, coherent platform built around five core areas that enterprises depend on.
+              Acumen Teams is not a collection of tools. It is a single,
+              coherent platform built around five core areas that enterprises
+              depend on.
             </p>
           </div>
         </ScrollReveal>
@@ -111,13 +115,22 @@ export default function PlatformSection() {
             <ScrollReveal key={i} delay={i * 90}>
               <div className="group relative h-full">
                 <div className="relative bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-white/25 p-7 h-full flex flex-col transition-all duration-300 group-hover:bg-white/10 group-hover:-translate-y-1.5">
-                  <div className={`w-8 h-1 rounded-full bg-gradient-to-r ${pillar.gradient} mb-5`} />
+                  <div
+                    className={`w-8 h-1 rounded-full bg-gradient-to-r ${pillar.gradient} mb-5`}
+                  />
                   <h3 className="text-lg font-bold mb-1.5">{pillar.title}</h3>
-                  <p className="text-xs text-slate-400 mb-5 leading-relaxed min-h-[32px]">{pillar.description}</p>
+                  <p className="text-xs text-slate-400 mb-5 leading-relaxed min-h-[32px]">
+                    {pillar.description}
+                  </p>
                   <ul className="space-y-2.5 flex-1">
                     {pillar.items.map((item, j) => (
-                      <li key={j} className="flex items-start gap-2.5 text-sm text-slate-300">
-                        <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${pillar.gradient} mt-1.5 flex-shrink-0`} />
+                      <li
+                        key={j}
+                        className="flex items-start gap-2.5 text-sm text-slate-300"
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${pillar.gradient} mt-1.5 flex-shrink-0`}
+                        />
                         <span>{item}</span>
                       </li>
                     ))}

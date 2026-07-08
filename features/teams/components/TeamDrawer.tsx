@@ -44,15 +44,15 @@ interface TeamDrawerProps {
 }
 
 const PRESET_COLORS = [
-  "#4B1587",
-  "#E31E24",
-  "#1FA463",
-  "#F5B041",
-  "#5DADE2",
-  "#0D1B3D",
+  "var(--brand)",
+  "var(--primary)",
+  "var(--success)",
+  "var(--warning)",
+  "var(--brand-light)",
+  "var(--sidebar)",
 ];
 const menuBtnStyle: string =
-  "flex items-center gap-2 px-3 py-2 bg-transparent border-none text-[#B7C0D8] text-[13px] w-full text-left cursor-pointer hover:bg-[#20304E]";
+  "flex items-center gap-2 px-3 py-2 bg-transparent border-none text-[var(--text-secondary)] text-[13px] w-full text-left cursor-pointer hover:bg-[var(--surface-hover)]";
 
 export function TeamDrawer({
   team,
@@ -114,23 +114,25 @@ export function TeamDrawer({
       onClick={onClose}
     >
       <div
-        className="w-full sm:w-[450px] h-screen bg-[#172440] border-l border-[#2A3A5C] p-6 overflow-y-auto"
+        className="w-full sm:w-[450px] h-screen bg-[var(--surface)] border-l border-[var(--border)] p-6 overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-8">
-          <h3 className="text-lg font-bold text-white">Team Details</h3>
+          <h3 className="text-lg font-bold text-[var(--heading)]">
+            Team Details
+          </h3>
           <div className="flex gap-3 items-center">
             {canManage && !isEditing && (
               <button
                 onClick={onEditClick}
-                className="bg-transparent border-none text-[#5DADE2] cursor-pointer text-sm font-semibold flex items-center gap-1"
+                className="bg-transparent border-none text-[var(--brand-light)] cursor-pointer text-sm font-semibold flex items-center gap-1"
               >
                 <Edit3 size={14} /> Edit
               </button>
             )}
             <button
               onClick={onClose}
-              className="bg-transparent border-none text-[#7A86A7] cursor-pointer p-1"
+              className="bg-transparent border-none text-[var(--text-muted)] cursor-pointer p-1"
             >
               <X size={20} />
             </button>
@@ -139,7 +141,7 @@ export function TeamDrawer({
 
         <div className="flex items-center gap-4 mb-8">
           <div
-            className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
+            className="w-14 h-14 rounded-xl flex items-center justify-center text-[var(--heading)] font-bold text-xl flex-shrink-0"
             style={{ background: isEditing ? editColor : team.color }}
           >
             {getInitials(isEditing ? editName : team.name)}
@@ -149,15 +151,15 @@ export function TeamDrawer({
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full p-2 rounded-md border border-[#2A3A5C] bg-[#081325] text-white text-lg font-bold mb-1"
+                className="w-full p-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--heading)] text-lg font-bold mb-1"
               />
             ) : (
-              <div className="text-xl font-bold text-white truncate">
+              <div className="text-xl font-bold text-[var(--heading)] truncate">
                 {team.name}
               </div>
             )}
-            <div className="text-xs text-[#7A86A7] flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold text-[#B7C0D8] bg-[#20304E] px-2 py-0.5 rounded">
+            <div className="text-xs text-[var(--text-muted)] flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)] bg-[var(--surface-hover)] px-2 py-0.5 rounded">
                 {team.leaders?.[0] || "No Leader"}
               </span>
               <span>•</span>
@@ -165,13 +167,13 @@ export function TeamDrawer({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setEditIsPrivate(false)}
-                    className={`flex items-center gap-1 font-semibold bg-none border-none cursor-pointer text-xs ${!editIsPrivate ? "text-[#5DADE2]" : "text-[#7A86A7]"}`}
+                    className={`flex items-center gap-1 font-semibold bg-none border-none cursor-pointer text-xs ${!editIsPrivate ? "text-[var(--brand-light)]" : "text-[var(--text-muted)]"}`}
                   >
                     <Globe size={12} /> Public
                   </button>
                   <button
                     onClick={() => setEditIsPrivate(true)}
-                    className={`flex items-center gap-1 font-semibold bg-none border-none cursor-pointer text-xs ${editIsPrivate ? "text-[#5DADE2]" : "text-[#7A86A7]"}`}
+                    className={`flex items-center gap-1 font-semibold bg-none border-none cursor-pointer text-xs ${editIsPrivate ? "text-[var(--brand-light)]" : "text-[var(--text-muted)]"}`}
                   >
                     <Lock size={12} /> Private
                   </button>
@@ -190,19 +192,19 @@ export function TeamDrawer({
           {isEditing ? (
             <>
               <div>
-                <label className="text-[11px] text-[#7A86A7] uppercase mb-1.5 block">
+                <label className="text-[11px] text-[var(--text-muted)] uppercase mb-1.5 block">
                   Description
                 </label>
                 <textarea
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   rows={3}
-                  className="w-full p-2 rounded-md border border-[#2A3A5C] bg-[#081325] text-white resize-y"
+                  className="w-full p-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--heading)] resize-y"
                   placeholder="What does this team do?"
                 ></textarea>
               </div>
               <div>
-                <label className="text-[11px] text-[#7A86A7] uppercase mb-1.5 block">
+                <label className="text-[11px] text-[var(--text-muted)] uppercase mb-1.5 block">
                   Team Color
                 </label>
                 <div className="flex gap-2 flex-wrap">
@@ -212,7 +214,7 @@ export function TeamDrawer({
                       onClick={() => setEditColor(c)}
                       className="w-7 h-7 rounded-md cursor-pointer transition-all"
                       style={{
-                        border: `2px solid ${editColor === c ? "#FFFFFF" : "transparent"}`,
+                        border: `2px solid ${editColor === c ? "var(--heading)" : "transparent"}`,
                         background: c,
                       }}
                     />
@@ -220,20 +222,21 @@ export function TeamDrawer({
                 </div>
               </div>
               <div>
-                <label className="text-[11px] text-[#7A86A7] uppercase mb-1.5 block">
+                <label className="text-[11px] text-[var(--text-muted)] uppercase mb-1.5 block">
                   Team Leadership
                 </label>
-                <div className="p-2 rounded-md border border-[#2A3A5C] bg-[#081325] text-[#7A86A7] text-xs">
-                  Use the "Promote to Leader" button in the member list below to assign leaders.
+                <div className="p-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text-muted)] text-xs">
+                  Use the "Promote to Leader" button in the member list below to
+                  assign leaders.
                 </div>
               </div>
             </>
           ) : (
-            <div className="p-4 bg-[#081325] rounded-lg border border-[#2A3A5C]">
-              <div className="text-[11px] text-[#7A86A7] uppercase mb-1">
+            <div className="p-4 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
+              <div className="text-[11px] text-[var(--text-muted)] uppercase mb-1">
                 Description
               </div>
-              <div className="text-sm text-[#B7C0D8] leading-relaxed">
+              <div className="text-sm text-[var(--text-secondary)] leading-relaxed">
                 {team.description || "No description provided."}
               </div>
             </div>
@@ -244,13 +247,13 @@ export function TeamDrawer({
           <div className="flex gap-2 mb-8">
             <button
               onClick={onCancelEdit}
-              className="flex-1 p-2.5 rounded-lg border border-[#2A3A5C] bg-transparent text-[#B7C0D8] cursor-pointer font-semibold"
+              className="flex-1 p-2.5 rounded-lg border border-[var(--border)] bg-transparent text-[var(--text-secondary)] cursor-pointer font-semibold"
             >
               Cancel
             </button>
             <button
               onClick={onSaveEdit}
-              className="flex-1 p-2.5 rounded-lg border-none bg-[#4B1587] text-white cursor-pointer font-semibold flex items-center justify-center gap-1"
+              className="flex-1 p-2.5 rounded-lg border-none bg-[var(--brand)] text-[var(--heading)] cursor-pointer font-semibold flex items-center justify-center gap-1"
             >
               <CheckCircle2 size={16} /> Save Changes
             </button>
@@ -259,13 +262,13 @@ export function TeamDrawer({
           <>
             <div className="mb-8">
               <div className="flex justify-between items-center mb-3">
-                <h4 className="text-sm font-semibold text-[#B7C0D8] uppercase">
+                <h4 className="text-sm font-semibold text-[var(--text-secondary)] uppercase">
                   Members ({members.length})
                 </h4>
                 {canManage && (
                   <button
                     onClick={onAddMemberClick}
-                    className="bg-none border-none text-[#5DADE2] cursor-pointer text-sm font-semibold flex items-center gap-1"
+                    className="bg-none border-none text-[var(--brand-light)] cursor-pointer text-sm font-semibold flex items-center gap-1"
                   >
                     <Plus size={14} /> Add Member
                   </button>
@@ -276,13 +279,13 @@ export function TeamDrawer({
                 <div className="relative mb-3">
                   <Search
                     size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A86A7]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
                   />
                   <input
                     value={memberSearch}
                     onChange={(e) => setMemberSearch(e.target.value)}
                     placeholder="Search members..."
-                    className="w-full p-2 pl-8 rounded-md border border-[#2A3A5C] bg-[#081325] text-white text-sm outline-none"
+                    className="w-full p-2 pl-8 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--heading)] text-sm outline-none"
                   />
                 </div>
               )}
@@ -302,7 +305,7 @@ export function TeamDrawer({
                   return (
                     <div
                       key={u.user_id}
-                      className="flex items-center gap-3 p-2 bg-[#081325] rounded-lg border border-[#2A3A5C]"
+                      className="flex items-center gap-3 p-2 bg-[var(--bg)] rounded-lg border border-[var(--border)]"
                     >
                       <div
                         className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
@@ -314,10 +317,10 @@ export function TeamDrawer({
                           size="sm"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-white truncate">
+                          <div className="text-sm font-semibold text-[var(--heading)] truncate">
                             {u.full_name || u.username}
                           </div>
-                          <div className="text-xs text-[#7A86A7]">
+                          <div className="text-xs text-[var(--text-muted)]">
                             @{u.username}
                           </div>
                         </div>
@@ -345,7 +348,7 @@ export function TeamDrawer({
                                 openMenuId === u.user_id ? null : u.user_id,
                               )
                             }
-                            className="bg-none border-none text-[#7A86A7] cursor-pointer p-1"
+                            className="bg-none border-none text-[var(--text-muted)] cursor-pointer p-1"
                           >
                             <MoreHorizontal size={18} />
                           </button>
@@ -355,7 +358,7 @@ export function TeamDrawer({
                                 className="fixed inset-0 z-[99]"
                                 onClick={() => setOpenMenuId(null)}
                               />
-                              <div className="absolute top-8 right-0 bg-[#172440] border border-[#2A3A5C] rounded-lg z-[100] w-48 shadow-2xl">
+                              <div className="absolute top-8 right-0 bg-[var(--surface)] border border-[var(--border)] rounded-lg z-[100] w-48 shadow-2xl">
                                 {!isUserLeader && (
                                   <button
                                     onClick={() => {
@@ -378,13 +381,13 @@ export function TeamDrawer({
                                     Demote from Leader
                                   </button>
                                 )}
-                                <div className="h-px bg-[#2A3A5C] my-1" />
+                                <div className="h-px bg-[var(--border)] my-1" />
                                 <button
                                   onClick={() => {
                                     onRemoveMember(u.user_id);
                                     setOpenMenuId(null);
                                   }}
-                                  className={`${menuBtnStyle} text-[#E31E24]`}
+                                  className={`${menuBtnStyle} text-[var(--primary)]`}
                                 >
                                   Remove from Team
                                 </button>
@@ -397,7 +400,7 @@ export function TeamDrawer({
                   );
                 })}
                 {filteredMembers.length === 0 && (
-                  <div className="p-4 text-center text-[#7A86A7] bg-[#081325] rounded-lg border border-[#2A3A5C]">
+                  <div className="p-4 text-center text-[var(--text-muted)] bg-[var(--bg)] rounded-lg border border-[var(--border)]">
                     No members found.
                   </div>
                 )}
@@ -405,14 +408,14 @@ export function TeamDrawer({
             </div>
 
             {isAdmin && (
-              <div className="border-t border-[#2A3A5C] pt-6">
+              <div className="border-t border-[var(--border)] pt-6">
                 <button
                   onClick={onDelete}
-                  className="w-full p-3 rounded-lg border border-[#E31E24]/30 bg-transparent text-[#E31E24] font-semibold cursor-pointer text-sm flex items-center justify-center gap-2 hover:bg-[#E31E24]/10"
+                  className="w-full p-3 rounded-lg border border-[var(--primary)]/30 bg-transparent text-[var(--primary)] font-semibold cursor-pointer text-sm flex items-center justify-center gap-2 hover:bg-[var(--primary)]/10"
                 >
                   <Trash2 size={16} /> Delete Team
                 </button>
-                <p className="text-[11px] text-[#7A86A7] text-center mt-2">
+                <p className="text-[11px] text-[var(--text-muted)] text-center mt-2">
                   Members will be automatically moved to "Unassigned".
                 </p>
               </div>

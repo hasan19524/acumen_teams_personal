@@ -289,27 +289,58 @@ def change_password(request):
     return Response({"message": "Password changed successfully."})
 
 
+def auto_clock_out_stale_entries(user):
+    """Automatically clocks out entries from previous days at 11:59:59 PM."""
+    from datetime import datetime, time
+    today = timezone.now().date()
+    
+    # Find any active entries from before today
+    stale_entries = ClockEntry.objects.filter(
+        user=user, 
+        clock_out__isnull=True, 
+        clock_in__date__lt=today
+    )
+    for entry in stale_entries:
+        # Clock out at 23:59:59 of the day they clocked in
+        clock_in_date = entry.clock_in.date()
+        end_of_day = timezone.make_aware(datetime.combine(clock_in_date, time(23, 59, 59)))
+        entry.clock_out = end_of_day
+        entry.save()
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def clock_status(request):
+    # 1. Clean up any entries from previous days that are still "active"
+    auto_clock_out_stale_entries(request.user)
+    
     today = timezone.now().date()
-    entries = ClockEntry.objects.filter(user=request.user, clock_in__date=today)
-    active_entry = entries.filter(clock_out__isnull=True).first()
-
+    
+    # 2. Check for an active entry TODAY
+    active_entry = ClockEntry.objects.filter(
+        user=request.user, clock_out__isnull=True
+    ).first()
+    
+    # 3. Calculate total seconds for TODAY only
+    today_entries = ClockEntry.objects.filter(user=request.user, clock_in__date=today)
     total_seconds = 0
-    for entry in entries:
+    for entry in today_entries:
         end_time = entry.clock_out if entry.clock_out else timezone.now()
         total_seconds += (end_time - entry.clock_in).total_seconds()
+
+    # 4. Get last clock in/out times for display
+    last_clock_in = today_entries.first().clock_in if today_entries.exists() else None
+    last_clock_out = None
+    if today_entries.exists():
+        last_clock_out_entry = today_entries.exclude(clock_out__isnull=True).first()
+        if last_clock_out_entry:
+            last_clock_out = last_clock_out_entry.clock_out
 
     return Response(
         {
             "is_clocked_in": bool(active_entry),
-            "last_clock_in": entries.first().clock_in if entries.exists() else None,
-            "last_clock_out": (
-                entries.exclude(clock_out__isnull=True).first().clock_out
-                if entries.exclude(clock_out__isnull=True).exists()
-                else None
-            ),
+            "last_clock_in": last_clock_in,
+            "last_clock_out": last_clock_out,
             "total_seconds_today": total_seconds,
         }
     )
@@ -318,6 +349,9 @@ def clock_status(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def clock_in(request):
+    # Auto clock out any stale entries from previous days first
+    auto_clock_out_stale_entries(request.user)
+    
     active = ClockEntry.objects.filter(
         user=request.user, clock_out__isnull=True
     ).first()

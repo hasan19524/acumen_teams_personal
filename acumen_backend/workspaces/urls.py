@@ -74,11 +74,7 @@ urlpatterns = [
         views.WorkspaceSettingsView.as_view(),
         name="workspace_settings",
     ),
-    path(
-        "<int:workspace_id>/teams/invite/<int:pk>/",
-        views.TeamInviteRespondView.as_view(),
-        name="team_invite_respond",
-    ),
+    # Team invite response route removed.
     path(
         "<int:workspace_id>/teams/<int:team_id>/leave/",
         views.LeaveTeamView.as_view(),

@@ -57,7 +57,14 @@ export function ChatInput({
   setReplyingTo,
   pendingFiles,
   setPendingFiles,
-  wsState, isReady, sending, onSend, onSendVoice, onGalleryOpen, showEmojiPicker, setShowEmojiPicker,
+  wsState,
+  isReady,
+  sending,
+  onSend,
+  onSendVoice,
+  onGalleryOpen,
+  showEmojiPicker,
+  setShowEmojiPicker,
   handleEmojiClick,
   onTyping,
   isDMPending = false,
@@ -644,10 +651,7 @@ export function ChatInput({
                     ? `Reply to ${replyingTo.sender?.username || "User"}...`
                     : "Message..."
               }
-              disabled={
-                (isDMPending && isDMReceiver) ||
-                isDisabled
-              }
+              disabled={(isDMPending && isDMReceiver) || isDisabled}
               style={{
                 flex: 1,
                 padding: "9px 14px",
@@ -747,7 +751,7 @@ export function ChatInput({
                   sending ||
                   (!isTemp && !isReady() && pendingFiles.length === 0) ||
                   isDisabled
-                    ? "#475569"
+                    ? T.disabled
                     : T.accent,
                 color: "#fff",
                 cursor:

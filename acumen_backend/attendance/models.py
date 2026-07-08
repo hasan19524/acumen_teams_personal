@@ -15,6 +15,9 @@ class WorkspaceAttendanceConfig(models.Model):
     grace_period_minutes = models.PositiveIntegerField(default=15)
     working_days = models.CharField(max_length=20, default="0,1,2,3,4")
     half_day_threshold = models.DurationField(default=timezone.timedelta(hours=4))
+    productivity_cycle_days = models.PositiveIntegerField(
+        default=14, help_text="Evaluation cycle in days (e.g., 7, 14, 30)"
+    )
 
     def is_working_day(self, date_obj):
         return str(date_obj.weekday()) in self.working_days.split(",")
@@ -30,6 +33,12 @@ class Attendance(models.Model):
         ("holiday", "Holiday"),
     ]
 
+    CLOCK_OUT_REASONS = [
+        ("MANUAL", "Manual"),
+        ("AUTO_SHIFT_END", "Auto Shift End"),
+        ("ADMIN", "Admin Override"),
+    ]
+
     workspace = models.ForeignKey(
         "workspaces.Workspace",
         on_delete=models.CASCADE,
@@ -42,6 +51,9 @@ class Attendance(models.Model):
     duration = models.DurationField(null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="absent")
+    clock_out_reason = models.CharField(
+        max_length=20, choices=CLOCK_OUT_REASONS, null=True, blank=True
+    )
     is_late = models.BooleanField(default=False)
     is_half_day = models.BooleanField(default=False)
 

@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, FileText, Paperclip, Pin, Loader2 } from "lucide-react";
-import { tk, Team, Announcement } from "../lib";
+import {Team, Announcement } from "../lib";
+import { tk } from "@/lib/tokens";
 
 interface AnnouncementModalProps {
   showModal: boolean;

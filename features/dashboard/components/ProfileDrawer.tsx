@@ -32,6 +32,8 @@ export default function ProfileDrawer() {
   const { user: currentUser } = useAuth();
   const { isProfileOpen, targetUser, closeProfile } = useProfileStore();
   const [fetchedUser, setFetchedUser] = useState<any>(null);
+  const [isImageEnlarged, setIsImageEnlarged] = useState(false);
+  const [showNoPfpToast, setShowNoPfpToast] = useState(false);
 
   const allTeams = useTeamStore((s) => s.teams);
 
@@ -208,7 +210,17 @@ export default function ProfileDrawer() {
             marginBottom: 24,
           }}
         >
-          <div style={{ position: "relative" }}>
+                    <div 
+            style={{ position: "relative", cursor: "pointer" }}
+            onClick={() => {
+              if (user?.profile_image) {
+                setIsImageEnlarged(true);
+              } else {
+                setShowNoPfpToast(true);
+                setTimeout(() => setShowNoPfpToast(false), 3000);
+              }
+            }}
+          >
             <Avatar
               src={user?.profile_image}
               name={
@@ -478,6 +490,72 @@ export default function ProfileDrawer() {
           </div>
         )}
       </div>
+
+      {/* Enlarged Image Lightbox (Circular) */}
+      {isImageEnlarged && user?.profile_image && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "zoom-out",
+            padding: 20,
+            flexDirection: "column",
+            gap: 20,
+          }}
+          onClick={() => setIsImageEnlarged(false)}
+        >
+          <div
+            style={{
+              width: 300,
+              height: 300,
+              borderRadius: "50%",
+              overflow: "hidden",
+              border: `4px solid ${tk.brandLight}`,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+              background: tk.bg,
+            }}
+          >
+            <img
+              src={user.profile_image}
+              alt="Enlarged Profile"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
+          </div>
+          {/* The close button has been removed. Clicking anywhere on the dark background closes the image. */}
+        </div>
+      )}
+
+      {/* No PFP Toast */}
+      {showNoPfpToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 30,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: tk.surfaceHover,
+            color: tk.textPrimary,
+            padding: "12px 24px",
+            borderRadius: 8,
+            border: `1px solid ${tk.border}`,
+            fontSize: 14,
+            fontWeight: 600,
+            zIndex: 300,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          }}
+        >
+          No profile picture present
+        </div>
+      )}
     </div>
   );
 }
