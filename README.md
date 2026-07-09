@@ -422,19 +422,6 @@ Contributions are welcome!
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 👨‍💻 Author
-
-**Areesh Jabbar**
-Building Acumen — a next-gen tech ecosystem 🚀
-
----
-
 colour system choosen
 /_ Background _/
 
